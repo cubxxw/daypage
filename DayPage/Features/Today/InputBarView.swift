@@ -1,12 +1,13 @@
 import SwiftUI
 import CoreLocation
 import PhotosUI
+import UIKit
 
 // MARK: - InputBarView
 
-/// Fixed bottom input bar for composing and submitting text/photo memos.
-/// Provides a multiline TextEditor, a location pin button, a camera/photo button, and a submit button.
-/// Auto-captures device info in YAML frontmatter on submit.
+/// Fixed bottom input bar for composing and submitting text/photo/voice/mixed memos.
+/// Provides a multiline TextEditor, a location pin button, a camera/photo button, a mic button,
+/// staged attachment preview cards (photo + voice), and a submit button.
 struct InputBarView: View {
 
     // MARK: Binding
@@ -29,14 +30,20 @@ struct InputBarView: View {
     /// Whether a photo is being processed.
     var isProcessingPhoto: Bool
 
+    /// Staged attachments waiting to be submitted (photo + voice).
+    var pendingAttachments: [PendingAttachment]
+
     /// Callback invoked when the user taps the location pin icon.
     var onFetchLocation: () -> Void
 
     /// Callback invoked when the user clears the pending location chip.
     var onClearLocation: () -> Void
 
-    /// Callback invoked when the user selects a photo from the picker.
-    var onSelectPhoto: (PhotosPickerItem) -> Void
+    /// Callback invoked when the user selects a photo from the picker (staged, not submitted).
+    var onAddPhoto: (PhotosPickerItem) -> Void
+
+    /// Callback invoked when the user removes a staged attachment.
+    var onRemoveAttachment: (String) -> Void
 
     /// Callback invoked when the user taps the microphone icon to start recording.
     var onStartVoiceRecording: () -> Void
@@ -57,6 +64,11 @@ struct InputBarView: View {
         VStack(spacing: 0) {
             Divider()
                 .background(DSColor.outline)
+
+            // Attachment preview cards (staged photos + voice recordings)
+            if !pendingAttachments.isEmpty {
+                attachmentPreviewRow
+            }
 
             // Location chip row (shown when a pending location exists)
             if let loc = pendingLocation {
@@ -107,13 +119,98 @@ struct InputBarView: View {
         // Wire PhotosPicker onChange to callback
         .onChange(of: selectedItem) { newItem in
             guard let item = newItem else { return }
-            onSelectPhoto(item)
+            onAddPhoto(item)
             // Reset picker selection so same item can be re-selected
             selectedItem = nil
         }
     }
 
     // MARK: - Subviews
+
+    /// Horizontal scrollable row of staged attachment preview cards.
+    @ViewBuilder
+    private var attachmentPreviewRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(pendingAttachments) { att in
+                    attachmentCard(att)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(DSColor.surfaceContainerLow)
+    }
+
+    /// Single attachment preview card with a remove button.
+    @ViewBuilder
+    private func attachmentCard(_ att: PendingAttachment) -> some View {
+        ZStack(alignment: .topTrailing) {
+            switch att {
+            case .photo(let result):
+                photoCard(result)
+            case .voice(let result):
+                voiceCard(result)
+            }
+
+            // Remove (X) button
+            Button(action: { onRemoveAttachment(att.id) }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(DSColor.onSurface)
+                    .background(
+                        Circle()
+                            .fill(DSColor.surfaceContainerHigh)
+                    )
+            }
+            .buttonStyle(.plain)
+            .offset(x: 6, y: -6)
+        }
+    }
+
+    /// Photo thumbnail card (64x64 pt).
+    @ViewBuilder
+    private func photoCard(_ result: PhotoPickerResult) -> some View {
+        let fileURL = VaultInitializer.vaultURL.appendingPathComponent(result.filePath)
+        let uiImage: UIImage? = {
+            guard let data = try? Data(contentsOf: fileURL) else { return nil }
+            return UIImage(data: data)
+        }()
+
+        Group {
+            if let img = uiImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Rectangle()
+                    .fill(DSColor.surfaceContainerHigh)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                    )
+            }
+        }
+        .frame(width: 64, height: 64)
+        .clipped()
+        .cornerRadius(0)
+    }
+
+    /// Voice memo preview card showing duration.
+    @ViewBuilder
+    private func voiceCard(_ result: VoiceRecordingResult) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 20))
+                .foregroundColor(DSColor.onSurfaceVariant)
+            Text(formatDuration(result.duration))
+                .monoLabelStyle(size: 9)
+                .foregroundColor(DSColor.onSurfaceVariant)
+        }
+        .frame(width: 64, height: 64)
+        .background(DSColor.surfaceContainerHigh)
+        .cornerRadius(0)
+    }
 
     /// Pin/map icon button. Shows a spinner during fetch, amber when location is attached.
     @ViewBuilder
@@ -174,12 +271,13 @@ struct InputBarView: View {
         }
     }
 
-    /// Arrow-up submit button.
+    /// Arrow-up submit button. Enabled when there is text or at least one staged attachment.
     @ViewBuilder
     private var submitButton: some View {
-        let isEmpty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasContent = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                         || !pendingAttachments.isEmpty
         Button(action: {
-            guard !isEmpty, !isSubmitting else { return }
+            guard hasContent, !isSubmitting else { return }
             onSubmit()
         }) {
             if isSubmitting {
@@ -190,12 +288,12 @@ struct InputBarView: View {
             } else {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(isEmpty ? DSColor.onSurfaceVariant : DSColor.onPrimary)
+                    .foregroundColor(hasContent ? DSColor.onPrimary : DSColor.onSurfaceVariant)
                     .frame(width: 44, height: 44)
-                    .background(isEmpty ? DSColor.surfaceContainerHigh : DSColor.primary)
+                    .background(hasContent ? DSColor.primary : DSColor.surfaceContainerHigh)
             }
         }
-        .disabled(isEmpty || isSubmitting)
+        .disabled(!hasContent || isSubmitting)
         .cornerRadius(0)
     }
 
@@ -236,5 +334,12 @@ struct InputBarView: View {
             return String(format: "%.4f, %.4f", lat, lng)
         }
         return "未知位置"
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        let m = total / 60
+        let s = total % 60
+        return String(format: "%02d:%02d", m, s)
     }
 }

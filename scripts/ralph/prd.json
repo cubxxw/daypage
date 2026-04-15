@@ -202,8 +202,8 @@
         "在模拟器验证混合提交"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented PendingAttachment enum (photo/voice cases with Identifiable id + Memo.Attachment conversion); TodayViewModel.pendingAttachments [@Published]; addPhotoAttachment() stages photo without submitting; addVoiceAttachment() stages voice after recording; removePendingAttachment(id:) removes by id; submitCombinedMemo(body:) merges text + all staged attachments into one Memo, auto-derives type (text|voice|photo|mixed), location from EXIF, and clears pendingAttachments on success; InputBarView extended with pendingAttachments param + attachmentPreviewRow (horizontal scroll, photoCard 64pt thumbnail, voiceCard MM:SS duration); onAddPhoto/onRemoveAttachment callbacks; submit button enabled when text OR attachments exist; TodayView voice recording sheet now calls addVoiceAttachment (not submitVoiceMemo); typecheck exit 0."
     },
     {
       "id": "US-010",

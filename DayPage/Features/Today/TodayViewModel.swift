@@ -4,6 +4,36 @@ import UIKit
 import CoreLocation
 import PhotosUI
 
+// MARK: - Pending Attachment
+
+/// Represents a staged attachment waiting to be included in the next submit.
+enum PendingAttachment: Identifiable {
+    case photo(PhotoPickerResult)
+    case voice(VoiceRecordingResult)
+
+    var id: String {
+        switch self {
+        case .photo(let r): return "photo-\(r.filePath)"
+        case .voice(let r): return "voice-\(r.filePath)"
+        }
+    }
+
+    var attachment: Memo.Attachment {
+        switch self {
+        case .photo(let r):
+            var exifParts: [String] = []
+            if let ap = r.exif?.aperture { exifParts.append("aperture=\(ap)") }
+            if let ss = r.exif?.shutterSpeed { exifParts.append("shutter=\(ss)") }
+            if let iso = r.exif?.iso { exifParts.append(iso) }
+            if let fl = r.exif?.focalLength { exifParts.append(fl) }
+            let exifSummary = exifParts.isEmpty ? nil : exifParts.joined(separator: " ")
+            return Memo.Attachment(file: r.filePath, kind: "photo", duration: nil, transcript: exifSummary)
+        case .voice(let r):
+            return Memo.Attachment(file: r.filePath, kind: "audio", duration: r.duration, transcript: r.transcript)
+        }
+    }
+}
+
 // MARK: - TodayViewModel
 
 /// Manages state for TodayView: loading today's memos, tracking compiled state.
@@ -45,6 +75,9 @@ final class TodayViewModel: ObservableObject {
     /// Pending photo results (can accumulate before submission, cleared after).
     @Published var pendingPhotos: [PhotoPickerResult] = []
 
+    /// Staged attachments (photo + voice) accumulated before the next submit.
+    @Published var pendingAttachments: [PendingAttachment] = []
+
     /// Whether the voice recording sheet is presented.
     @Published var isShowingVoiceRecorder: Bool = false
 
@@ -82,56 +115,13 @@ final class TodayViewModel: ObservableObject {
         isLoading = false
     }
 
-    // MARK: - Submit Text Memo
+    // MARK: - Add Photo Attachment (staged, not yet submitted)
 
-    /// Creates and persists a text memo from the given body string.
-    /// Automatically attaches timestamp, device info, pending location, and weather if available.
-    func submitTextMemo(body: String) {
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        isSubmitting = true
-        submitError = nil
-
-        let loc = pendingLocation
-
-        Task {
-            defer { isSubmitting = false }
-
-            // Fetch weather asynchronously; non-blocking — nil if unavailable
-            let weatherString = await weatherService.currentWeather(at: loc)
-
-            let memo = Memo(
-                type: .text,
-                created: Date(),
-                location: loc,
-                weather: weatherString,   // US-006: auto-attached weather
-                device: deviceDescription(),
-                attachments: [],
-                body: trimmed
-            )
-
-            do {
-                try RawStorage.append(memo)
-                // Insert at front (newest first)
-                memos.insert(memo, at: 0)
-                // Clear pending location after use
-                pendingLocation = nil
-            } catch {
-                submitError = "保存失败：\(error.localizedDescription)"
-            }
-        }
-    }
-
-    // MARK: - Submit Photo Memo
-
-    /// Processes a selected PhotosPickerItem, saves to vault/raw/assets/, and submits a photo memo.
-    /// The optional caption becomes the memo body.
-    func submitPhotoMemo(item: PhotosPickerItem, caption: String = "") {
+    /// Processes a selected PhotosPickerItem and stages it in pendingAttachments.
+    /// Does NOT submit a memo — user must tap the submit button.
+    func addPhotoAttachment(item: PhotosPickerItem) {
         isProcessingPhoto = true
         submitError = nil
-
-        let loc = pendingLocation
 
         Task {
             defer { isProcessingPhoto = false }
@@ -141,37 +131,13 @@ final class TodayViewModel: ObservableObject {
                 return
             }
 
-            // Build attachment from EXIF
-            let attachment = buildPhotoAttachment(from: result)
-
-            // Fetch weather non-blocking
-            let weatherString = await weatherService.currentWeather(at: loc)
-
-            // Derive location from EXIF GPS if no pending location
-            var memoLocation: Memo.Location? = loc
-            if memoLocation == nil, let lat = result.exif?.gpsLat, let lng = result.exif?.gpsLng {
-                memoLocation = Memo.Location(name: nil, lat: lat, lng: lng)
-            }
-
-            let trimmedCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
-            let memo = Memo(
-                type: .photo,
-                created: result.exif?.capturedAt ?? Date(),
-                location: memoLocation,
-                weather: weatherString,
-                device: deviceDescription(),
-                attachments: [attachment],
-                body: trimmedCaption
-            )
-
-            do {
-                try RawStorage.append(memo)
-                memos.insert(memo, at: 0)
-                pendingLocation = nil
-            } catch {
-                submitError = "照片 memo 保存失败：\(error.localizedDescription)"
-            }
+            pendingAttachments.append(.photo(result))
         }
+    }
+
+    /// Removes a staged attachment by id.
+    func removePendingAttachment(id: String) {
+        pendingAttachments.removeAll { $0.id == id }
     }
 
     /// Clears all pending photos without submitting.
@@ -179,53 +145,12 @@ final class TodayViewModel: ObservableObject {
         pendingPhotos = []
     }
 
-    // MARK: - Submit Voice Memo
+    // MARK: - Add Voice Attachment (staged)
 
-    /// Called after VoiceRecordingView finishes recording and transcription.
-    /// Attaches the audio file as an attachment, weather + location as metadata,
-    /// and the transcript as the memo body.
-    func submitVoiceMemo(result: VoiceRecordingResult, caption: String = "") {
-        isSubmitting = true
-        submitError = nil
-
-        let loc = pendingLocation
-
-        Task {
-            defer {
-                isSubmitting = false
-                voiceService.reset()
-            }
-
-            let weatherString = await weatherService.currentWeather(at: loc)
-
-            let trimmedCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
-            let body = trimmedCaption.isEmpty ? (result.transcript ?? "") : trimmedCaption
-
-            let attachment = Memo.Attachment(
-                file: result.filePath,
-                kind: "audio",
-                duration: result.duration,
-                transcript: result.transcript
-            )
-
-            let memo = Memo(
-                type: .voice,
-                created: Date(),
-                location: loc,
-                weather: weatherString,
-                device: deviceDescription(),
-                attachments: [attachment],
-                body: body
-            )
-
-            do {
-                try RawStorage.append(memo)
-                memos.insert(memo, at: 0)
-                pendingLocation = nil
-            } catch {
-                submitError = "语音 memo 保存失败：\(error.localizedDescription)"
-            }
-        }
+    /// Stages a completed voice recording result into pendingAttachments and resets the recorder.
+    func addVoiceAttachment(result: VoiceRecordingResult) {
+        pendingAttachments.append(.voice(result))
+        voiceService.reset()
     }
 
     /// Opens the voice recording sheet.
@@ -239,22 +164,93 @@ final class TodayViewModel: ObservableObject {
         isShowingVoiceRecorder = false
     }
 
-    // MARK: - Private Photo Helpers
+    // MARK: - Submit Combined Memo
 
-    private func buildPhotoAttachment(from result: PhotoPickerResult) -> Memo.Attachment {
-        var exifParts: [String] = []
-        if let ap = result.exif?.aperture { exifParts.append("aperture=\(ap)") }
-        if let ss = result.exif?.shutterSpeed { exifParts.append("shutter=\(ss)") }
-        if let iso = result.exif?.iso { exifParts.append(iso) }
-        if let fl = result.exif?.focalLength { exifParts.append(fl) }
-        // Encode EXIF summary as transcript field (reused for photo metadata in this schema)
-        let exifSummary = exifParts.isEmpty ? nil : exifParts.joined(separator: " ")
-        return Memo.Attachment(
-            file: result.filePath,
-            kind: "photo",
-            duration: nil,
-            transcript: exifSummary
-        )
+    /// Submits a memo combining the draft text with all staged pendingAttachments.
+    /// Determines type automatically: text | voice | photo | mixed.
+    func submitCombinedMemo(body: String) {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasText = !trimmed.isEmpty
+        let attachments = pendingAttachments
+        guard hasText || !attachments.isEmpty else { return }
+
+        isSubmitting = true
+        submitError = nil
+
+        let loc = pendingLocation
+        let snapshotAttachments = attachments
+
+        Task {
+            defer { isSubmitting = false }
+
+            let weatherString = await weatherService.currentWeather(at: loc)
+
+            // Derive location from first photo EXIF if no pending location
+            var memoLocation: Memo.Location? = loc
+            if memoLocation == nil {
+                for att in snapshotAttachments {
+                    if case .photo(let r) = att,
+                       let lat = r.exif?.gpsLat,
+                       let lng = r.exif?.gpsLng {
+                        memoLocation = Memo.Location(name: nil, lat: lat, lng: lng)
+                        break
+                    }
+                }
+            }
+
+            // Determine created date: prefer first photo EXIF date when text is absent
+            var created = Date()
+            if !hasText, case .photo(let r) = snapshotAttachments.first,
+               let exifDate = r.exif?.capturedAt {
+                created = exifDate
+            }
+
+            // Build Memo.Attachment array
+            let memoAttachments = snapshotAttachments.map { $0.attachment }
+
+            // Determine type
+            let hasPhotos = snapshotAttachments.contains { if case .photo = $0 { return true }; return false }
+            let hasVoice  = snapshotAttachments.contains { if case .voice = $0 { return true }; return false }
+            let memoType: Memo.MemoType
+            let typeCount = (hasText ? 1 : 0) + (hasPhotos ? 1 : 0) + (hasVoice ? 1 : 0)
+            if typeCount > 1 {
+                memoType = .mixed
+            } else if hasPhotos {
+                memoType = .photo
+            } else if hasVoice {
+                memoType = .voice
+            } else {
+                memoType = .text
+            }
+
+            // For voice-only memo body: use transcript when no explicit text
+            let finalBody: String
+            if !hasText, hasVoice, memoAttachments.count == 1,
+               let tr = memoAttachments.first?.transcript {
+                finalBody = tr
+            } else {
+                finalBody = trimmed
+            }
+
+            let memo = Memo(
+                type: memoType,
+                created: created,
+                location: memoLocation,
+                weather: weatherString,
+                device: deviceDescription(),
+                attachments: memoAttachments,
+                body: finalBody
+            )
+
+            do {
+                try RawStorage.append(memo)
+                memos.insert(memo, at: 0)
+                pendingLocation = nil
+                pendingAttachments = []
+            } catch {
+                submitError = "保存失败：\(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: - Fetch Location

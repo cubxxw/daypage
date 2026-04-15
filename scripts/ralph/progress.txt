@@ -369,3 +369,44 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - SwiftUI `.sheet` + `.presentationDetents([.medium])` 实现原生半屏底部弹出（iOS 16+），无需自定义 overlay
   - VoiceService 中 `nonisolated` 标注 AVAudioRecorderDelegate 方法是正确做法（委托回调在非 MainActor 线程），内部通过 `Task { @MainActor in }` 更新状态
 ---
+
+## 2026-04-15 - US-007
+- What was implemented:
+  - `PendingAttachment` enum（新建，位于 TodayViewModel.swift 顶部）：
+    - `.photo(PhotoPickerResult)` 和 `.voice(VoiceRecordingResult)` 两种 case
+    - `Identifiable` 通过 `id` 计算属性（"photo-\(filePath)" / "voice-\(filePath)"）
+    - `attachment` 计算属性将 case 转换为 `Memo.Attachment`（photo EXIF→transcript, voice duration+transcript）
+  - `TodayViewModel`：
+    - 新增 `@Published var pendingAttachments: [PendingAttachment] = []`
+    - `addPhotoAttachment(item:)` — 异步处理照片后 append 到 pendingAttachments（不再直接提交）
+    - `addVoiceAttachment(result:)` — 录音完成后 append 到 pendingAttachments + reset VoiceService
+    - `removePendingAttachment(id:)` — 按 id 从 pendingAttachments 移除
+    - `submitCombinedMemo(body:)` — 合并文字 + 所有 pendingAttachments，自动推断 type（text/voice/photo/mixed），从 EXIF 衍生位置，成功后清空 pendingAttachments
+    - 移除已不需要的 `submitTextMemo()`、`buildPhotoAttachment()` 私有方法
+  - `InputBarView`：
+    - 添加 `pendingAttachments: [PendingAttachment]` 参数
+    - 添加 `onAddPhoto: (PhotosPickerItem) -> Void` 替代旧 `onSelectPhoto`
+    - 添加 `onRemoveAttachment: (String) -> Void` 回调
+    - `attachmentPreviewRow`：水平滚动行，ForEach pendingAttachments 渲染预览卡片
+    - `photoCard()`：64×64pt 缩略图，使用 `UIImage(data:)` 从磁盘加载
+    - `voiceCard()`：64×64pt 灰底卡片，显示 mic 图标 + MM:SS 时长
+    - `submitButton` 可用条件：`hasContent = !text.isEmpty || !pendingAttachments.isEmpty`
+    - 添加 `import UIKit`
+  - `TodayView`：
+    - 语音录制 sheet `onComplete` 改为 `viewModel.addVoiceAttachment(result:)`（原来是 submitVoiceMemo）
+    - `onSelectPhoto` → `onAddPhoto`，移除 `draftText = ""`（照片不再立即提交）
+    - 传入 `pendingAttachments: viewModel.pendingAttachments` 和 `onRemoveAttachment`
+    - `onSubmit` 改为调用 `viewModel.submitCombinedMemo(body: body)`
+- Files changed:
+  - DayPage/Features/Today/TodayViewModel.swift（更新）
+  - DayPage/Features/Today/InputBarView.swift（更新）
+  - DayPage/Features/Today/TodayView.swift（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - 混合 memo 的关键设计：将"暂存附件"和"提交"分离 — addPhotoAttachment/addVoiceAttachment 只 stage，submitCombinedMemo 统一提交
+  - PendingAttachment enum 是理想的 staging 层抽象；放在 ViewModel 文件顶部（同一文件内 enum）避免新增文件和 pbxproj 修改
+  - 附件预览行使用横向 ScrollView + ForEach，每个卡片固定 64×64pt，符合 brutalist 设计的方正风格
+  - voiceCard 不需要加载文件，只展示 duration + 图标，轻量且无 I/O
+  - photoCard 从磁盘加载缩略图：UIImage(data:) 足够（文件已在本地，无需 CGImageSource 额外优化）
+  - submit 按钮可用条件扩展为 hasText || !pendingAttachments.isEmpty，location 不算独立 attachment（仍作为元数据）
+---

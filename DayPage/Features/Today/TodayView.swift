@@ -98,15 +98,18 @@ struct TodayView: View {
                         pendingLocation: viewModel.pendingLocation,
                         locationAuthStatus: LocationService.shared.authorizationStatus,
                         isProcessingPhoto: viewModel.isProcessingPhoto,
+                        pendingAttachments: viewModel.pendingAttachments,
                         onFetchLocation: {
                             viewModel.fetchLocation()
                         },
                         onClearLocation: {
                             viewModel.clearPendingLocation()
                         },
-                        onSelectPhoto: { item in
-                            viewModel.submitPhotoMemo(item: item, caption: draftText)
-                            draftText = ""
+                        onAddPhoto: { item in
+                            viewModel.addPhotoAttachment(item: item)
+                        },
+                        onRemoveAttachment: { id in
+                            viewModel.removePendingAttachment(id: id)
                         },
                         onStartVoiceRecording: {
                             viewModel.startVoiceRecording()
@@ -114,7 +117,7 @@ struct TodayView: View {
                         onSubmit: {
                             let body = draftText
                             draftText = ""
-                            viewModel.submitTextMemo(body: body)
+                            viewModel.submitCombinedMemo(body: body)
                         }
                     )
                 }
@@ -143,12 +146,12 @@ struct TodayView: View {
             }
             .animation(.easeInOut(duration: 0.25), value: viewModel.submitError)
             // Voice recording half-screen sheet
+            // On complete: stage the recording as a pending attachment; user submits manually.
             .sheet(isPresented: $viewModel.isShowingVoiceRecorder) {
                 VoiceRecordingView(
                     onComplete: { result in
                         viewModel.isShowingVoiceRecorder = false
-                        viewModel.submitVoiceMemo(result: result, caption: draftText)
-                        draftText = ""
+                        viewModel.addVoiceAttachment(result: result)
                     },
                     onCancel: {
                         viewModel.cancelVoiceRecording()
