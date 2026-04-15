@@ -75,7 +75,7 @@
       "acceptanceCriteria": [
         "SwiftUI TabView 实现三 Tab：Today、Archive、Graph",
         "Today 和 Archive 可点击切换",
-        "Graph Tab 显示为灰色，点击后显示"敬请期待"占位页（不崩溃）",
+        "Graph Tab 显示为灰色，点击后显示「敬请期待」占位页（不崩溃）",
         "Tab 切换保持各自栈的浏览状态",
         "Typecheck / SwiftLint 通过",
         "在模拟器中验证 Tab 切换"
@@ -92,7 +92,7 @@
         "主屏上方 75% 区域为时间轴，按 created 字段倒序显示当日 memo 卡片",
         "每条 memo 卡片显示：时间（HH:mm）、内容预览（截断后可展开）、位置标签",
         "时间轴顶部：若当日 Daily Page 已编译，显示入口卡片（带摘要副标题）",
-        "未编译时显示"今日还未编译"的占位提示，附"立即编译"按钮",
+        "未编译时显示「今日还未编译」的占位提示，附「立即编译」按钮",
         "滚动流畅，长内容自动截断，点击卡片展开完整内容",
         "Typecheck / SwiftLint 通过",
         "在模拟器中验证时间轴渲染与滚动"
@@ -124,7 +124,7 @@
       "description": "作为用户，我希望一键标记当前位置，自动获取可读地名（如 Joma Coffee, Setthathirath Rd）。",
       "acceptanceCriteria": [
         "点击地图图标触发 iOS 原生 CLLocationManager 获取当前坐标",
-        "首次使用请求"使用 App 期间"定位权限，被拒绝时显示明确引导",
+        "首次使用请求「使用 App 期间」定位权限，被拒绝时显示明确引导",
         "使用 iOS 原生 CLGeocoder 做反向地理编码",
         "地名解析结果填入 frontmatter location.name，经纬度填入 location.lat/lng",
         "位置采集在 3 秒内完成，超时降级为仅坐标无地名",
@@ -157,7 +157,7 @@
       "title": "统一输入栏 — 照片采集",
       "description": "作为用户，我希望能快速拍照或从相册选照片，附带可选文字说明作为一条 memo。",
       "acceptanceCriteria": [
-        "点击相机图标弹出 ActionSheet，提供"拍照"和"从相册选择"两个选项",
+        "点击相机图标弹出 ActionSheet，提供「拍照」和「从相册选择」两个选项",
         "使用 PHPickerViewController 或 UIImagePickerController 实现",
         "照片原图（保留 EXIF）保存到 vault/raw/assets/IMG_YYYYMMDD_HHMMSS.jpg，不做压缩不去色",
         "提取 EXIF：光圈、快门、ISO、焦距、GPS（若有）、拍摄时间，写入 frontmatter attachments 字段",
@@ -181,7 +181,7 @@
         "停止录音后音频保存为 vault/raw/assets/voice_YYYYMMDD_HHMMSS.m4a（AAC 编码）",
         "调用 OpenAI Whisper API 转写音频，使用 Secrets.openAIWhisperApiKey",
         "转写结果作为 memo 正文，原始音频作为 attachment 附加在 frontmatter 中（含 duration、file 路径、transcript 全文）",
-        "网络失败时音频仍完整保存，转写字段为空并显示"稍后重试"提示",
+        "网络失败时音频仍完整保存，转写字段为空并显示「稍后重试」提示",
         "Typecheck / SwiftLint 通过",
         "在模拟器中验证录音界面（实际录音需真机）"
       ],
@@ -261,8 +261,8 @@
       "title": "手动触发编译",
       "description": "作为用户，我希望能随时点击按钮立即编译今天已有的 memo，不必等到凌晨。",
       "acceptanceCriteria": [
-        "Today Flow 顶部"立即编译"按钮，点击后进入 loading 状态",
-        "编译期间禁用按钮，显示进度提示（"正在编译 N 条 memo..."）",
+        "Today Flow 顶部「立即编译」按钮，点击后进入 loading 状态",
+        "编译期间禁用按钮，显示进度提示（「正在编译 N 条 memo...」）",
         "编译成功后时间轴顶部出现 Daily Page 入口卡片",
         "编译失败弹出错误 toast（网络、API Key 缺失、LLM 返回格式错误分别有不同文案）",
         "Typecheck / SwiftLint 通过",
@@ -279,7 +279,7 @@
       "acceptanceCriteria": [
         "使用 iOS BGAppRefreshTask（BackgroundTasks 框架）注册每日后台任务",
         "后台任务触发时检查：前一天 raw 文件存在且 Daily Page 尚未生成 → 执行编译",
-        "编译完成后发送本地通知："昨天的 Daily Page 已编译完成"",
+        "编译完成后发送本地通知：「昨天的 Daily Page 已编译完成」",
         "若后台任务未被系统调度，下次 App 启动时检查并补充编译",
         "编译期间失败不重试（下次 App 启动时再判断）",
         "Typecheck / SwiftLint 通过"
@@ -316,8 +316,8 @@
       "acceptanceCriteria": [
         "渲染 wiki/places/*.md、wiki/people/*.md、wiki/themes/*.md",
         "Markdown 原生渲染 + 内嵌 [[链接]] 跳转",
-        "页面底部显示"相关 memo"列表（按时间倒序），点击跳转对应日期的 Flow 视图",
-        "不存在的 wiki 链接点击后显示"该实体页尚未生成"提示",
+        "页面底部显示「相关 memo」列表（按时间倒序），点击跳转对应日期的 Flow 视图",
+        "不存在的 wiki 链接点击后显示「该实体页尚未生成」提示",
         "Typecheck / SwiftLint 通过"
       ],
       "priority": 19,
