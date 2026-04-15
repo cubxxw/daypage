@@ -98,8 +98,8 @@
         "在模拟器中验证时间轴渲染与滚动"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented TodayViewModel.swift (@MainActor ObservableObject, loads memos via RawStorage, checks Daily Page compiled status); MemoCardView.swift (card with TimeChip, type label, body preview with expand/collapse, location tag, left border by memo type); DailyPageEntryCard and CompilePromptCard helper views; TodayView.swift updated with ScrollView timeline (top 75%), Daily Page entry or compile prompt card, reverse-chronological memo list, loading/error states, .onAppear load trigger; registered A20000013/A10000013 + A20000014/A10000014 in project.pbxproj; typecheck exit 0."
     },
     {
       "id": "US-002",

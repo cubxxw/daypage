@@ -123,3 +123,54 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - `ISO8601DateFormatter.memo` 使用 withFractionalSeconds 保证 Date 往返精度，不带毫秒的字符串解析会返回 nil
   - 单元测试以独立 Swift 脚本（xcrun swift xxx.swift）形式运行，不需要 XCTest target
 ---
+
+## 2026-04-15 - US-008
+- What was implemented:
+  - `DayPage/Features/Today/TodayViewModel.swift`：
+    - `@MainActor` ObservableObject，管理 memos（倒序）、isDailyPageCompiled、dailyPageSummary、isLoading、errorMessage
+    - `load()`：通过 `RawStorage.read(for:)` 加载当日 memo，sorted 倒序；`checkDailyPage()` 检测 wiki/daily/YYYY-MM-DD.md 是否存在并提取 summary 字段
+    - `compile()` 占位方法（US-014/US-010 实现）
+  - `DayPage/Features/Today/MemoCardView.swift`：
+    - `MemoCardView`：时间 TimeChip + type 图标标签 + body（展开/收起，≥4行或≥200字符显示按钮）+ 位置标签；左侧 3px 彩色边框（text=black, voice=gray, photo=secondary, location=tertiary, mixed=amber）
+    - `DailyPageEntryCard`：已编译时显示在时间轴顶部，含摘要副标题和 > 箭头
+    - `CompilePromptCard`：未编译时显示，有"立即编译"按钮（memo>0时）
+  - `DayPage/Features/Today/TodayView.swift`：
+    - ScrollView 时间轴占 75% 高度（GeometryReader）
+    - 顶部：DailyPageEntryCard 或 CompilePromptCard
+    - 下方：ForEach memos 渲染 MemoCardView（倒序）
+    - 空状态、加载中、错误提示
+    - `.onAppear` 触发 `viewModel.load()`
+  - `DayPage.xcodeproj/project.pbxproj`：注册 TodayViewModel.swift（A20000013/A10000013）、MemoCardView.swift（A20000014/A10000014）到 Today group 和 Sources build phase
+- Files changed:
+  - DayPage/Features/Today/TodayViewModel.swift（新建）
+  - DayPage/Features/Today/MemoCardView.swift（新建）
+  - DayPage/Features/Today/TodayView.swift（更新）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - `@MainActor` + `ObservableObject` 是本项目 ViewModel 模式：属性标 `@Published`，视图用 `@StateObject` 持有
+  - `GeometryReader` + `.frame(minHeight: geo.size.height * 0.75)` 是约束 ScrollView 内容最小高度为屏幕75%的做法
+  - Daily Page 文件路径：`VaultInitializer.vaultURL/wiki/daily/YYYY-MM-DD.md`；summary 字段在 frontmatter 中
+  - 注意 compile() 是占位方法，US-014 实现后替换
+---
+
+## 2026-04-15 - US-019
+- What was implemented:
+  - `DayPage/Features/Today/TodayView.swift`：Today Tab 占位视图，含 Header（TODAY 标题 + 日期）、滚动区域（"今日还未编译"提示）、底部输入栏占位区域
+  - `DayPage/Features/Archive/ArchiveView.swift`：Archive Tab 占位视图，含 Header（ARCHIVE 标题）+ 大字占位
+  - `DayPage/Features/Graph/GraphView.swift`：Graph Tab 占位视图，显示 "GRAPH" 大字 + "敬请期待"文字，TabView 中 `.disabled(true)` 使图标灰置
+  - `DayPage/App/RootView.swift`：替换原始 `Text("DayPage")` 为三 Tab 的 `TabView`；Graph tab `.disabled(true)`；通过 `UITabBarAppearance` 设置 tab bar 背景色为设计系统 surface 色
+  - `DayPage.xcodeproj/project.pbxproj`：注册三个新文件（A20000010-12 / A10000010-12）；新增 Graph group（A50000014）并加入 Features group children；Today/Archive/Graph group 各自填入对应文件
+- Files changed:
+  - DayPage/Features/Today/TodayView.swift（新建）
+  - DayPage/Features/Archive/ArchiveView.swift（新建）
+  - DayPage/Features/Graph/GraphView.swift（新建）
+  - DayPage/App/RootView.swift（更新）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - SwiftUI `TabView` 中 `.disabled(true)` 修饰符可使 Tab 图标变灰且不可交互，但 Tab 内容视图仍正常渲染（不会崩溃）
+  - `UITabBarAppearance` 需在 `.onAppear` 中通过 `UITabBar.appearance()` 设置，同时设置 `standardAppearance` 和 `scrollEdgeAppearance` 才能覆盖所有滚动状态下的外观
+  - 新 Features 子目录（如 Graph/）需要同时在 pbxproj 中添加对应 PBXGroup（有 path 属性）并将其加入父 group 的 children 数组
+  - NavigationStack + `.navigationBarHidden(true)` 是本项目隐藏系统导航栏的方式，各 Tab 自行管理其导航栈
+---
