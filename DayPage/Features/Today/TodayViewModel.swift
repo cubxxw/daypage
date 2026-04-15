@@ -72,6 +72,9 @@ final class TodayViewModel: ObservableObject {
     /// Whether a photo picker selection is being processed.
     @Published var isProcessingPhoto: Bool = false
 
+    /// Whether AI compilation is in progress.
+    @Published var isCompiling: Bool = false
+
     /// Pending photo results (can accumulate before submission, cleared after).
     @Published var pendingPhotos: [PhotoPickerResult] = []
 
@@ -88,6 +91,7 @@ final class TodayViewModel: ObservableObject {
     private let weatherService = WeatherService.shared
     private let photoService = PhotoService.shared
     private let voiceService = VoiceService.shared
+    private let compilationService = CompilationService.shared
 
     // MARK: Init
 
@@ -289,11 +293,27 @@ final class TodayViewModel: ObservableObject {
         pendingLocation = nil
     }
 
-    // MARK: - Compile Trigger (placeholder)
+    // MARK: - Compile Trigger
 
-    /// Triggers manual compilation (placeholder until US-014 is implemented).
+    /// Triggers manual AI compilation for today's memos.
+    /// Sets isCompiling during the operation and updates isDailyPageCompiled on success.
     func compile() {
-        // Implemented in US-014 / US-010.
+        guard !isCompiling else { return }
+        isCompiling = true
+        submitError = nil
+
+        Task {
+            defer { isCompiling = false }
+            do {
+                try await compilationService.compile(for: date, trigger: "manual")
+                // Refresh daily page status after successful compile
+                checkDailyPage()
+            } catch let error as CompilationError {
+                submitError = error.errorDescription ?? "编译失败，请重试"
+            } catch {
+                submitError = "编译失败：\(error.localizedDescription)"
+            }
+        }
     }
 
     // MARK: - Private Helpers

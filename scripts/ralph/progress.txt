@@ -410,3 +410,35 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - photoCard 从磁盘加载缩略图：UIImage(data:) 足够（文件已在本地，无需 CGImageSource 额外优化）
   - submit 按钮可用条件扩展为 hasText || !pendingAttachments.isEmpty，location 不算独立 attachment（仍作为元数据）
 ---
+
+## 2026-04-15 - US-010
+- What was implemented:
+  - `DayPage/Services/CompilationService.swift`:
+    - `@MainActor` singleton with `compile(for:trigger:)` async function
+    - Reads `vault/raw/YYYY-MM-DD.md` (all raw memos) and `vault/wiki/hot.md` (short-term context)
+    - Builds structured LLM prompt requesting Daily Page in Markdown format
+    - Calls DashScope `/v1/chat/completions` with OpenAI-compatible protocol
+      (model, max_tokens, temperature all from Secrets / fallback defaults)
+    - Backs up existing daily page to `vault/wiki/daily/.trash/YYYY-MM-DD_TIMESTAMP.md` before overwrite
+    - Writes compiled output atomically to `vault/wiki/daily/YYYY-MM-DD.md` via `RawStorage.atomicWrite`
+    - Appends compilation row to `vault/wiki/log.md`
+    - `CompilationError` enum with per-case `errorDescription` (missingApiKey / invalidURL / networkError / apiError / parseError / fileSystemError)
+  - `DayPage/Features/Today/TodayViewModel.swift`:
+    - Added `@Published var isCompiling: Bool = false`
+    - Added `private let compilationService = CompilationService.shared`
+    - Replaced placeholder `compile()` with real async `Task {}` that calls `compilationService.compile(for:trigger:)`, sets `isCompiling`, refreshes `checkDailyPage()` on success, maps `CompilationError` to `submitError`
+  - `DayPage.xcodeproj/project.pbxproj`:
+    - PBXBuildFile A10000021, PBXFileReference A20000021 registered
+    - Added to Services group children and Sources build phase
+- Files changed:
+  - DayPage/Services/CompilationService.swift (新建)
+  - DayPage/Features/Today/TodayViewModel.swift (更新 compile())
+  - DayPage.xcodeproj/project.pbxproj (更新)
+  - scripts/ralph/prd.json (passes: true)
+- **Learnings for future iterations:**
+  - DashScope API 使用 OpenAI 兼容接口协议：URL 格式为 `{DASHSCOPE_BASE_URL}/chat/completions`，Authorization header 为 `Bearer {key}`
+  - 编译 Service 的错误需要区分"API Key 缺失"、"401 认证失败"、"429 限流"、"解析失败"等类型，UI 层显示不同文案
+  - 备份目录（.trash）需在写入前检查存在性并创建；.trash 目录以点开头，iOS 文件系统支持但 Finder 默认隐藏
+  - `RawStorage.atomicWrite(string:to:)` 是项目统一原子写入入口，所有文件写入都应复用它
+  - `CompilationService` 不更新 hot.md 和 Entity Pages（分别是 US-012 和 US-011 的职责），本次只完成 Daily Page 生成
+---

@@ -221,8 +221,8 @@
         "在模拟器中用真实 memo 数据走通一次完整编译"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented CompilationService.swift (@MainActor singleton; reads vault/raw/YYYY-MM-DD.md + wiki/hot.md; calls DashScope /v1/chat/completions with OpenAI-compatible protocol; backs up existing daily page to wiki/daily/.trash/YYYY-MM-DD_TIMESTAMP.md; writes compiled output to wiki/wiki/daily/YYYY-MM-DD.md via RawStorage.atomicWrite; appends row to wiki/log.md; graceful error handling per CompilationError enum); TodayViewModel.compile() updated to call CompilationService.shared.compile(for:trigger:) with isCompiling published state and per-error-type submitError messages; CompilationService registered A20000021/A10000021 in project.pbxproj Services group and Sources build phase; typecheck exit 0."
     },
     {
       "id": "US-011",
