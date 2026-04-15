@@ -475,3 +475,25 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - wiki/index.md 的条目格式为 `[[wiki/type/slug|DisplayName]]`（含路径前缀），便于未来 Graph 视图解析
   - `apply()` 只对 newly created entities 更新 index（不重复添加已存在 slug），但不做重复检测（同一天多次编译可能重复追加）；可在未来加 duplicate check
 ---
+
+## 2026-04-15 - US-012
+- What was implemented:
+  - `DayPage/Services/CompilationService.swift`（更新）：
+    - `buildPrompt()` 在 JSON 输出要求中新增 `hot_cache` 字段，要求 LLM 生成约 500 字中文短期记忆摘要
+    - `parseStructuredOutputWithHot()` 私有方法：复用 `EntityPageService.parseStructuredOutput()` 解析 daily_page + entity_updates，同时从同一 JSON 块提取 `hot_cache` 字段
+    - `extractHotCacheFromJSON()` 私有方法：从 LLM 响应中提取 hot_cache 字符串（支持 ```json 围栏块和裸 JSON）
+    - `updateHotCache(summary:compiledDate:)` 私有方法：
+      - 读取现有 hot.md 中的 covers_dates 列表（parseCoversDates()）
+      - 追加当天日期，保留最近 7 天，避免无限增长
+      - 用 updated_at + covers_dates frontmatter + 新摘要内容覆盖写入 vault/wiki/hot.md
+    - `parseCoversDates()` 私有方法：解析 hot.md frontmatter 中的 YAML 序列 covers_dates
+    - `compile()` 第 8 步改为调用 `updateHotCache()`，原日志追加移至第 9 步
+- Files changed:
+  - DayPage/Services/CompilationService.swift（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - 同一 LLM 调用可在 JSON 输出中同时返回多个字段（daily_page / entity_updates / hot_cache），避免额外的 API 调用
+  - hot.md covers_dates 需要增量更新（读旧值 + 追加 + 截断为最近 7 天），不能每次从零构建
+  - `updateHotCache` 用 `try?` 静默失败（不影响 memo 提交流程），与 WeatherService 模式一致
+  - YAML 序列解析（covers_dates）只需简单行扫描，不需要完整 YAML 解析库
+---
