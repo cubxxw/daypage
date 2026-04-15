@@ -498,7 +498,7 @@ struct ArchiveView: View {
                 summaryCard("TOTAL ENTRIES", value: "\(viewModel.totalEntries)", accentPrimary: true)
                 summaryCard("VOICE DURATION", value: "\(viewModel.totalVoiceMinutes)", unit: "min", accentPrimary: false)
                 summaryCard("PHOTOS CAPTURED", value: "\(viewModel.totalPhotos)", accentPrimary: false)
-                summaryCard("UNIQUE LOCATIONS", value: "\(viewModel.totalLocations)", accentPrimary: true)
+                summaryCard("TRAVEL LOCATIONS", value: "\(viewModel.totalLocations)", accentPrimary: true)
             }
         }
     }
@@ -511,7 +511,7 @@ struct ArchiveView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value)
-                    .font(.custom("SpaceGrotesk-Bold", size: 36))
+                    .font(.custom("SpaceGrotesk-Bold", size: 48))
                     .foregroundColor(DSColor.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
