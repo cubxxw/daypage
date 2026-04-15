@@ -94,3 +94,32 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - `DSColor.amberArchival`（#5D3000）是品牌色，专用于 wikilink 文本
   - 设计稿颜色通过 today-flow-refined.html 的 tailwind config 提取（surface = #f9f9f9, primary = #000000 等）
 ---
+
+## 2026-04-15 - US-009
+- What was implemented:
+  - `DayPage/Models/Memo.swift`：
+    - `Memo` 结构体，含 id/type/created/location/weather/device/attachments/body 字段
+    - `toMarkdown()`：序列化为 YAML frontmatter + Markdown body
+    - `fromMarkdown(_:)`：反序列化，解析 frontmatter 和 body
+    - `YAMLParser`：轻量级行解析器，支持 scalar/mapping/sequenceOfMappings
+    - `ISO8601DateFormatter.memo` 静态扩展
+  - `DayPage/Storage/RawStorage.swift`：
+    - `append(_:to:)`：追加 memo 到日期文件，多条 memo 用 `\n\n---\n\n` 分隔
+    - `read(from:)`：读取指定文件，返回 Memo 数组
+    - `parse(fileContent:)`：静态方法，按分隔符切割后逐块解析
+    - `atomicWrite(string:to:)`：临时文件 + FileManager.replaceItemAt 原子写入
+  - `DayPage.xcodeproj/project.pbxproj`：注册 Memo.swift（A20000008/A10000008）和 RawStorage.swift（A20000009/A10000009）到 Models/Storage group 及 Sources build phase
+  - `scripts/tests/test_raw_storage.swift`：24 个测试全部通过（极简往返/全字段往返/多条文件往返/临时文件清理/body 含空行）
+- Files changed:
+  - DayPage/Models/Memo.swift（新建）
+  - DayPage/Storage/RawStorage.swift（新建）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/tests/test_raw_storage.swift（新建）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - Memo 序列化分隔符是 `\n\n---\n\n`（两端各两个换行），解析时需用 components(separatedBy:) 精确匹配
+  - YAMLParser 只支持简单的 YAML 子集：scalar（顶层 key: value）、2空格缩进 mapping、2空格 + 4空格混合的 sequence of mappings；复杂 YAML 嵌套不在支持范围内
+  - 原子写入必须写到目标文件的同一目录下的临时文件，再用 replaceItemAt 替换（跨卷 moveItem 会失败）
+  - `ISO8601DateFormatter.memo` 使用 withFractionalSeconds 保证 Date 往返精度，不带毫秒的字符串解析会返回 nil
+  - 单元测试以独立 Swift 脚本（xcrun swift xxx.swift）形式运行，不需要 XCTest target
+---
