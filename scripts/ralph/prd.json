@@ -306,8 +306,8 @@
         "在模拟器中验证完整渲染与跳转"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented DailyPageView.swift + DailyPageParser in DayPage/Features/Daily/; DailyPageModel with dateString/weekday/summary/sections/locations/followUpQuestions; DailyPageParser.parse() extracts frontmatter fields + narrative sections (## headings) + LOCATIONS TODAY + AI FOLLOW-UP blockquotes; buildAttributedString() replaces [[slug]] with amber AttributedString; segmentedControl DIGEST/TIMELINE; headerSection with 56px Space Grotesk title + weekday + 2px left-border summary + metadata chips; narrativeSection with heading+horizontal rule; locationsSection; threadsSection 2-column LazyVGrid; footer with Compiled from N raw entries; TodayView.DailyPageEntryCard passes onTap:{showDailyPage=true}; TodayView .fullScreenCover for DailyPageView with onReturnToToday pre-fill; DailyPageView A20000025/A10000025 registered in pbxproj Daily group and Sources; typecheck exit 0."
     },
     {
       "id": "US-016",

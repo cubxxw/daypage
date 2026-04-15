@@ -8,6 +8,9 @@ struct TodayView: View {
     /// The draft text in the input bar.
     @State private var draftText: String = ""
 
+    /// Whether to show the Daily Page sheet.
+    @State private var showDailyPage: Bool = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -36,7 +39,10 @@ struct TodayView: View {
                                 // Daily Page entry card or compile prompt
                                 Group {
                                     if viewModel.isDailyPageCompiled {
-                                        DailyPageEntryCard(summary: viewModel.dailyPageSummary)
+                                        DailyPageEntryCard(
+                                            summary: viewModel.dailyPageSummary,
+                                            onTap: { showDailyPage = true }
+                                        )
                                     } else {
                                         CompilePromptCard(
                                             memoCount: viewModel.memos.count,
@@ -146,6 +152,23 @@ struct TodayView: View {
                 viewModel.load()
             }
             .animation(.easeInOut(duration: 0.25), value: viewModel.submitError)
+            // Daily Page full-screen sheet
+            .fullScreenCover(isPresented: $showDailyPage) {
+                let dateStr: String = {
+                    let f = DateFormatter()
+                    f.dateFormat = "yyyy-MM-dd"
+                    f.locale = Locale(identifier: "en_US_POSIX")
+                    f.timeZone = TimeZone.current
+                    return f.string(from: Date())
+                }()
+                DailyPageView(
+                    dateString: dateStr,
+                    onReturnToToday: { question in
+                        draftText = question
+                        showDailyPage = false
+                    }
+                )
+            }
             // Voice recording half-screen sheet
             // On complete: stage the recording as a pending attachment; user submits manually.
             .sheet(isPresented: $viewModel.isShowingVoiceRecorder) {
