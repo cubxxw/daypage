@@ -201,22 +201,36 @@ struct DailyPageEntryCard: View {
 // MARK: - CompilePromptCard
 
 /// Placeholder card shown when today's Daily Page has not been compiled.
+/// Supports a loading/compiling state that disables the button and shows progress text.
 struct CompilePromptCard: View {
     let memoCount: Int
+    var isCompiling: Bool = false
     var onCompile: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
             Rectangle()
-                .fill(DSColor.outlineVariant)
+                .fill(isCompiling ? DSColor.primary : DSColor.outlineVariant)
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("今日还未编译")
-                    .sectionLabelStyle()
-                    .foregroundColor(DSColor.onSurfaceVariant)
+                HStack(spacing: 8) {
+                    Text(isCompiling ? "正在编译..." : "今日还未编译")
+                        .sectionLabelStyle()
+                        .foregroundColor(isCompiling ? DSColor.onSurface : DSColor.onSurfaceVariant)
 
-                if memoCount > 0 {
+                    if isCompiling {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .tint(DSColor.onSurfaceVariant)
+                    }
+                }
+
+                if isCompiling {
+                    Text("正在编译 \(memoCount) 条 memo...")
+                        .bodySMStyle()
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                } else if memoCount > 0 {
                     Text("已有 \(memoCount) 条记录，点击立即编译")
                         .bodySMStyle()
                         .foregroundColor(DSColor.onSurfaceVariant)
@@ -231,6 +245,7 @@ struct CompilePromptCard: View {
                             .cornerRadius(0)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isCompiling)
                 } else {
                     Text("记录今天的想法，晚些时候将自动编译成日记")
                         .bodySMStyle()
@@ -242,5 +257,6 @@ struct CompilePromptCard: View {
             .background(DSColor.surfaceContainer)
         }
         .cornerRadius(0)
+        .animation(.easeInOut(duration: 0.2), value: isCompiling)
     }
 }

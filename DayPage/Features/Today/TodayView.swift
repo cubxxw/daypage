@@ -40,6 +40,7 @@ struct TodayView: View {
                                     } else {
                                         CompilePromptCard(
                                             memoCount: viewModel.memos.count,
+                                            isCompiling: viewModel.isCompiling,
                                             onCompile: { viewModel.compile() }
                                         )
                                     }

@@ -269,8 +269,8 @@
         "在模拟器中走通手动编译路径"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Extended CompilePromptCard with isCompiling: Bool param; isCompiling=true shows 正在编译... header + ProgressView spinner + 正在编译 N 条 memo... body text + animated left border color; button is .disabled(isCompiling); TodayView passes viewModel.isCompiling to CompilePromptCard; on success checkDailyPage() swaps card to DailyPageEntryCard; on failure submitError toast shows CompilationError.errorDescription (differentiated: API Key missing, network, parse, API code); typecheck exit 0."
     },
     {
       "id": "US-013",
