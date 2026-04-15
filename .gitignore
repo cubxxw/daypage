@@ -10,6 +10,7 @@
 .env.local
 .env.*.local
 Config/GeneratedSecrets.swift
+DayPage/Config/GeneratedSecrets.swift
 Config/Secrets.plist
 *.cer
 *.p12

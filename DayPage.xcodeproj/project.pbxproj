@@ -10,12 +10,14 @@
 		A10000001 /* DayPageApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000001 /* DayPageApp.swift */; };
 		A10000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000002 /* RootView.swift */; };
 		A10000003 /* VaultInitializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000003 /* VaultInitializer.swift */; };
+		A10000004 /* GeneratedSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000004 /* GeneratedSecrets.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A20000001 /* DayPageApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPageApp.swift; sourceTree = "<group>"; };
 		A20000002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A20000003 /* VaultInitializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultInitializer.swift; sourceTree = "<group>"; };
+		A20000004 /* GeneratedSecrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedSecrets.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -125,6 +127,7 @@
 		A50000008 /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				A20000004 /* GeneratedSecrets.swift */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -151,6 +154,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A80000001 /* Build configuration list for PBXNativeTarget "DayPage" */;
 			buildPhases = (
+				AE0000001 /* Generate Secrets */,
 				A90000001 /* Sources */,
 				A40000001 /* Frameworks */,
 				AA0000001 /* Resources */,
@@ -207,6 +211,26 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		AE0000001 /* Generate Secrets */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.env",
+			);
+			name = "Generate Secrets";
+			outputPaths = (
+				"$(SRCROOT)/DayPage/Config/GeneratedSecrets.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"${SRCROOT}/scripts/generate_secrets.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		A90000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -215,6 +239,7 @@
 				A10000001 /* DayPageApp.swift in Sources */,
 				A10000002 /* RootView.swift in Sources */,
 				A10000003 /* VaultInitializer.swift in Sources */,
+				A10000004 /* GeneratedSecrets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
