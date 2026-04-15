@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 struct TodayView: View {
 
@@ -93,6 +94,15 @@ struct TodayView: View {
                     InputBarView(
                         text: $draftText,
                         isSubmitting: viewModel.isSubmitting,
+                        isLocating: viewModel.isLocating,
+                        pendingLocation: viewModel.pendingLocation,
+                        locationAuthStatus: LocationService.shared.authorizationStatus,
+                        onFetchLocation: {
+                            viewModel.fetchLocation()
+                        },
+                        onClearLocation: {
+                            viewModel.clearPendingLocation()
+                        },
                         onSubmit: {
                             let body = draftText
                             draftText = ""

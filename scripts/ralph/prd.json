@@ -133,8 +133,8 @@
         "在模拟器模拟位置验证反向地理编码"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented LocationService.swift (@MainActor singleton wrapping CLLocationManager + CLGeocoder, async currentLocation(timeout:) with graceful degradation); updated TodayViewModel with fetchLocation()/clearPendingLocation() + pendingLocation/isLocating published state; updated InputBarView with mappin.circle icon button + removable location chip row; NSLocationWhenInUseUsageDescription added to both Debug/Release build configs in project.pbxproj; registered LocationService.swift (A20000016/A10000016) in pbxproj; typecheck exit 0."
     },
     {
       "id": "US-006",

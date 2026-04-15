@@ -9,6 +9,9 @@
 - 设计系统颜色通过 `DSColor.xxx` 访问；字体通过 `DSFonts.xxx()` 函数或 `DSType.xxx` 预设常量访问；组件样式通过 View 扩展方法（如 `.headlineMDStyle()`）应用
 - 自定义字体注册在 `DayPageApp.init()` 中通过 `DSFonts.registerAll()` 调用；若字体文件不存在 SwiftUI 自动 fallback 到系统字体，不会崩溃
 - 全局圆角规则：所有 DS 组件一律 `.cornerRadius(0)`，禁止使用任何非零圆角
+- Swift 字符串字面量中禁止使用中文弯引号（" " ' '）——编译器会误识别为字符串边界导致 parse error；改用「」或 ASCII 引号
+- 权限描述在 `GENERATE_INFOPLIST_FILE = YES` 项目中通过 pbxproj buildSettings 添加 `INFOPLIST_KEY_NSXxx` 键；两个 target 配置（Debug + Release）都需要加
+- Services 层用 `@MainActor` singleton（如 LocationService.shared）暴露 `@Published` 状态供 SwiftUI 直接观察；async 操作用 `Task {}` 在 ViewModel 中启动
 ---
 
 # Ralph Progress Log
@@ -204,4 +207,42 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - `@FocusState` 绑定 TextEditor，可在提交后通过设置焦点控制键盘显示/隐藏
   - 提交后立即 `memos.insert(memo, at: 0)` 比重新调用 `load()` 更快（无磁盘读取延迟）
   - UIDevice 访问需 `import UIKit`，在 `@MainActor` ViewModel 中调用安全
+---
+
+## 2026-04-15 - US-005
+- What was implemented:
+  - `DayPage/Services/LocationService.swift`：
+    - `@MainActor` singleton，封装 CLLocationManager + CLGeocoder
+    - `currentLocation(timeout:)`：async 方法，获取 GPS 坐标 + 反向地理编码（3 秒超时降级为仅坐标）
+    - `requestPermissionIfNeeded()`：请求 whenInUse 权限
+    - CLLocationManagerDelegate：`locationManagerDidChangeAuthorization`, `didUpdateLocations`, `didFailWithError`
+    - `LocationError` enum：denied / timeout / geocodingFailed（含用户友好描述）
+    - `withTimeout` 私有辅助：使用 ThrowingTaskGroup 实现超时竞争
+  - `DayPage/Features/Today/TodayViewModel.swift`：
+    - 新增 `isLocating: Bool`、`pendingLocation: Memo.Location?` 发布状态
+    - `fetchLocation()`：调用 LocationService.currentLocation，设置 pendingLocation；denied 时提示引导文字
+    - `clearPendingLocation()`：清除待附加位置
+    - `submitTextMemo(body:)` 更新：将 pendingLocation 附加到新 memo，提交后清空
+  - `DayPage/Features/Today/InputBarView.swift`：
+    - 新增 isLocating / pendingLocation / locationAuthStatus / onFetchLocation / onClearLocation 参数
+    - 地图图标按钮（mappin.circle）：定位中显示 spinner；已有 pendingLocation 时高亮 amberArchival 色
+    - 位置 chip 行（locationChipRow）：显示地名或坐标 + 可点击 ×（xmark）移除
+    - 权限被拒时按钮 disabled
+  - `DayPage/Features/Today/TodayView.swift`：传入新的 InputBarView 参数
+  - `DayPage.xcodeproj/project.pbxproj`：
+    - 注册 LocationService.swift（A20000016/A10000016）到 Services group 和 Sources build phase
+    - Debug + Release target 配置添加 INFOPLIST_KEY_NSLocationWhenInUseUsageDescription
+- Files changed:
+  - DayPage/Services/LocationService.swift（新建）
+  - DayPage/Features/Today/TodayViewModel.swift（更新）
+  - DayPage/Features/Today/InputBarView.swift（更新）
+  - DayPage/Features/Today/TodayView.swift（更新）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - `GENERATE_INFOPLIST_FILE = YES` 模式下（无 Info.plist 文件），在 pbxproj 的 XCBuildConfiguration.buildSettings 中添加 `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` 即可注入权限描述；两个 target 配置（Debug/Release）都需要加
+  - `CLGeocoder.reverseGeocodeLocation` 在 iOS 16+ 已是 async 方法，可直接 `try await`（不再需要 callback 包装）
+  - Swift 字符串不能包含中文弯引号（"" 等）——编译器会将其解析为字符串边界，导致解析错误；改用「」书名号或 ASCII 引号
+  - CLLocationManager.requestLocation() 是一次性请求（不持续监听），结合 CheckedThrowingContinuation 包装成 async 更干净
+  - `withThrowingTaskGroup` 是实现 async 超时的推荐方式：两个并发 Task 互相竞争，第一个完成后 `cancelAll()` 取消另一个
 ---

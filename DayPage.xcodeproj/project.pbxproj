@@ -22,6 +22,7 @@
 		A10000013 /* TodayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000013 /* TodayViewModel.swift */; };
 		A10000014 /* MemoCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000014 /* MemoCardView.swift */; };
 		A10000015 /* InputBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000015 /* InputBarView.swift */; };
+		A10000016 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000016 /* LocationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		A20000014 /* MemoCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoCardView.swift; sourceTree = "<group>"; };
 		A20000015 /* InputBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarView.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000016 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -152,6 +154,7 @@
 		A50000006 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A20000016 /* LocationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -292,6 +295,7 @@
 				A10000013 /* TodayViewModel.swift in Sources */,
 				A10000014 /* MemoCardView.swift in Sources */,
 				A10000015 /* InputBarView.swift in Sources */,
+				A10000016 /* LocationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -425,6 +429,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPage 需要您的位置来为 memo 添加地点标记。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -454,6 +459,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPage 需要您的位置来为 memo 添加地点标记。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

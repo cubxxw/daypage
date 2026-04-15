@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import CoreLocation
 
 // MARK: - TodayViewModel
 
@@ -31,9 +32,16 @@ final class TodayViewModel: ObservableObject {
     /// Transient submit error shown as a toast/alert.
     @Published var submitError: String? = nil
 
+    /// Whether location fetch is in progress.
+    @Published var isLocating: Bool = false
+
+    /// The pending location to attach to the next submitted memo.
+    @Published var pendingLocation: Memo.Location? = nil
+
     // MARK: Private
 
     private let date: Date
+    private let locationService = LocationService.shared
 
     // MARK: Init
 
@@ -64,8 +72,7 @@ final class TodayViewModel: ObservableObject {
     // MARK: - Submit Text Memo
 
     /// Creates and persists a text memo from the given body string.
-    /// Automatically attaches timestamp, device info.
-    /// Location and weather are filled in by US-005 / US-006 respectively.
+    /// Automatically attaches timestamp, device info, and pending location if available.
     func submitTextMemo(body: String) {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -73,11 +80,12 @@ final class TodayViewModel: ObservableObject {
         isSubmitting = true
         submitError = nil
 
+        let loc = pendingLocation
         let memo = Memo(
             type: .text,
             created: Date(),
-            location: nil,      // filled by US-005
-            weather: nil,       // filled by US-006
+            location: loc,       // attached from pendingLocation (US-005)
+            weather: nil,        // filled by US-006
             device: deviceDescription(),
             attachments: [],
             body: trimmed
@@ -87,11 +95,49 @@ final class TodayViewModel: ObservableObject {
             try RawStorage.append(memo)
             // Insert at front (newest first)
             memos.insert(memo, at: 0)
+            // Clear pending location after use
+            pendingLocation = nil
         } catch {
             submitError = "保存失败：\(error.localizedDescription)"
         }
 
         isSubmitting = false
+    }
+
+    // MARK: - Fetch Location
+
+    /// Requests location permission if needed, then fetches current GPS + reverse geocode.
+    /// Sets `pendingLocation` for the next memo submission.
+    /// Provides graceful degradation: timeout falls back to coordinates-only.
+    func fetchLocation() {
+        guard !isLocating else { return }
+        isLocating = true
+        submitError = nil
+
+        Task {
+            defer { isLocating = false }
+            do {
+                let loc = try await locationService.currentLocation(timeout: 3)
+                pendingLocation = loc
+            } catch LocationError.denied {
+                submitError = locationService.authorizationStatus == .denied
+                    ? "定位权限被拒绝，请在「设置 → 隐私 → 定位服务」中授权"
+                    : "无法获取位置权限"
+            } catch LocationError.timeout {
+                // Even on timeout, LocationService may have returned coords-only
+                if let loc = locationService.lastLocation {
+                    pendingLocation = loc
+                }
+                // Don't show error for timeout — coords-only is acceptable
+            } catch {
+                submitError = "位置获取失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Clears any pending location so it won't be attached to the next memo.
+    func clearPendingLocation() {
+        pendingLocation = nil
     }
 
     // MARK: - Compile Trigger (placeholder)

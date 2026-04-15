@@ -1,9 +1,10 @@
 import SwiftUI
+import CoreLocation
 
 // MARK: - InputBarView
 
 /// Fixed bottom input bar for composing and submitting text memos.
-/// Provides a multiline TextEditor with a submit button.
+/// Provides a multiline TextEditor, a location pin button, and a submit button.
 /// Auto-captures device info in YAML frontmatter on submit.
 struct InputBarView: View {
 
@@ -15,15 +16,27 @@ struct InputBarView: View {
     /// Whether a submission is currently in progress.
     var isSubmitting: Bool
 
+    /// Whether a location fetch is in progress.
+    var isLocating: Bool
+
+    /// The pending location (if already fetched); shown as a removable chip.
+    var pendingLocation: Memo.Location?
+
+    /// Current CLLocation authorization status (for denied-state guidance).
+    var locationAuthStatus: CLAuthorizationStatus
+
+    /// Callback invoked when the user taps the location pin icon.
+    var onFetchLocation: () -> Void
+
+    /// Callback invoked when the user clears the pending location chip.
+    var onClearLocation: () -> Void
+
     /// Callback invoked when the user taps the submit button.
     var onSubmit: () -> Void
 
     // MARK: Private State
 
     @FocusState private var isFocused: Bool
-
-    // Height of the TextEditor grows with content (clamped)
-    @State private var textEditorHeight: CGFloat = 44
 
     // MARK: Body
 
@@ -32,7 +45,15 @@ struct InputBarView: View {
             Divider()
                 .background(DSColor.outline)
 
-            HStack(alignment: .bottom, spacing: 12) {
+            // Location chip row (shown when a pending location exists)
+            if let loc = pendingLocation {
+                locationChipRow(loc: loc)
+            }
+
+            HStack(alignment: .bottom, spacing: 8) {
+                // Location pin button
+                locationButton
+
                 // Multiline text input
                 ZStack(alignment: .topLeading) {
                     // Placeholder text
@@ -58,40 +79,99 @@ struct InputBarView: View {
                 .background(DSColor.surfaceContainerLow)
 
                 // Submit button
-                Button(action: {
-                    guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                          !isSubmitting else { return }
-                    onSubmit()
-                }) {
-                    if isSubmitting {
-                        ProgressView()
-                            .tint(DSColor.onPrimary)
-                            .frame(width: 44, height: 44)
-                            .background(DSColor.onSurfaceVariant)
-                    } else {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(
-                                text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? DSColor.onSurfaceVariant
-                                    : DSColor.onPrimary
-                            )
-                            .frame(width: 44, height: 44)
-                            .background(
-                                text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? DSColor.surfaceContainerHigh
-                                    : DSColor.primary
-                            )
-                    }
-                }
-                .disabled(
-                    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting
-                )
-                .cornerRadius(0)
+                submitButton
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(DSColor.surfaceContainerLow)
         }
+    }
+
+    // MARK: - Subviews
+
+    /// Pin/map icon button. Shows a spinner during fetch, amber when location is attached.
+    @ViewBuilder
+    private var locationButton: some View {
+        Button(action: {
+            guard !isLocating else { return }
+            onFetchLocation()
+        }) {
+            if isLocating {
+                ProgressView()
+                    .tint(DSColor.amberArchival)
+                    .frame(width: 36, height: 36)
+            } else {
+                Image(systemName: "mappin.circle")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundColor(pendingLocation != nil ? DSColor.amberArchival : DSColor.onSurfaceVariant)
+                    .frame(width: 36, height: 36)
+            }
+        }
+        .disabled(isLocating || locationAuthStatus == .denied || locationAuthStatus == .restricted)
+        .cornerRadius(0)
+    }
+
+    /// Arrow-up submit button.
+    @ViewBuilder
+    private var submitButton: some View {
+        let isEmpty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        Button(action: {
+            guard !isEmpty, !isSubmitting else { return }
+            onSubmit()
+        }) {
+            if isSubmitting {
+                ProgressView()
+                    .tint(DSColor.onPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(DSColor.onSurfaceVariant)
+            } else {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(isEmpty ? DSColor.onSurfaceVariant : DSColor.onPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(isEmpty ? DSColor.surfaceContainerHigh : DSColor.primary)
+            }
+        }
+        .disabled(isEmpty || isSubmitting)
+        .cornerRadius(0)
+    }
+
+    /// Removable chip showing the resolved location name (or coordinates).
+    @ViewBuilder
+    private func locationChipRow(loc: Memo.Location) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "mappin")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(DSColor.amberArchival)
+
+            Text(locationLabel(loc))
+                .monoLabelStyle(size: 10)
+                .foregroundColor(DSColor.amberArchival)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button(action: onClearLocation) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
+            .cornerRadius(0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(DSColor.surfaceContainerLow)
+    }
+
+    // MARK: - Helpers
+
+    private func locationLabel(_ loc: Memo.Location) -> String {
+        if let name = loc.name, !name.isEmpty {
+            return name
+        }
+        if let lat = loc.lat, let lng = loc.lng {
+            return String(format: "%.4f, %.4f", lat, lng)
+        }
+        return "未知位置"
     }
 }
