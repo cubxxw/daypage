@@ -1,10 +1,11 @@
 import SwiftUI
 import CoreLocation
+import PhotosUI
 
 // MARK: - InputBarView
 
-/// Fixed bottom input bar for composing and submitting text memos.
-/// Provides a multiline TextEditor, a location pin button, and a submit button.
+/// Fixed bottom input bar for composing and submitting text/photo memos.
+/// Provides a multiline TextEditor, a location pin button, a camera/photo button, and a submit button.
 /// Auto-captures device info in YAML frontmatter on submit.
 struct InputBarView: View {
 
@@ -25,11 +26,17 @@ struct InputBarView: View {
     /// Current CLLocation authorization status (for denied-state guidance).
     var locationAuthStatus: CLAuthorizationStatus
 
+    /// Whether a photo is being processed.
+    var isProcessingPhoto: Bool
+
     /// Callback invoked when the user taps the location pin icon.
     var onFetchLocation: () -> Void
 
     /// Callback invoked when the user clears the pending location chip.
     var onClearLocation: () -> Void
+
+    /// Callback invoked when the user selects a photo from the picker.
+    var onSelectPhoto: (PhotosPickerItem) -> Void
 
     /// Callback invoked when the user taps the submit button.
     var onSubmit: () -> Void
@@ -37,6 +44,9 @@ struct InputBarView: View {
     // MARK: Private State
 
     @FocusState private var isFocused: Bool
+
+    /// PhotosPicker selection binding (single item).
+    @State private var selectedItem: PhotosPickerItem? = nil
 
     // MARK: Body
 
@@ -53,6 +63,9 @@ struct InputBarView: View {
             HStack(alignment: .bottom, spacing: 8) {
                 // Location pin button
                 locationButton
+
+                // Camera / Photo picker button
+                photoButton
 
                 // Multiline text input
                 ZStack(alignment: .topLeading) {
@@ -85,6 +98,13 @@ struct InputBarView: View {
             .padding(.vertical, 12)
             .background(DSColor.surfaceContainerLow)
         }
+        // Wire PhotosPicker onChange to callback
+        .onChange(of: selectedItem) { newItem in
+            guard let item = newItem else { return }
+            onSelectPhoto(item)
+            // Reset picker selection so same item can be re-selected
+            selectedItem = nil
+        }
     }
 
     // MARK: - Subviews
@@ -109,6 +129,29 @@ struct InputBarView: View {
         }
         .disabled(isLocating || locationAuthStatus == .denied || locationAuthStatus == .restricted)
         .cornerRadius(0)
+    }
+
+    /// Camera/photo library button using PhotosPicker.
+    @ViewBuilder
+    private var photoButton: some View {
+        if isProcessingPhoto {
+            ProgressView()
+                .tint(DSColor.onSurfaceVariant)
+                .frame(width: 36, height: 36)
+        } else {
+            PhotosPicker(
+                selection: $selectedItem,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                Image(systemName: "photo")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+            .cornerRadius(0)
+        }
     }
 
     /// Arrow-up submit button.

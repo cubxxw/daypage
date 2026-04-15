@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import ImageIO
 
 // MARK: - MemoCardView
 
@@ -24,7 +26,18 @@ struct MemoCardView: View {
             .padding(.horizontal, 12)
             .padding(.top, 10)
 
-            // Body content
+            // Photo thumbnail row (for photo and mixed memos with photo attachments)
+            if let photoThumb = firstPhotoThumbnail {
+                Image(uiImage: photoThumb)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .clipped()
+                    .padding(.top, 6)
+            }
+
+            // Body content (caption)
             if !memo.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(memo.body.trimmingCharacters(in: .whitespacesAndNewlines))
                     .bodySMStyle()
@@ -102,6 +115,26 @@ struct MemoCardView: View {
     }
 
     // MARK: - Helpers
+
+    /// Loads a thumbnail for the first photo attachment (if any).
+    private var firstPhotoThumbnail: UIImage? {
+        guard memo.type == .photo || memo.type == .mixed else { return nil }
+        guard let att = memo.attachments.first(where: { $0.kind == "photo" }) else { return nil }
+        let fileURL = VaultInitializer.vaultURL.appendingPathComponent(att.file)
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        // Use CGImageSource thumbnail for efficiency
+        let opts: [CFString: Any] = [
+            kCGImageSourceShouldCacheImmediately: false,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
+            kCGImageSourceThumbnailMaxPixelSize: 600
+        ]
+        if let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
+            return UIImage(cgImage: cgThumb)
+        }
+        return UIImage(data: data)
+    }
 
     private var borderColor: Color {
         switch memo.type {

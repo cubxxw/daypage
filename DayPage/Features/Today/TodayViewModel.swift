@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import CoreLocation
+import PhotosUI
 
 // MARK: - TodayViewModel
 
@@ -38,11 +39,18 @@ final class TodayViewModel: ObservableObject {
     /// The pending location to attach to the next submitted memo.
     @Published var pendingLocation: Memo.Location? = nil
 
+    /// Whether a photo picker selection is being processed.
+    @Published var isProcessingPhoto: Bool = false
+
+    /// Pending photo results (can accumulate before submission, cleared after).
+    @Published var pendingPhotos: [PhotoPickerResult] = []
+
     // MARK: Private
 
     private let date: Date
     private let locationService = LocationService.shared
     private let weatherService = WeatherService.shared
+    private let photoService = PhotoService.shared
 
     // MARK: Init
 
@@ -109,6 +117,80 @@ final class TodayViewModel: ObservableObject {
                 submitError = "保存失败：\(error.localizedDescription)"
             }
         }
+    }
+
+    // MARK: - Submit Photo Memo
+
+    /// Processes a selected PhotosPickerItem, saves to vault/raw/assets/, and submits a photo memo.
+    /// The optional caption becomes the memo body.
+    func submitPhotoMemo(item: PhotosPickerItem, caption: String = "") {
+        isProcessingPhoto = true
+        submitError = nil
+
+        let loc = pendingLocation
+
+        Task {
+            defer { isProcessingPhoto = false }
+
+            guard let result = await photoService.processPickerItem(item) else {
+                submitError = "照片处理失败，请重试"
+                return
+            }
+
+            // Build attachment from EXIF
+            let attachment = buildPhotoAttachment(from: result)
+
+            // Fetch weather non-blocking
+            let weatherString = await weatherService.currentWeather(at: loc)
+
+            // Derive location from EXIF GPS if no pending location
+            var memoLocation: Memo.Location? = loc
+            if memoLocation == nil, let lat = result.exif?.gpsLat, let lng = result.exif?.gpsLng {
+                memoLocation = Memo.Location(name: nil, lat: lat, lng: lng)
+            }
+
+            let trimmedCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+            let memo = Memo(
+                type: .photo,
+                created: result.exif?.capturedAt ?? Date(),
+                location: memoLocation,
+                weather: weatherString,
+                device: deviceDescription(),
+                attachments: [attachment],
+                body: trimmedCaption
+            )
+
+            do {
+                try RawStorage.append(memo)
+                memos.insert(memo, at: 0)
+                pendingLocation = nil
+            } catch {
+                submitError = "照片 memo 保存失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Clears all pending photos without submitting.
+    func clearPendingPhotos() {
+        pendingPhotos = []
+    }
+
+    // MARK: - Private Photo Helpers
+
+    private func buildPhotoAttachment(from result: PhotoPickerResult) -> Memo.Attachment {
+        var exifParts: [String] = []
+        if let ap = result.exif?.aperture { exifParts.append("aperture=\(ap)") }
+        if let ss = result.exif?.shutterSpeed { exifParts.append("shutter=\(ss)") }
+        if let iso = result.exif?.iso { exifParts.append(iso) }
+        if let fl = result.exif?.focalLength { exifParts.append(fl) }
+        // Encode EXIF summary as transcript field (reused for photo metadata in this schema)
+        let exifSummary = exifParts.isEmpty ? nil : exifParts.joined(separator: " ")
+        return Memo.Attachment(
+            file: result.filePath,
+            kind: "photo",
+            duration: nil,
+            transcript: exifSummary
+        )
     }
 
     // MARK: - Fetch Location

@@ -97,11 +97,16 @@ struct TodayView: View {
                         isLocating: viewModel.isLocating,
                         pendingLocation: viewModel.pendingLocation,
                         locationAuthStatus: LocationService.shared.authorizationStatus,
+                        isProcessingPhoto: viewModel.isProcessingPhoto,
                         onFetchLocation: {
                             viewModel.fetchLocation()
                         },
                         onClearLocation: {
                             viewModel.clearPendingLocation()
+                        },
+                        onSelectPhoto: { item in
+                            viewModel.submitPhotoMemo(item: item, caption: draftText)
+                            draftText = ""
                         },
                         onSubmit: {
                             let body = draftText

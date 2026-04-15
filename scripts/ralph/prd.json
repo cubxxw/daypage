@@ -167,8 +167,8 @@
         "在模拟器中验证相册选择功能"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented PhotoService.swift (@MainActor singleton; PhotosPickerItem raw Data atomic save to vault/raw/assets/IMG_YYYYMMDD_HHMMSS.jpg; CGImageSource EXIF extraction: aperture/shutter/ISO/focalLength/GPS/capturedAt; thumbnail generation); TodayViewModel.submitPhotoMemo() async with EXIF+weather+location; InputBarView PhotosPicker button (photo systemImage, onChange callback); MemoCardView thumbnail row (160pt) for .photo/.mixed memos; TodayView wired isProcessingPhoto+onSelectPhoto; NSPhotoLibraryUsageDescription Debug+Release in pbxproj; PhotoService A20000018/A10000018 registered; typecheck exit 0."
     },
     {
       "id": "US-003",

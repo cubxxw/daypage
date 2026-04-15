@@ -24,6 +24,7 @@
 		A10000015 /* InputBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000015 /* InputBarView.swift */; };
 		A10000016 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000016 /* LocationService.swift */; };
 		A10000017 /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000017 /* WeatherService.swift */; };
+		A10000018 /* PhotoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000018 /* PhotoService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000016 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		A20000017 /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
+		A20000018 /* PhotoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -158,6 +160,7 @@
 			children = (
 				A20000016 /* LocationService.swift */,
 				A20000017 /* WeatherService.swift */,
+				A20000018 /* PhotoService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -300,6 +303,7 @@
 				A10000015 /* InputBarView.swift in Sources */,
 				A10000016 /* LocationService.swift in Sources */,
 				A10000017 /* WeatherService.swift in Sources */,
+				A10000018 /* PhotoService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,6 +438,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPage 需要您的位置来为 memo 添加地点标记。";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "DayPage 需要访问相册，以便将照片附加到 memo 并保留原始 EXIF 数据。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -464,6 +469,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPage 需要您的位置来为 memo 添加地点标记。";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "DayPage 需要访问相册，以便将照片附加到 memo 并保留原始 EXIF 数据。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

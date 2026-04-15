@@ -272,3 +272,47 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - 缓存逻辑需同时检查时间（TTL）和距离（CLLocation.distance），两个条件都满足才命中缓存
   - 将 submitTextMemo 从同步改为 Task{} async 时，isSubmitting 的 defer 重置要放在 Task 内部，否则会立即重置
 ---
+
+## 2026-04-15 - US-004
+- What was implemented:
+  - `DayPage/Services/PhotoService.swift`：
+    - `@MainActor` singleton，封装 PhotosPickerItem → raw Data → 原图原子写入 vault/raw/assets/IMG_YYYYMMDD_HHMMSS.jpg
+    - `processPickerItem(_ item: PhotosPickerItem) async -> PhotoPickerResult?`：加载 transferable Data + 委托 processImageData
+    - `processImageData(_ data: Data) -> PhotoPickerResult?`：原子写入 + CGImageSource EXIF 提取 + thumbnail 生成
+    - EXIF 字段：光圈（FNumber）、快门（ExposureTime）、ISO（ISOSpeedRatings）、焦距（FocalLength）、GPS（lat/lng）、拍摄时间（DateTimeOriginal）
+    - Thumbnail：CGImageSourceCreateThumbnailAtIndex（maxPixelSize 200），fallback UIImage(data:)
+    - `PhotoPickerResult`：filePath（vault 相对路径）、fileURL（本地绝对 URL）、exif、thumbnail
+    - `PhotoEXIF`：aperture/shutterSpeed/iso/focalLength/gpsLat/gpsLng/capturedAt
+  - `DayPage/Features/Today/TodayViewModel.swift`：
+    - 新增 `isProcessingPhoto: Bool`、`pendingPhotos: [PhotoPickerResult]` 发布状态
+    - `submitPhotoMemo(item:caption:)`：async Task{}，processPickerItem → buildPhotoAttachment → weatherService.currentWeather → RawStorage.append → memos.insert
+    - `buildPhotoAttachment(from:)`：将 EXIF 字段编码为 transcript（利用已有 Attachment 结构体）
+    - 位置优先 pendingLocation，其次 EXIF GPS
+  - `DayPage/Features/Today/InputBarView.swift`：
+    - 添加 isProcessingPhoto 参数 + onSelectPhoto 回调
+    - `photoButton`：PhotosPicker（matching: .images），选中后 onChange → onSelectPhoto(item)；处理中显示 ProgressView
+    - 按钮图标：`photo`（SF Symbol）
+  - `DayPage/Features/Today/MemoCardView.swift`：
+    - `firstPhotoThumbnail`：对 .photo/.mixed memo，从 VaultInitializer.vaultURL+att.file 加载，CGImageSourceCreateThumbnailAtIndex（maxPixelSize 600）
+    - 缩略图行：.fill aspect ratio，高度 160pt，.clipped()，位于 typeLabel 行与 body 之间
+    - 添加 `import UIKit` + `import ImageIO`
+  - `DayPage/Features/Today/TodayView.swift`：传入 isProcessingPhoto + onSelectPhoto（照片提交后清空 draftText）
+  - `DayPage.xcodeproj/project.pbxproj`：
+    - 注册 PhotoService.swift（A20000018/A10000018）到 Services group 和 Sources build phase
+    - Debug + Release 两个 target 配置添加 INFOPLIST_KEY_NSPhotoLibraryUsageDescription
+- Files changed:
+  - DayPage/Services/PhotoService.swift（新建）
+  - DayPage/Features/Today/TodayViewModel.swift（更新）
+  - DayPage/Features/Today/InputBarView.swift（更新）
+  - DayPage/Features/Today/MemoCardView.swift（更新）
+  - DayPage/Features/Today/TodayView.swift（更新）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - `PhotosPickerItem.loadTransferable(type: Data.self)` 保留原始 JPEG/HEIC 数据（含 EXIF），不经过 UIKit 解码压缩；是保留 EXIF 的正确姿势
+  - `CGImageSourceCopyPropertiesAtIndex` 提取 EXIF/GPS 时，kCGImagePropertyExifDictionary 和 kCGImagePropertyGPSDictionary 是两个不同的顶层 key；GPS 纬度/经度符号取决于 LatitudeRef（"N"/"S"）和 LongitudeRef（"E"/"W"）
+  - `CGImageSourceCreateThumbnailAtIndex` 比 UIImage(data:) 再 resized 更高效（不解码全图），设置 kCGImageSourceCreateThumbnailFromImageIfAbsent 可在没有内嵌缩略图时从原图生成
+  - SwiftUI `PhotosPicker` onChange 回调在 iOS 16+ 使用 `.onChange(of: selectedItem)` 可正常工作；reset 为 nil 后允许用户再次选同一张照片
+  - `INFOPLIST_KEY_NSPhotoLibraryUsageDescription` 需在 pbxproj 中两个 target 配置（Debug + Release）都添加，原理与 Location 权限相同
+  - MemoCardView 的缩略图使用计算属性同步读取（不是 async），对小图可接受；如需大量照片应改为异步加载（AsyncImage 或 Task{}）
+---
