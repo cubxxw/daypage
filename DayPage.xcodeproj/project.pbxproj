@@ -31,6 +31,7 @@
 		A10000022 /* EntityPageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000022 /* EntityPageService.swift */; };
 		A10000023 /* BackgroundCompilationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000023 /* BackgroundCompilationService.swift */; };
 		A10000025 /* DailyPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000025 /* DailyPageView.swift */; };
+		A10000026 /* EntityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000026 /* EntityPageView.swift */; };
 		A10000024 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000024 /* Info.plist */; };
 /* End PBXBuildFile section */
 
@@ -60,6 +61,7 @@
 		A20000022 /* EntityPageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPageService.swift; sourceTree = "<group>"; };
 		A20000023 /* BackgroundCompilationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundCompilationService.swift; sourceTree = "<group>"; };
 		A20000025 /* DailyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyPageView.swift; sourceTree = "<group>"; };
+		A20000026 /* EntityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPageView.swift; sourceTree = "<group>"; };
 		A20000024 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -152,6 +154,7 @@
 		A50000013 /* Entity */ = {
 			isa = PBXGroup;
 			children = (
+				A20000026 /* EntityPageView.swift */,
 			);
 			path = Entity;
 			sourceTree = "<group>";
@@ -332,6 +335,7 @@
 				A10000022 /* EntityPageService.swift in Sources */,
 				A10000023 /* BackgroundCompilationService.swift in Sources */,
 				A10000025 /* DailyPageView.swift in Sources */,
+				A10000026 /* EntityPageView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

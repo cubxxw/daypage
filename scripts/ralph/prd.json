@@ -321,8 +321,8 @@
         "Typecheck / SwiftLint 通过"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented EntityPageView.swift + EntityPageParser + EntityModel in DayPage/Features/Entity/; EntityPageParser.parse() extracts frontmatter (name/type/first_seen/occurrence_count) + ## sections + related dates from list items; EntityPageView shows type badge + 32px Space Grotesk name + meta chips (first_seen/occurrence_count) + narrative sections with wikilink rendering; notFound state shows 该实体页尚未生成 when file missing; relatedMemos section shows date list sorted descending; EntityPageView A20000026/A10000026 registered in pbxproj Entity group and Sources; typecheck exit 0."
     },
     {
       "id": "US-017",
