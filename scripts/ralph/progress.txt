@@ -563,3 +563,42 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - [[slug|Display Name]] 与 [[slug]] 两种格式都要处理；NSRegularExpression 提取 group(at:1) 得到方括号内容
   - fullScreenCover 支持 dismiss + 回调预填 draftText，适合 Daily Page → Today 的返回流程
 ---
+
+## 2026-04-15 - US-016
+- What was implemented:
+  - `DayPage/Features/Entity/EntityPageView.swift`（新建）：
+    - `EntityPageView`：展示 vault/wiki/{type}/{slug}.md 的实体页；type badge（PLACE/PERSON/THEME）+ 32px Space Grotesk name + metadata chips (first_seen, occurrence_countx)
+    - `notFoundView`：当文件不存在时显示「该实体页尚未生成」
+    - `EntityModel`：name/entityType/firstSeen/occurrenceCount/sections[EntitySection]/relatedDates
+    - `EntityPageParser.parse()`：解析 frontmatter（name/type/first_seen/occurrence_count）+ ## 段落 + 从段落 body 中提取 "- YYYY-MM-DD" 格式的关联日期
+    - `relatedMemos`：RELATED ENTRIES 区块，关联日期列表倒序排列
+    - `wikifiedText` + `buildAttributedString()`：[[wikilink]] amber 色渲染（复用 DailyPageView 的相同逻辑）
+  - `DayPage.xcodeproj/project.pbxproj`（更新）：注册 EntityPageView.swift A20000026/A10000026
+- Files changed:
+  - DayPage/Features/Entity/EntityPageView.swift（新建）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - EntityPageView 和 DailyPageView 的 buildAttributedString 逻辑完全相同，未来可抽取为共用 extension
+  - related dates 从 section body 行里提取（"- YYYY-MM-DD" 前缀），不是单独的 frontmatter 字段
+---
+
+## 2026-04-15 - US-017 + US-018
+- What was implemented:
+  - `DayPage/Features/Archive/ArchiveView.swift`（重写）：
+    - `ArchiveMode` enum：.calendar / .list
+    - `DayStats`：memoCount/photosCount/voiceDurationSeconds/isDailyPageCompiled/dailySummary + `DensityLevel` nested enum（empty=#F9F9F9, low=#E8E8E8, medium=#474747, high=#000000）
+    - `ArchiveViewModel @MainActor`：displayedMonth, dayStats, monthlyTotals; loadMonth() 读取 vault/raw/ 目录 + vault/wiki/daily/; goToPreviousMonth/goToNextMonth
+    - 日历模式：weekday header (MON-SUN), 7列网格, 热力填充色, 今日 1px 黑色描边, Legend 行（4 色块 + EMPTY/LOW/MEDIUM/HIGH 标签）
+    - 月度统计：2×2 网格（TOTAL ENTRIES/VOICE DURATION/PHOTOS/UNIQUE LOCATIONS），数字 Space Grotesk 36px
+    - 列表模式：日期倒序, surfaceContainer 背景 + 4px 黑色左边框, StatusBadge(VERIFIED/METADATA), italic 摘要, 元数据图标行
+    - fullScreenCover → DailyPageView（点击日历格子或列表行）
+    - `Array+chunked(into:)` private extension for calendar row splitting
+- Files changed:
+  - DayPage/Features/Archive/ArchiveView.swift（重写）
+  - scripts/ralph/prd.json（US-017/US-018 passes: true）
+- **Learnings for future iterations:**
+  - 日历网格周首日偏移公式：`(firstWeekday + 5) % 7`，将 Calendar.current.firstWeekday（Sunday=1..Saturday=7）转换为 Monday=0..Sunday=6 的偏移量
+  - StatusBadge 的参数名是 `label:` 不是 `text:`，要与 Components.swift 核对
+  - Array.chunked(into:) 是标准扩展，斯wift 标准库没有，需要手写 private extension
+---
