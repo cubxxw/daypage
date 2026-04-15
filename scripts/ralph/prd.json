@@ -32,8 +32,8 @@
         "Typecheck / SwiftLint 通过"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented scripts/generate_secrets.sh (Xcode Run Script Phase); registered GeneratedSecrets.swift in project.pbxproj; fixed .gitignore path for DayPage/Config/GeneratedSecrets.swift; typecheck exit 0."
     },
     {
       "id": "US-020a",

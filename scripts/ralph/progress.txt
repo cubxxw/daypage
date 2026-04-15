@@ -3,6 +3,9 @@
 - `xcrun swiftc -typecheck <files> -sdk $(xcrun --sdk iphonesimulator --show-sdk-path) -target arm64-apple-ios16.0-simulator` 是本项目的 typecheck 命令
 - Vault 根目录通过 `VaultInitializer.vaultURL` 获取（Documents/vault/），所有 Storage 层代码应使用此统一入口
 - 首次初始化写入：SCHEMA.md、wiki/index.md、wiki/hot.md、wiki/log.md 四个种子文件
+- API 密钥通过 `Secrets.xxx` 静态常量访问（dashScopeApiKey / dashScopeBaseURL / dashScopeModel / openAIWhisperApiKey / openWeatherApiKey）；GeneratedSecrets.swift 由构建脚本在每次编译时从 .env 重新生成
+- `.gitignore` 中忽略路径需写完整相对路径：`DayPage/Config/GeneratedSecrets.swift`（不能只写 `Config/GeneratedSecrets.swift`，那样只能匹配根目录下的 Config）
+- PBXShellScriptBuildPhase 添加方式：在 PBXShellScriptBuildPhase section 中定义，然后在 PBXNativeTarget 的 buildPhases 数组中（放在 Sources 之前）引用
 ---
 
 # Ralph Progress Log
@@ -27,4 +30,30 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - 种子文件用 `data.write(to:options:.atomic)` 原子写入，首次才写（fileExists 检查）
   - .env.example 和 .gitignore 已在上游提交中存在，US-001 验证项均满足
   - SwiftLint 未安装，用 swiftc -typecheck 替代质量检查
+---
+
+## 2026-04-15 - US-020
+- What was implemented:
+  - `scripts/generate_secrets.sh`：Bash 脚本，读取项目根 `.env` 文件，
+    生成 `DayPage/Config/GeneratedSecrets.swift`（`enum Secrets` 静态常量）
+    供所有 Swift 代码通过 `Secrets.xxx` 访问 API 密钥
+  - `DayPage.xcodeproj/project.pbxproj`：
+    - 注册 `GeneratedSecrets.swift` 的 PBXFileReference（A20000004）和 PBXBuildFile（A10000004）
+    - 添加 `GeneratedSecrets.swift` 到 Config group children
+    - 添加 `GeneratedSecrets.swift` 到 Sources build phase
+    - 新增 PBXShellScriptBuildPhase（AE0000001 "Generate Secrets"），
+      在 Compile Sources 之前运行 `scripts/generate_secrets.sh`
+  - `.gitignore`：补充 `DayPage/Config/GeneratedSecrets.swift` 忽略规则
+    （原 `Config/GeneratedSecrets.swift` 路径不能匹配子目录下的文件）
+- Files changed:
+  - scripts/generate_secrets.sh （新建）
+  - DayPage.xcodeproj/project.pbxproj （更新）
+  - .gitignore （更新）
+- **Learnings for future iterations:**
+  - gitignore 相对路径不带 `/` 前缀只匹配同级目录，不会递归匹配子目录。
+    要忽略 `DayPage/Config/GeneratedSecrets.swift`，必须写完整路径
+  - `GeneratedSecrets.swift` 不提交入仓库（被 gitignore），每次 Xcode 构建时
+    由 Run Script Phase 自动重生成；typecheck 前需手动跑脚本（设置好 SRCROOT）
+  - Xcode Run Script Phase 在 PBXShellScriptBuildPhase section 定义，
+    PBXNativeTarget.buildPhases 数组中需放在 PBXSourcesBuildPhase 之前
 ---
