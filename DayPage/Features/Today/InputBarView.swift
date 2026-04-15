@@ -76,9 +76,6 @@ struct InputBarView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                // Location pin button
-                locationButton
-
                 // Microphone / Voice recording button
                 microphoneButton
 
@@ -89,9 +86,9 @@ struct InputBarView: View {
                 ZStack(alignment: .topLeading) {
                     // Placeholder text
                     if text.isEmpty {
-                        Text("记录想法…")
-                            .bodyMDStyle()
-                            .foregroundColor(DSColor.onSurfaceVariant)
+                        Text("LOG NEW OBSERVATION...")
+                            .font(.custom("JetBrainsMono-Regular", fixedSize: 13))
+                            .foregroundColor(DSColor.outlineVariant)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 8)
                             .allowsHitTesting(false)
@@ -108,6 +105,9 @@ struct InputBarView: View {
                         .padding(.vertical, 2)
                 }
                 .background(DSColor.surfaceContainerLow)
+
+                // Location pin button (right side per design)
+                locationButton
 
                 // Submit button
                 submitButton
