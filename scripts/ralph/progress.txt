@@ -497,3 +497,69 @@ Started: Wed Apr 15 17:59:31 +07 2026
   - `updateHotCache` 用 `try?` 静默失败（不影响 memo 提交流程），与 WeatherService 模式一致
   - YAML 序列解析（covers_dates）只需简单行扫描，不需要完整 YAML 解析库
 ---
+
+## 2026-04-15 - US-014
+- What was implemented:
+  - `DayPage/Features/Today/MemoCardView.swift`（更新）：
+    - `CompilePromptCard` 添加 `isCompiling: Bool = false` 参数
+    - `isCompiling=true` 时：标题改为"正在编译..."、显示 ProgressView spinner、显示"正在编译 N 条 memo..."进度文本、左侧边框色变为 primary 黑色；按钮 `.disabled(isCompiling)`
+    - `.animation(.easeInOut(duration: 0.2), value: isCompiling)` 状态切换平滑过渡
+  - `DayPage/Features/Today/TodayView.swift`（更新）：
+    - `CompilePromptCard` 调用传入 `isCompiling: viewModel.isCompiling`
+- Files changed:
+  - DayPage/Features/Today/MemoCardView.swift（更新）
+  - DayPage/Features/Today/TodayView.swift（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - `isCompiling` 状态已在 TodayViewModel 中由 US-010 实现，US-014 只需把该状态透传到 UI 组件
+  - 错误文案分类由 `CompilationError.errorDescription` 已实现，TodayViewModel.compile() 中 catch 已做区分
+---
+
+## 2026-04-15 - US-013
+- What was implemented:
+  - `DayPage/Services/BackgroundCompilationService.swift`（新建）：
+    - `nonisolated registerTask()`：在 app 启动时向 BGTaskScheduler 注册处理器
+    - `scheduleIfNeeded()`：提交 BGAppRefreshTaskRequest，earliestBeginDate = 下一个 2:00 AM；重复提交安全（系统忽略）
+    - `handleBackgroundTask(_ task: BGAppRefreshTask) async`：重新调度 → shouldCompile 检查 → CompilationService.compile(trigger:"auto") → UNUserNotificationCenter 通知
+    - `backfillIfNeeded()`：App 启动/进入前台时检查昨天是否需要补充编译
+    - `shouldCompile(for:)`：检查 raw 文件存在 + daily page 不存在
+    - `nextTwoAM()`：计算下一个本地 2:00 AM Date
+  - `DayPage/App/Info.plist`（新建）：包含 BGTaskSchedulerPermittedIdentifiers 和 UIBackgroundModes
+  - `DayPage/App/DayPageApp.swift`（更新）：init 调用 registerTask()；body.onAppear 调用 scheduleIfNeeded() + backfillIfNeeded()
+  - `DayPage.xcodeproj/project.pbxproj`（更新）：注册 BackgroundCompilationService.swift（A20000023/A10000023）、Info.plist（A20000024/A10000024）；Debug+Release buildSettings 添加 INFOPLIST_FILE
+- Files changed:
+  - DayPage/Services/BackgroundCompilationService.swift（新建）
+  - DayPage/App/Info.plist（新建）
+  - DayPage/App/DayPageApp.swift（更新）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - BGTaskSchedulerPermittedIdentifiers 不能通过 INFOPLIST_KEY_* 添加（不是标准键），需要独立 Info.plist 文件
+  - GENERATE_INFOPLIST_FILE = YES 与 INFOPLIST_FILE = ... 同时设置时，Xcode 14+ 会合并两个来源的 keys
+  - BGTaskScheduler.register() 必须在 applicationDidFinishLaunching 完成前调用，即 App.init()，不能在 onAppear
+  - nonisolated static let 可以避免从非 actor 上下文引用 @MainActor 隔离属性的警告
+---
+
+## 2026-04-15 - US-015
+- What was implemented:
+  - `DayPage/Features/Daily/DailyPageView.swift`（新建）：
+    - `DailyPageModel`：解析后的日记数据模型（dateString/weekday/summary/sections/locations/followUpQuestions/memoCount）
+    - `DailyPageParser.parse()`：从 Markdown 文件解析 frontmatter（summary/location_primary/entries_count）+ ## 段落 + LOCATIONS TODAY + AI FOLLOW-UP blockquote 追问
+    - `DailyPageView`：DIGEST/TIMELINE segmented control；header（56px Space Grotesk + 星期 + 2px 左边框 summary + metadata chips）；narrativeSection（heading + 右侧横线 + wikifiedText）；locationsSection；threadsSection 2列 LazyVGrid；footer
+    - `buildAttributedString()`：将 [[slug]] 替换为 amber 色 AttributedString
+    - TIMELINE tab 显示原始 Markdown wikifiedText
+  - `DayPage/Features/Today/TodayView.swift`（更新）：
+    - DailyPageEntryCard 添加 `onTap: { showDailyPage = true }`
+    - 添加 `@State showDailyPage: Bool`
+    - `.fullScreenCover(isPresented: $showDailyPage)` 展示 DailyPageView，onReturnToToday 回调预填 draftText
+  - `DayPage.xcodeproj/project.pbxproj`（更新）：注册 DailyPageView.swift A20000025/A10000025
+- Files changed:
+  - DayPage/Features/Daily/DailyPageView.swift（新建）
+  - DayPage/Features/Today/TodayView.swift（更新）
+  - DayPage.xcodeproj/project.pbxproj（更新）
+  - scripts/ralph/prd.json（passes: true）
+- **Learnings for future iterations:**
+  - AttributedString 可以在 SwiftUI Text 中内联混合颜色（用于 wikilink 渲染），不需要 UITextView 或 WebView
+  - [[slug|Display Name]] 与 [[slug]] 两种格式都要处理；NSRegularExpression 提取 group(at:1) 得到方括号内容
+  - fullScreenCover 支持 dismiss + 回调预填 draftText，适合 Daily Page → Today 的返回流程
+---

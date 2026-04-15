@@ -341,8 +341,8 @@
         "在模拟器中验证多月数据下的渲染"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented in ArchiveView.swift: ArchiveMode enum, DayStats with DensityLevel heatmap, ArchiveViewModel @MainActor ObservableObject, calendar grid with 7-col layout, weekday header, heatmap fill colors, today border, legend row, monthly summary 2x2 grid, month navigation. Typecheck pass."
     },
     {
       "id": "US-018",
@@ -359,8 +359,8 @@
         "在模拟器中验证多日数据下的渲染"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented in same ArchiveView.swift as US-017: list mode with date-descending rows, 4px left border, StatusBadge (VERIFIED/METADATA), summary italic text, metadata icon row (entries/photos/voice). fullScreenCover to DailyPageView. Typecheck pass."
     }
   ]
 }
