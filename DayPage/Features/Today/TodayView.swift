@@ -92,9 +92,13 @@ struct TodayView: View {
                                     }
                                     .frame(maxWidth: .infinity)
                                 } else {
-                                    ForEach(viewModel.memos) { memo in
-                                        MemoCardView(memo: memo)
-                                            .padding(.horizontal, 20)
+                                    ForEach(Array(viewModel.memos.enumerated()), id: \.element.id) { idx, memo in
+                                        TimelineRow(
+                                            memo: memo,
+                                            isLast: idx == viewModel.memos.count - 1
+                                        )
+                                        .padding(.leading, 20)
+                                        .padding(.trailing, 20)
                                     }
                                 }
 
@@ -223,5 +227,42 @@ struct TodayView: View {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = TimeZone.current
         return f.string(from: date)
+    }
+}
+
+// MARK: - TimelineRow
+
+/// Wraps a MemoCardView with a left timeline column (time + connecting line).
+struct TimelineRow: View {
+    let memo: Memo
+    let isLast: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Left timeline column: time label + connecting line
+            VStack(spacing: 0) {
+                Text(memo.created.formatted(.dateTime.hour().minute()))
+                    .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 40)
+                    .padding(.top, 10)
+
+                // Connecting line extends to bottom of card
+                if !isLast {
+                    Rectangle()
+                        .fill(DSColor.outlineVariant)
+                        .frame(width: 1)
+                        .frame(maxHeight: .infinity)
+                        .padding(.top, 4)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .frame(width: 40)
+
+            // Memo card
+            MemoCardView(memo: memo)
+                .frame(maxWidth: .infinity)
+        }
     }
 }
