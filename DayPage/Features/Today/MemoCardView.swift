@@ -16,6 +16,75 @@ struct MemoCardView: View {
     private let previewLineLimit = 4
 
     var body: some View {
+        // Location memos get their own dedicated card layout
+        if memo.type == .location {
+            locationCard
+        } else {
+            standardCard
+        }
+    }
+
+    // MARK: - Location Card
+
+    private var locationCard: some View {
+        HStack(spacing: 0) {
+            // Left 4pt accent line
+            Rectangle()
+                .fill(DSColor.primary)
+                .frame(width: 4)
+
+            // Time + content
+            VStack(alignment: .leading, spacing: 0) {
+                // Time chip
+                TimeChip(time: memo.created.formatted(.dateTime.hour().minute()))
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+
+                // Location name + coordinates row
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let name = memo.location?.name, !name.isEmpty {
+                            Text(name.uppercased())
+                                .font(.custom("SpaceGrotesk-Bold", size: 14))
+                                .foregroundColor(DSColor.onSurface)
+                        }
+
+                        let coordText = coordinateString(memo.location)
+                        if !coordText.isEmpty {
+                            Text(coordText)
+                                .font(.custom("JetBrainsMono-Regular", fixedSize: 11))
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                        }
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(DSColor.primary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .padding(.bottom, 12)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DSColor.surfaceContainer)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if let lat = memo.location?.lat, let lng = memo.location?.lng {
+                    let urlStr = "maps://?ll=\(lat),\(lng)"
+                    if let url = URL(string: urlStr) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            }
+        }
+        .cornerRadius(0)
+    }
+
+    // MARK: - Standard Card
+
+    private var standardCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Top row: time chip + type icon
             HStack(alignment: .center, spacing: 8) {
@@ -35,6 +104,19 @@ struct MemoCardView: View {
                     .frame(height: 160)
                     .clipped()
                     .padding(.top, 6)
+
+                // EXIF metadata bar below photo
+                if let exifText = photoExifText {
+                    Text(exifText)
+                        .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(DSColor.surfaceContainer)
+                }
             }
 
             // Body content (caption)
@@ -115,6 +197,30 @@ struct MemoCardView: View {
     }
 
     // MARK: - Helpers
+
+    /// Formats lat/lng as "45.52306° N, 122.67648° W"
+    private func coordinateString(_ loc: Memo.Location?) -> String {
+        guard let lat = loc?.lat, let lng = loc?.lng else { return "" }
+        let latStr = String(format: "%.5f° %@", abs(lat), lat >= 0 ? "N" : "S")
+        let lngStr = String(format: "%.5f° %@", abs(lng), lng >= 0 ? "E" : "W")
+        return "\(latStr), \(lngStr)"
+    }
+
+    /// Builds EXIF annotation text for the first photo attachment.
+    /// Format: "IMG_0001.HEIC // FOCUS: INFINITYmm"
+    private var photoExifText: String? {
+        guard let att = memo.attachments.first(where: { $0.kind == "photo" }) else { return nil }
+        let filename = URL(fileURLWithPath: att.file).lastPathComponent.uppercased()
+        // Try to read focal length from image metadata
+        let fileURL = VaultInitializer.vaultURL.appendingPathComponent(att.file)
+        if let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+           let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
+           let exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any],
+           let focalLength = exif[kCGImagePropertyExifFocalLength as String] as? Double {
+            return "\(filename) // FOCUS: \(Int(focalLength))mm"
+        }
+        return "\(filename)"
+    }
 
     /// Loads a thumbnail for the first photo attachment (if any).
     private var firstPhotoThumbnail: UIImage? {
