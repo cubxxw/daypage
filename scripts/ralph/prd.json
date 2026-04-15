@@ -285,8 +285,8 @@
         "Typecheck / SwiftLint 通过"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented BackgroundCompilationService.swift (@MainActor singleton; nonisolated registerTask() calls BGTaskScheduler.shared.register for 'com.daypage.daily-compilation'; scheduleIfNeeded() submits BGAppRefreshTaskRequest with earliestBeginDate = next 2:00 AM; handleBackgroundTask(async) re-schedules + checks shouldCompile(for:yesterday) + calls CompilationService.compile(trigger:'auto') + sends UNUserNotificationCenter notification; backfillIfNeeded() called from DayPageApp.onAppear checks yesterday; DayPage/App/Info.plist created with BGTaskSchedulerPermittedIdentifiers + UIBackgroundModes=[fetch,processing]; INFOPLIST_FILE = DayPage/App/Info.plist added to Debug+Release buildSettings; BackgroundCompilationService A20000023/A10000023 registered in pbxproj; Info.plist A20000024/A10000024 added to Resources; DayPageApp.init calls registerTask(); DayPageApp.body.onAppear calls scheduleIfNeeded+backfillIfNeeded; typecheck exit 0."
     },
     {
       "id": "US-015",
