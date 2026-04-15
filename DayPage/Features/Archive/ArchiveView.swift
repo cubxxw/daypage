@@ -403,9 +403,9 @@ struct ArchiveView: View {
     private let weekdaySymbols = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
     private var calendarGrid: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             // Weekday header row
-            HStack(spacing: 2) {
+            HStack(spacing: 1) {
                 ForEach(weekdaySymbols, id: \.self) { day in
                     Text(day)
                         .monoLabelStyle(size: 9)
@@ -419,7 +419,7 @@ struct ArchiveView: View {
             let cells = viewModel.daysInCurrentMonth()
             let rows = cells.chunked(into: 7)
             ForEach(rows.indices, id: \.self) { rowIdx in
-                HStack(spacing: 2) {
+                HStack(spacing: 1) {
                     ForEach(rows[rowIdx].indices, id: \.self) { colIdx in
                         let dayNum = rows[rowIdx][colIdx]
                         calendarCell(dayNum: dayNum)
@@ -427,6 +427,11 @@ struct ArchiveView: View {
                 }
             }
         }
+        .background(DSColor.surfaceContainerLow)
+        .overlay(
+            Rectangle()
+                .stroke(DSColor.outlineVariant, lineWidth: 1)
+        )
     }
 
     @ViewBuilder
