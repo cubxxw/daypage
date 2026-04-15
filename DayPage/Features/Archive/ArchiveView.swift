@@ -553,6 +553,18 @@ struct ArchiveView: View {
         .padding(.top, 8)
     }
 
+    /// Converts "yyyy-MM-dd" to "APRIL 14" (MMMM d, en_US, all caps).
+    private func formatArchiveDate(_ dateString: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateString) else { return dateString }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: date).uppercased()
+    }
+
     private func archiveListRow(stats: DayStats) -> some View {
         Button(action: {
             selectedDateString = stats.dateString
@@ -567,7 +579,7 @@ struct ArchiveView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(stats.dateString.uppercased())
+                        Text(formatArchiveDate(stats.dateString))
                             .font(.custom("SpaceGrotesk-Bold", size: 15))
                             .foregroundColor(DSColor.onSurface)
 
