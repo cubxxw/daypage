@@ -105,7 +105,11 @@ final class VoiceService: NSObject, ObservableObject {
 
         do {
             let session = AVAudioSession.sharedInstance()
+            #if compiler(>=6.0)
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+            #else
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            #endif
             try session.setActive(true)
         } catch {
             state = .failed("音频会话初始化失败：\(error.localizedDescription)")
