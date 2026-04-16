@@ -102,6 +102,11 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
 
+          # 读取描述文件 UUID，传给后续步骤
+          UUID=$(security cms -D -i $PP_PATH | plutil -extract UUID raw -)
+          echo "PROVISIONING_PROFILE_UUID=$UUID" >> $GITHUB_ENV
+          echo "Provisioning profile UUID: $UUID"
+
       # ── 7. Write App Store Connect API Key ───────────────────────────────
       # 写成文件供 Fastlane 读取（也可以通过环境变量传，Fastfile 里两种方式都支持）
       - name: Write App Store Connect API key
@@ -117,6 +122,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_ID:         ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID:          ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_CONTENT:    ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          PROVISIONING_PROFILE_UUID:            ${{ env.PROVISIONING_PROFILE_UUID }}
           FASTLANE_XCODE_LIST_TIMEOUT:          "120"
           FASTLANE_SKIP_UPDATE_CHECK:           "1"
         run: |
