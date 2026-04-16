@@ -1,66 +1,89 @@
-# DayPage — Claude Code 项目规范
+# DayPage — Claude Code Project Guidelines
 
-## 项目简介
+## Overview
 
-DayPage：以"每日原始数据采集"为核心的个人记录工具。用户倾倒，AI 每日编译成结构化日记和知识网络。目标用户：旅居者/数字游民。
+DayPage: a personal logging tool centered on daily raw data capture. Users dump, AI compiles into structured diary entries and a knowledge network each day. Target users: nomads / digital nomads.
 
-## 技术栈
+## Tech Stack
 
-### 客户端
+### Client
 
-| 层 | 选型 | 理由 |
+| Layer | Choice | Notes |
 |---|---|---|
-| 框架 | **Expo SDK 55** (React Native 0.83) | 官方推荐框架，New Architecture 默认启用，file-based routing，原生模块生态最完善 |
-| 包管理 | **Bun** | Expo 官方支持，安装速度 4x+，`bunx expo` 直接可用 |
-| 语言 | **TypeScript** (strict mode) | 类型安全，元数据结构需要强类型保障 |
-| 样式 | **NativeWind v4** (Tailwind CSS) | 与设计系统的 utility-first 思路一致，零圆角等约束通过 tailwind.config 全局控制 |
-| 导航 | **Expo Router v4** (file-based) | 三个 Tab (Today / Archive / Graph) + 模态浮层，文件即路由 |
-| 状态管理 | **Zustand** | 轻量，memo 列表和 UI 状态足够用，不需要 Redux |
-| 本地存储 | **expo-file-system** + 纯 Markdown 文件 | Raw 层写 `.md` 文件，不用数据库。附件存 `assets/` 目录 |
-| 语音录制 | **expo-av** (录音) + **expo-audio** (播放) | Expo 原生模块，稳定 |
-| 语音转文字 | **Whisper.cpp** via `react-native-whisper` | 本地转录，隐私优先。备选：Anthropic/OpenAI STT API |
-| 相机/相册 | **expo-image-picker** + **expo-media-library** | EXIF 自动提取 |
-| 位置 | **expo-location** | 前台 GPS + 反向地理编码 |
-| 天气 | **OpenWeather API** (free tier) | 基于 GPS 坐标获取当前天气 |
-| Markdown渲染 | **react-native-markdown-display** | 在 Daily Page 和 Archive 中渲染编译后的 wiki 内容 |
+| Platform | **iOS 16.0+**, Swift 5 | Single Xcode target `DayPage.app`, no SPM dependencies |
+| UI | **SwiftUI** (pure) | `UITabBarAppearance` is the only UIKit touchpoint (`RootView.swift`) |
+| Navigation | **TabView** | Three tabs — Today / Archive / Graph (disabled, Post-MVP) |
+| State | `ObservableObject` + `@Published` + `@StateObject`, `@MainActor` services | No `@Observable` macro (Swift 5 constraint) |
+| Persistence | **File system** — YAML front-matter + Markdown | `vault/raw/YYYY-MM-DD.md`, multi-memo separated by `\n\n---\n\n`. Atomic writes via `FileManager.replaceItem`. No Core Data / SwiftData |
+| YAML / Markdown | Hand-written parser in `Models/Memo.swift` | No external Markdown library |
+| Voice recording | **AVFoundation** `AVAudioRecorder` → M4A | Stored under `vault/raw/assets/` |
+| Speech-to-text | **OpenAI Whisper API** (`whisper-1`) | `VoiceService.swift`; transcript saved to `Attachment.transcript` |
+| Camera / photos | **PhotosUI** + `PHPicker` | EXIF extraction (aperture, shutter, ISO, focal length, GPS, timestamp); originals saved, thumbnails for UI |
+| Location | **CoreLocation** + reverse geocoding | `LocationService.swift` |
+| Weather | **OpenWeatherMap API** (free tier) | 10-min cache, `zh_cn` locale (`WeatherService.swift`) |
+| Fonts | Space Grotesk / Inter / JetBrains Mono (TTF in bundle) | Registered via `DSFonts.registerAll()` at app launch |
 
-### AI 编译引擎
+### AI Compilation Engine
 
-| 功能 | 选型 | 说明 |
+| Feature | Choice | Notes |
 |---|---|---|
-| 每日编译 | **Claude API** (claude-sonnet-4-20250514) | 读当天 raw + hot.md，产出 Daily Page + Entity Page 更新 |
-| 编译调度 | **expo-background-fetch** + **expo-task-manager** | 每日凌晨 2:00 本地时间触发 |
-| Token 优化 | 仅传文本，不传音频/图片原文件 | 每日 20 条 memo 约 2k-5k input tokens |
+| Provider | **Aliyun DashScope** (OpenAI-compatible) | `CompilationService.swift`, model `qwen3.5-plus`, base URL `https://coding.dashscope.aliyuncs.com/v1` |
+| API key | `Config/GeneratedSecrets.swift` (auto-generated from env, not committed) | Never hardcode in source |
+| Schedule | **BGTaskScheduler** (`BGAppRefreshTask`) | Identifier `com.daypage.daily-compilation`, 02:00 local daily, with backfill + local notification (`BackgroundCompilationService.swift`) |
+| Input | Text only — no raw audio / image bytes sent | ~2k–5k tokens per day for 20 memos |
 
+## Project Structure
 
-## 编码规范
+```
+DayPage/
+  App/              RootView, DayPageApp, Fonts, Typography
+  Features/
+    Today/          TodayView + TodayViewModel (268 lines)
+    Archive/        ArchiveView (655 lines, calendar + list)
+    Graph/          GraphView (18-line placeholder — Post-MVP, see PRD NG-3)
+  Models/           Memo, Attachment, YAML parser
+  Services/         RawStorage, Location, Weather, Photo, Voice, Compilation, BackgroundCompilation
+  Config/           GeneratedSecrets (gitignored)
+```
 
-- 组件用函数式 + hooks，不用 class
-- 文件命名：PascalCase 组件，camelCase 工具函数
-- 每个文件 < 200 行，超过就拆分
-- 不用 `any`，不用 `@ts-ignore`
+**Pipeline**: Today (raw input) → AI compilation → Daily Page (structured diary) → Entity Pages → Graph (Post-MVP knowledge network).
 
+## Coding Conventions
 
-## UI 设计
+- SwiftUI views: value types; extract subviews when a `body` exceeds ~80 lines
+- Services: `@MainActor final class`, singletons where shared state is required
+- View models: `@MainActor final class: ObservableObject` with `@Published`
+- `MARK: -` section comments for navigation
+- No force-unwraps in production paths; prefer `guard let` / `throws`
+- No external dependencies without discussion — prefer Apple frameworks
 
-设计稿（Stitch 项目 `DayPage Today Flow` / ID `6404909232718143042`）已快照到仓库，实现时**优先读本地文件**，不要调用 `mcp__stitch__*`：
+## UI Design
 
-- `design/stitch/screenshots/*.png` — 布局、配色、视觉层级
-- `design/stitch/html/*.html` — 精确间距、字号、颜色值（读 class 和内联样式）
+The design (Stitch project `DayPage Today Flow` / ID `6404909232718143042`) is snapshotted into the repo. **Read local files first** when implementing — do not call `mcp__stitch__*`:
 
-屏幕映射：
+- `design/stitch/screenshots/*.png` — layout, color, visual hierarchy
+- `design/stitch/html/*.html` — exact spacing, font sizes, color values (read classes and inline styles as reference; translate to SwiftUI)
 
-| 资产文件名 | 对应屏幕 |
+Screen mapping:
+
+| Asset filename | Screen |
 |---|---|
-| `today-flow` | Today Tab 主流程 |
-| `voice-recording` | 语音录制浮层 |
-| `daily-page` | 每日编译后的日记页 |
-| `archive-calendar` | Archive 日历视图 |
-| `archive-list` | Archive 列表视图 |
+| `today-flow` | Today Tab main flow |
+| `voice-recording` | Voice recording overlay |
+| `daily-page` | Post-compilation diary page |
+| `archive-calendar` | Archive calendar view |
+| `archive-list` | Archive list view |
 
-**重新同步**：设计改动后运行 `mcp__stitch__get_screen`（screen ID 清单见 `design/stitch/README.md`），覆盖 `design/stitch/` 下对应文件。
+Graph Tab has **no design** (Post-MVP, PRD NG-3) — keep the placeholder.
 
+**Re-sync**: after design changes, run `mcp__stitch__get_screen` (screen ID list in `design/stitch/README.md`) and overwrite the corresponding files under `design/stitch/`.
 
-# 测试
+## Testing
 
-一些明确的任务可以 TDD 驱动，确保每一次任务完成之前使用 SKILLS 检查 UI 或者程序是否有问题
+No test target exists yet. When adding tests, create a `DayPageTests` target using **Swift Testing** (iOS 16+ supports it via the `Testing` package on Xcode 16+) or XCTest if the project stays on older Xcode.
+
+Before marking any task complete:
+1. Build the `DayPage` scheme (`xcodebuild -scheme DayPage build`)
+2. Run any existing tests
+3. For storage-related changes, inspect the actual `.md` file written under `vault/raw/` (use `get_app_container` to locate the sandbox) and verify YAML front-matter + Markdown structure
+4. For UI changes, launch the app in Simulator and verify visually — SwiftUI preview alone is not sufficient

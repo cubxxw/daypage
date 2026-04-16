@@ -1,0 +1,9 @@
+app_identifier "com.daypage.app"
+
+# Apple ID — 用于 App Store Connect 登录
+# 在 CI 中通过 APP_STORE_CONNECT_API_KEY 环境变量替代，本地开发时填写
+# apple_id "your-apple-id@example.com"
+
+# Team ID — 在 developer.apple.com 的 Membership 页面查看
+# 格式示例: "XXXXXXXXXX"
+# team_id "YOUR_TEAM_ID"
