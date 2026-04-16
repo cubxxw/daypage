@@ -42,6 +42,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Project uses iOS 26 SDK APIs (AVAudioSession.allowBluetoothHFP, etc.).
+      # Pick the newest Xcode available on the runner — macos-15 image usually
+      # pre-installs several Xcode versions under /Applications/Xcode_*.app.
+      - name: Select newest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LATEST" ]; then
+            echo "Selecting: $LATEST"
+            sudo xcode-select -s "$LATEST/Contents/Developer"
+          fi
+          xcodebuild -version
+          xcrun --show-sdk-path --sdk iphonesimulator
+          xcrun --show-sdk-version --sdk iphonesimulator
+
       - name: Cache DerivedData
         uses: actions/cache@v4
         with:
