@@ -213,6 +213,7 @@ final class CompilationService {
         mood: <one-word mood in Chinese>
         entries_count: \(memoCount)
         summary: "<one-sentence summary in Chinese, max 50 chars>"
+        cover: <optional: vault-relative path of the best photo attachment from today's memos, e.g. "raw/assets/photo_20260414_093000.jpg"; omit the line entirely if no photos exist>
         ---
 
         # \(dateString.uppercased())
