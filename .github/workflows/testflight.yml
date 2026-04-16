@@ -40,7 +40,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
+          ruby-version: "3.1"
           bundler-cache: true   # 自动 bundle install + 缓存 gems
 
       # ── 3. Restore Xcode DerivedData cache ───────────────────────────────
