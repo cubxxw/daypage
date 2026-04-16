@@ -73,7 +73,7 @@ platform :ios do
       output_directory: "build",
       output_name:      "DayPage.ipa",
       xcargs:           use_manual_signing \
-        ? "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE_SPECIFIER=#{ENV['PROVISIONING_PROFILE_UUID']}" \
+        ? "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE_SPECIFIER=#{ENV['PROVISIONING_PROFILE_UUID']}" \
         : "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} -allowProvisioningUpdates"
     )
 
@@ -109,7 +109,7 @@ platform :ios do
       output_directory: "build",
       output_name:      "DayPage.ipa",
       xcargs:           use_manual_signing \
-        ? "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE_SPECIFIER=#{ENV['PROVISIONING_PROFILE_UUID']}" \
+        ? "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE_SPECIFIER=#{ENV['PROVISIONING_PROFILE_UUID']}" \
         : "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} -allowProvisioningUpdates"
     )
 
