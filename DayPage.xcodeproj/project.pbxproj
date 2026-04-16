@@ -33,6 +33,18 @@
 		A10000025 /* DailyPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000025 /* DailyPageView.swift */; };
 		A10000026 /* EntityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000026 /* EntityPageView.swift */; };
 		A10000024 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000024 /* Info.plist */; };
+		AF0000001 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000001 /* SpaceGrotesk-Light.ttf */; };
+		AF0000002 /* SpaceGrotesk-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000002 /* SpaceGrotesk-Regular.ttf */; };
+		AF0000003 /* SpaceGrotesk-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000003 /* SpaceGrotesk-Medium.ttf */; };
+		AF0000004 /* SpaceGrotesk-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000004 /* SpaceGrotesk-SemiBold.ttf */; };
+		AF0000005 /* SpaceGrotesk-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000005 /* SpaceGrotesk-Bold.ttf */; };
+		AF0000006 /* Inter-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000006 /* Inter-Light.ttf */; };
+		AF0000007 /* Inter-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000007 /* Inter-Regular.ttf */; };
+		AF0000008 /* Inter-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000008 /* Inter-Medium.ttf */; };
+		AF0000009 /* Inter-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000009 /* Inter-SemiBold.ttf */; };
+		AF0000010 /* Inter-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000010 /* Inter-Bold.ttf */; };
+		AF0000011 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000011 /* JetBrainsMono-Regular.ttf */; };
+		AF0000012 /* JetBrainsMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000012 /* JetBrainsMono-Medium.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +75,18 @@
 		A20000025 /* DailyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyPageView.swift; sourceTree = "<group>"; };
 		A20000026 /* EntityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPageView.swift; sourceTree = "<group>"; };
 		A20000024 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AF1000001 /* SpaceGrotesk-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Light.ttf"; sourceTree = "<group>"; };
+		AF1000002 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Regular.ttf"; sourceTree = "<group>"; };
+		AF1000003 /* SpaceGrotesk-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Medium.ttf"; sourceTree = "<group>"; };
+		AF1000004 /* SpaceGrotesk-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-SemiBold.ttf"; sourceTree = "<group>"; };
+		AF1000005 /* SpaceGrotesk-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Bold.ttf"; sourceTree = "<group>"; };
+		AF1000006 /* Inter-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Light.ttf"; sourceTree = "<group>"; };
+		AF1000007 /* Inter-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Regular.ttf"; sourceTree = "<group>"; };
+		AF1000008 /* Inter-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Medium.ttf"; sourceTree = "<group>"; };
+		AF1000009 /* Inter-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-SemiBold.ttf"; sourceTree = "<group>"; };
+		AF1000010 /* Inter-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Bold.ttf"; sourceTree = "<group>"; };
+		AF1000011 /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Regular.ttf"; sourceTree = "<group>"; };
+		AF1000012 /* JetBrainsMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Medium.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,8 +121,28 @@
 				A20000001 /* DayPageApp.swift */,
 				A20000002 /* RootView.swift */,
 				A20000024 /* Info.plist */,
+				AF2000001 /* Fonts */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		AF2000001 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				AF1000001 /* SpaceGrotesk-Light.ttf */,
+				AF1000002 /* SpaceGrotesk-Regular.ttf */,
+				AF1000003 /* SpaceGrotesk-Medium.ttf */,
+				AF1000004 /* SpaceGrotesk-SemiBold.ttf */,
+				AF1000005 /* SpaceGrotesk-Bold.ttf */,
+				AF1000006 /* Inter-Light.ttf */,
+				AF1000007 /* Inter-Regular.ttf */,
+				AF1000008 /* Inter-Medium.ttf */,
+				AF1000009 /* Inter-SemiBold.ttf */,
+				AF1000010 /* Inter-Bold.ttf */,
+				AF1000011 /* JetBrainsMono-Regular.ttf */,
+				AF1000012 /* JetBrainsMono-Medium.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		A50000003 /* DesignSystem */ = {
@@ -280,6 +324,18 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF0000001 /* SpaceGrotesk-Light.ttf in Resources */,
+				AF0000002 /* SpaceGrotesk-Regular.ttf in Resources */,
+				AF0000003 /* SpaceGrotesk-Medium.ttf in Resources */,
+				AF0000004 /* SpaceGrotesk-SemiBold.ttf in Resources */,
+				AF0000005 /* SpaceGrotesk-Bold.ttf in Resources */,
+				AF0000006 /* Inter-Light.ttf in Resources */,
+				AF0000007 /* Inter-Regular.ttf in Resources */,
+				AF0000008 /* Inter-Medium.ttf in Resources */,
+				AF0000009 /* Inter-SemiBold.ttf in Resources */,
+				AF0000010 /* Inter-Bold.ttf in Resources */,
+				AF0000011 /* JetBrainsMono-Regular.ttf in Resources */,
+				AF0000012 /* JetBrainsMono-Medium.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -42,6 +42,11 @@ struct VoiceRecordingView: View {
             // Timer display
             timerSection
 
+            // Real-time waveform visualizer
+            waveformView
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+
             Spacer()
 
             // State message (e.g., "Transcribing…")
@@ -104,6 +109,24 @@ struct VoiceRecordingView: View {
         }
     }
 
+    // MARK: - Waveform View
+
+    @ViewBuilder
+    private var waveformView: some View {
+        let barCount = 40
+        let bars = voiceService.waveformHistory
+        HStack(alignment: .center, spacing: 2) {
+            ForEach(0 ..< barCount, id: \.self) { i in
+                let level = i < bars.count ? bars[i] : 0.04
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(DSColor.amberArchival)
+                    .frame(width: 3, height: max(4, CGFloat(level) * 32))
+                    .animation(.easeOut(duration: 0.05), value: level)
+            }
+        }
+        .frame(height: 36)
+    }
+
     // MARK: - Status Message
 
     @ViewBuilder
@@ -150,29 +173,11 @@ struct VoiceRecordingView: View {
     private var controlButtons: some View {
         let isActive = voiceService.state == .recording || voiceService.state == .paused
         let isProcessing = voiceService.state == .processing
+        let canSave = isActive && !isProcessing
 
-        HStack(spacing: 32) {
-            // Cancel button (always available except during processing)
-            Button(action: {
-                voiceService.cancelRecording()
-                onCancel()
-            }) {
-                VStack(spacing: 6) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(isProcessing ? DSColor.onSurfaceVariant : DSColor.onSurface)
-                        .frame(width: 56, height: 56)
-                        .background(isProcessing ? DSColor.surfaceContainerLow : DSColor.surfaceContainerHigh)
-                    Text("取消")
-                        .labelSMStyle()
-                        .foregroundColor(DSColor.onSurfaceVariant)
-                }
-            }
-            .disabled(isProcessing)
-            .cornerRadius(0)
-
-            // Pause / Resume button (only when recording or paused)
-            if isActive {
+        // Pause / Resume row (only when active)
+        if isActive {
+            HStack(spacing: 0) {
                 Button(action: {
                     if voiceService.state == .recording {
                         voiceService.pauseRecording()
@@ -180,23 +185,49 @@ struct VoiceRecordingView: View {
                         voiceService.resumeRecording()
                     }
                 }) {
-                    VStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Image(systemName: voiceService.state == .recording ? "pause.fill" : "play.fill")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(DSColor.onSurface)
-                            .frame(width: 56, height: 56)
-                            .background(DSColor.surfaceContainerHigh)
-                        Text(voiceService.state == .recording ? "暂停" : "继续")
-                            .labelSMStyle()
-                            .foregroundColor(DSColor.onSurfaceVariant)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(voiceService.state == .recording ? "PAUSE" : "RESUME")
+                            .font(.custom("JetBrainsMono-Regular", fixedSize: 12))
                     }
+                    .foregroundColor(DSColor.onSurface)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(DSColor.surfaceContainerHigh)
                 }
+                .buttonStyle(.plain)
                 .cornerRadius(0)
             }
+            .padding(.horizontal, 0)
+        }
 
-            // Stop & Save button
+        // DISCARD | SAVE full-width bottom buttons
+        HStack(spacing: 0) {
+            // DISCARD (white bg, black text)
             Button(action: {
-                guard isActive else { return }
+                voiceService.cancelRecording()
+                onCancel()
+            }) {
+                Text("DISCARD")
+                    .font(.custom("JetBrainsMono-Regular", fixedSize: 14))
+                    .foregroundColor(isProcessing ? DSColor.onSurfaceVariant : DSColor.onSurface)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(DSColor.surface)
+            }
+            .disabled(isProcessing)
+            .buttonStyle(.plain)
+            .cornerRadius(0)
+
+            // Separator
+            Rectangle()
+                .fill(DSColor.outlineVariant)
+                .frame(width: 1, height: 56)
+
+            // SAVE (black bg, white text)
+            Button(action: {
+                guard canSave else { return }
                 Task {
                     if let result = await voiceService.stopAndTranscribe() {
                         onComplete(result)
@@ -205,21 +236,22 @@ struct VoiceRecordingView: View {
                     }
                 }
             }) {
-                VStack(spacing: 6) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(isActive ? DSColor.onPrimary : DSColor.onSurfaceVariant)
-                        .frame(width: 56, height: 56)
-                        .background(isActive ? DSColor.primary : DSColor.surfaceContainerLow)
-                    Text("完成")
-                        .labelSMStyle()
-                        .foregroundColor(DSColor.onSurfaceVariant)
-                }
+                Text("SAVE")
+                    .font(.custom("JetBrainsMono-Regular", fixedSize: 14))
+                    .foregroundColor(canSave ? DSColor.onPrimary : DSColor.onSurfaceVariant)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(canSave ? DSColor.primary : DSColor.surfaceContainerLow)
             }
-            .disabled(!isActive || isProcessing)
+            .disabled(!canSave)
+            .buttonStyle(.plain)
             .cornerRadius(0)
         }
-        .padding(.horizontal, 40)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(DSColor.outlineVariant)
+                .frame(height: 1)
+        }
     }
 
     // MARK: - Helpers

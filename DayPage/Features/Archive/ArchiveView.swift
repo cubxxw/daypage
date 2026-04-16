@@ -324,17 +324,30 @@ struct ArchiveView: View {
     // MARK: - Archive Header
 
     private var archiveHeader: some View {
-        HStack {
-            Text("ARCHIVE")
-                .headlineMDStyle()
+        HStack(spacing: 10) {
+            // Calendar icon (decorative)
+            Image(systemName: "calendar")
+                .font(.system(size: 18, weight: .regular))
                 .foregroundColor(DSColor.onSurface)
+
+            Text("ARCHIVE")
+                .font(.custom("SpaceGrotesk-Bold", size: 20))
+                .foregroundColor(DSColor.onSurface)
+                .kerning(2)
+
             Spacer()
-            Text(Date(), format: .dateTime.month(.wide).year())
-                .monoLabelStyle(size: 11)
-                .foregroundColor(DSColor.onSurfaceVariant)
+
+            // Search icon (MVP: tap shows "coming soon" toast)
+            Button(action: { }) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundColor(DSColor.onSurface)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .frame(height: 56)
     }
 
     // MARK: - Month Navigation Row
@@ -390,9 +403,9 @@ struct ArchiveView: View {
     private let weekdaySymbols = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
     private var calendarGrid: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             // Weekday header row
-            HStack(spacing: 2) {
+            HStack(spacing: 1) {
                 ForEach(weekdaySymbols, id: \.self) { day in
                     Text(day)
                         .monoLabelStyle(size: 9)
@@ -406,7 +419,7 @@ struct ArchiveView: View {
             let cells = viewModel.daysInCurrentMonth()
             let rows = cells.chunked(into: 7)
             ForEach(rows.indices, id: \.self) { rowIdx in
-                HStack(spacing: 2) {
+                HStack(spacing: 1) {
                     ForEach(rows[rowIdx].indices, id: \.self) { colIdx in
                         let dayNum = rows[rowIdx][colIdx]
                         calendarCell(dayNum: dayNum)
@@ -414,6 +427,11 @@ struct ArchiveView: View {
                 }
             }
         }
+        .background(DSColor.surfaceContainerLow)
+        .overlay(
+            Rectangle()
+                .stroke(DSColor.outlineVariant, lineWidth: 1)
+        )
     }
 
     @ViewBuilder
@@ -498,7 +516,7 @@ struct ArchiveView: View {
                 summaryCard("TOTAL ENTRIES", value: "\(viewModel.totalEntries)", accentPrimary: true)
                 summaryCard("VOICE DURATION", value: "\(viewModel.totalVoiceMinutes)", unit: "min", accentPrimary: false)
                 summaryCard("PHOTOS CAPTURED", value: "\(viewModel.totalPhotos)", accentPrimary: false)
-                summaryCard("UNIQUE LOCATIONS", value: "\(viewModel.totalLocations)", accentPrimary: true)
+                summaryCard("TRAVEL LOCATIONS", value: "\(viewModel.totalLocations)", accentPrimary: true)
             }
         }
     }
@@ -511,7 +529,7 @@ struct ArchiveView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value)
-                    .font(.custom("SpaceGrotesk-Bold", size: 36))
+                    .font(.custom("SpaceGrotesk-Bold", size: 48))
                     .foregroundColor(DSColor.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
@@ -553,6 +571,18 @@ struct ArchiveView: View {
         .padding(.top, 8)
     }
 
+    /// Converts "yyyy-MM-dd" to "APRIL 14" (MMMM d, en_US, all caps).
+    private func formatArchiveDate(_ dateString: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateString) else { return dateString }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: date).uppercased()
+    }
+
     private func archiveListRow(stats: DayStats) -> some View {
         Button(action: {
             selectedDateString = stats.dateString
@@ -567,7 +597,7 @@ struct ArchiveView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(stats.dateString.uppercased())
+                        Text(formatArchiveDate(stats.dateString))
                             .font(.custom("SpaceGrotesk-Bold", size: 15))
                             .foregroundColor(DSColor.onSurface)
 
