@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main          # main 由 testflight.yml 负责
+    paths-ignore:
+      - "design/**"
+      - "scripts/ralph/**"
+      - "tasks/**"
+      - "**.md"
+      - ".gitignore"
+  pull_request:
+    paths-ignore:
+      - "design/**"
+      - "scripts/ralph/**"
+      - "tasks/**"
+      - "**.md"
+      - ".gitignore"
+
+jobs:
+  unit-tests:
+    name: Swift Unit Tests (xcrun)
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run RawStorage tests
+        run: xcrun swift scripts/tests/test_raw_storage.swift
+
+      - name: Run EntityPage tests
+        run: xcrun swift scripts/tests/test_entity_page.swift
+
+  build:
+    name: Xcode Build (no signing)
+    runs-on: macos-15
+    needs: unit-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-ci-${{ hashFiles('DayPage.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            deriveddata-ci-
+
+      # GeneratedSecrets.swift 已提交到仓库（包含占位值）
+      # CI 构建不需要真实 key，直接使用已提交版本即可
+      # 如果文件意外缺失，用空占位值生成
+      - name: Ensure GeneratedSecrets.swift exists
+        run: |
+          if [ ! -f DayPage/Config/GeneratedSecrets.swift ]; then
+            mkdir -p DayPage/Config
+            cat > DayPage/Config/GeneratedSecrets.swift << 'SWIFT'
+          // CI placeholder — real values injected at runtime via .env
+          enum Secrets {
+              static let dashScopeApiKey: String = ""
+              static let dashScopeBaseURL: String = ""
+              static let dashScopeModel: String = ""
+              static let openAIWhisperApiKey: String = ""
+              static let openWeatherApiKey: String = ""
+          }
+          SWIFT
+          fi
+
+      - name: Build (simulator, CODE_SIGNING_ALLOWED=NO)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme DayPage \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_CONTENT_PROTECTION=NO \
+            build 2>&1 | tee build.log | grep -E 'BUILD SUCCEEDED|BUILD FAILED|error:' || true
+          # Fail the step if build failed
+          grep 'BUILD SUCCEEDED' build.log
