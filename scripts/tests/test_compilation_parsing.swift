@@ -79,7 +79,7 @@ test("markdown-fenced ```json block parsed correctly") {
     let raw = """
     Here is your output:
     ```json
-    {"daily_page": "# Daily\nNarrative.", "entity_updates": [], "hot_cache": "cache"}
+    {"daily_page": "# Daily\\nNarrative.", "entity_updates": [], "hot_cache": "cache"}
     ```
     That's all.
     """
