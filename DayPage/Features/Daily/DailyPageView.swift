@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - DailyPageTab
 
@@ -21,6 +22,9 @@ struct DailyPageModel {
     let locations: [LocationEntry]
     let followUpQuestions: [String]
     let memoCount: Int
+    /// Vault-relative path to the hero banner image (e.g. "raw/assets/photo_...jpg").
+    /// Nil when no photo is available for this day.
+    let coverAssetPath: String?
 
     struct PageSection {
         let title: String
@@ -132,6 +136,10 @@ struct DailyPageView: View {
             // Date header
             headerSection(model: model)
                 .padding(.horizontal, 20)
+                .padding(.bottom, 24)
+
+            // Hero banner (16:7 asset) — full-bleed, no horizontal padding
+            HeroBannerView(coverAssetPath: model.coverAssetPath)
                 .padding(.bottom, 32)
 
             // Narrative sections
@@ -452,6 +460,7 @@ enum DailyPageParser {
         var summary = ""
         var locationPrimary = ""
         var entriesCount = 0
+        var cover: String? = nil
         var inFrontmatter = false
         var closingFound = false
         var bodyStartIndex = 0
@@ -475,9 +484,17 @@ enum DailyPageParser {
                 } else if trimmed.hasPrefix("entries_count:") {
                     let raw = String(trimmed.dropFirst("entries_count:".count)).trimmingCharacters(in: .whitespaces)
                     entriesCount = Int(raw) ?? 0
+                } else if trimmed.hasPrefix("cover:") {
+                    let raw = String(trimmed.dropFirst("cover:".count))
+                        .trimmingCharacters(in: .whitespaces)
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                    if !raw.isEmpty { cover = raw }
                 }
             }
         }
+
+        // Fallback: derive cover from the day's raw memos if frontmatter has none.
+        let resolvedCover = cover ?? firstPhotoAttachmentPath(for: dateString)
 
         let bodyLines = Array(lines.dropFirst(bodyStartIndex))
         let bodyText = bodyLines.joined(separator: "\n")
@@ -530,8 +547,31 @@ enum DailyPageParser {
             sections: sections,
             locations: locations,
             followUpQuestions: followUpQuestions,
-            memoCount: entriesCount
+            memoCount: entriesCount,
+            coverAssetPath: resolvedCover
         )
+    }
+
+    /// Scans vault/raw/YYYY-MM-DD.md and returns the vault-relative path of the first
+    /// photo attachment (preferring any attachment file with a "cover-*" prefix if present).
+    /// Returns nil if no photos are attached.
+    private static func firstPhotoAttachmentPath(for dateString: String) -> String? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        guard let date = formatter.date(from: dateString) else { return nil }
+
+        let memos = (try? RawStorage.read(for: date)) ?? []
+        let photoAttachments = memos.flatMap { $0.attachments }.filter { $0.kind == "photo" }
+
+        // Prefer an attachment whose filename starts with "cover" (manual override convention).
+        if let explicit = photoAttachments.first(where: {
+            ($0.file as NSString).lastPathComponent.lowercased().hasPrefix("cover")
+        }) {
+            return explicit.file
+        }
+        return photoAttachments.first?.file
     }
 
     // MARK: - Helpers
@@ -596,5 +636,176 @@ enum DailyPageParser {
             }
         }
         return results
+    }
+}
+
+// MARK: - HeroBannerView
+
+/// Full-bleed 16:7 banner rendered at the top of a Daily Page.
+/// Resolves `coverAssetPath` against the Vault sandbox and shows a skeleton
+/// while loading. Falls back to a geometric placeholder when no photo is available
+/// or the file fails to decode.
+struct HeroBannerView: View {
+    let coverAssetPath: String?
+
+    @State private var image: UIImage? = nil
+    @State private var loadFailed: Bool = false
+    @State private var showPreview: Bool = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = width * 7.0 / 16.0
+            ZStack {
+                DSColor.surfaceContainer
+
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: width, height: height)
+                        .clipped()
+                        .contentShape(Rectangle())
+                        .onTapGesture { showPreview = true }
+                        .accessibilityLabel("Daily hero image")
+                        .accessibilityAddTraits(.isImage)
+                } else if coverAssetPath == nil || loadFailed {
+                    placeholder
+                } else {
+                    skeleton
+                }
+            }
+            .frame(width: width, height: height)
+        }
+        .aspectRatio(16.0 / 7.0, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .task(id: coverAssetPath) { await load() }
+        .fullScreenCover(isPresented: $showPreview) {
+            HeroBannerPreview(image: image) { showPreview = false }
+        }
+    }
+
+    // MARK: - Placeholder
+
+    /// Monochrome geometric placeholder used when no photo exists for the day.
+    private var placeholder: some View {
+        ZStack {
+            DSColor.surfaceContainer
+
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
+                ZStack {
+                    Rectangle()
+                        .stroke(DSColor.onSurfaceVariant.opacity(0.35), lineWidth: 1)
+                        .frame(width: w * 0.55, height: h * 0.6)
+                        .offset(x: -w * 0.12, y: -h * 0.05)
+                    Circle()
+                        .stroke(DSColor.onSurfaceVariant.opacity(0.35), lineWidth: 1)
+                        .frame(width: h * 0.5, height: h * 0.5)
+                        .offset(x: w * 0.18, y: h * 0.08)
+                }
+                .frame(width: w, height: h)
+            }
+
+            VStack {
+                Spacer()
+                HStack {
+                    Text("NO HERO IMAGE")
+                        .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
+                        .kerning(2)
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(DSColor.surfaceContainerHigh)
+                    Spacer()
+                }
+                .padding(12)
+            }
+        }
+    }
+
+    // MARK: - Skeleton
+
+    /// Neutral shimmer-free skeleton shown while the image decodes.
+    private var skeleton: some View {
+        DSColor.surfaceContainerHigh
+            .overlay(
+                ProgressView()
+                    .tint(DSColor.onSurfaceVariant)
+            )
+    }
+
+    // MARK: - Loading
+
+    private func load() async {
+        image = nil
+        loadFailed = false
+        guard let relativePath = coverAssetPath, !relativePath.isEmpty else { return }
+
+        let fileURL = VaultInitializer.vaultURL.appendingPathComponent(relativePath)
+        let path = fileURL.path
+        let loaded = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            UIImage(contentsOfFile: path)
+        }.value
+
+        if let loaded {
+            self.image = loaded
+        } else {
+            self.loadFailed = true
+        }
+    }
+}
+
+// MARK: - HeroBannerPreview
+
+/// Full-screen pinch-to-zoom preview presented when tapping the banner.
+private struct HeroBannerPreview: View {
+    let image: UIImage?
+    let onDismiss: () -> Void
+
+    @State private var scale: CGFloat = 1.0
+    @GestureState private var gestureScale: CGFloat = 1.0
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .scaleEffect(scale * gestureScale)
+                    .gesture(
+                        MagnificationGesture()
+                            .updating($gestureScale) { value, state, _ in state = value }
+                            .onEnded { value in
+                                scale = max(1.0, min(4.0, scale * value))
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            scale = scale > 1.0 ? 1.0 : 2.0
+                        }
+                    }
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding(16)
+                }
+                Spacer()
+            }
+        }
+        .onTapGesture { onDismiss() }
     }
 }
