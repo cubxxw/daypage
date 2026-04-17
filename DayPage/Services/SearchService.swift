@@ -9,11 +9,27 @@ struct SearchResult: Identifiable, Equatable {
     let snippet: String                 // matched memo body (trimmed, <=120 chars)
     let matchKind: MatchKind
     let isDailyPageCompiled: Bool
+    let memoType: Memo.MemoType?        // nil when matchKind == .date
 
     enum MatchKind: Equatable {
         case memoBody
         case location
         case date
+    }
+}
+
+// MARK: - SearchFilters
+
+struct SearchFilters: Equatable {
+    var startDate: Date?
+    var endDate: Date?
+    var types: Set<Memo.MemoType>       // empty = all types
+    var locationQuery: String           // empty = no location filter
+
+    static let empty = SearchFilters(startDate: Date?.none, endDate: Date?.none, types: Set<Memo.MemoType>(), locationQuery: "")
+
+    var isActive: Bool {
+        startDate != nil || endDate != nil || !types.isEmpty || !locationQuery.isEmpty
     }
 }
 
@@ -26,14 +42,16 @@ enum SearchService {
 
     // MARK: - Public API
 
-    /// Searches raw memos + compiled daily pages for ``keyword``.
+    /// Searches raw memos + compiled daily pages for ``keyword`` with optional ``filters``.
     /// Returns results sorted by date descending (newest first).
-    /// Empty keyword returns an empty array.
-    static func search(keyword rawKeyword: String) -> [SearchResult] {
+    /// Empty keyword + no active filters returns an empty array.
+    static func search(keyword rawKeyword: String,
+                       filters: SearchFilters = .empty) -> [SearchResult] {
         let keyword = rawKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty else { return [] }
-
         let lowered = keyword.lowercased()
+        let hasKeyword = !keyword.isEmpty
+        guard hasKeyword || filters.isActive else { return [] }
+
         var results: [SearchResult] = []
 
         let fm = FileManager.default
@@ -55,16 +73,26 @@ enum SearchService {
             let dateString = url.deletingPathExtension().lastPathComponent
             guard isValidDateString(dateString) else { continue }
 
+            // Date range filter
+            if let start = filters.startDate, let date = dateValidator.date(from: dateString) {
+                if date < Calendar.current.startOfDay(for: start) { continue }
+            }
+            if let end = filters.endDate, let date = dateValidator.date(from: dateString) {
+                let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: end))!
+                if date >= endOfDay { continue }
+            }
+
             let dailyURL = dailyDir.appendingPathComponent("\(dateString).md")
             let isDailyCompiled = fm.fileExists(atPath: dailyURL.path)
 
-            // Date string match (e.g. "2026-04" or "04-14").
-            if dateString.lowercased().contains(lowered) {
+            // Date string match (e.g. "2026-04" or "04-14") — only when keyword present and no type filter.
+            if hasKeyword && filters.types.isEmpty && dateString.lowercased().contains(lowered) {
                 results.append(SearchResult(
                     dateString: dateString,
                     snippet: dateString,
-                    matchKind: .date,
-                    isDailyPageCompiled: isDailyCompiled
+                    matchKind: SearchResult.MatchKind.date,
+                    isDailyPageCompiled: isDailyCompiled,
+                    memoType: Memo.MemoType?.none
                 ))
             }
 
@@ -72,31 +100,59 @@ enum SearchService {
             let memos = RawStorage.parse(fileContent: content)
 
             for memo in memos {
-                if memo.body.lowercased().contains(lowered) {
-                    results.append(SearchResult(
-                        dateString: dateString,
-                        snippet: makeSnippet(memo.body, around: lowered),
-                        matchKind: .memoBody,
-                        isDailyPageCompiled: isDailyCompiled
-                    ))
-                    continue
+                // Type filter
+                if !filters.types.isEmpty && !filters.types.contains(memo.type) { continue }
+
+                // Location query filter
+                if !filters.locationQuery.isEmpty {
+                    let locLowered = filters.locationQuery.lowercased()
+                    guard let name = memo.location?.name,
+                          name.lowercased().contains(locLowered) else { continue }
                 }
-                if let transcript = firstMatchingTranscript(in: memo, keyword: lowered) {
+
+                if hasKeyword {
+                    if memo.body.lowercased().contains(lowered) {
+                        results.append(SearchResult(
+                            dateString: dateString,
+                            snippet: makeSnippet(memo.body, around: lowered),
+                            matchKind: SearchResult.MatchKind.memoBody,
+                            isDailyPageCompiled: isDailyCompiled,
+                            memoType: memo.type
+                        ))
+                        continue
+                    }
+                    if let transcript = firstMatchingTranscript(in: memo, keyword: lowered) {
+                        results.append(SearchResult(
+                            dateString: dateString,
+                            snippet: makeSnippet(transcript, around: lowered),
+                            matchKind: SearchResult.MatchKind.memoBody,
+                            isDailyPageCompiled: isDailyCompiled,
+                            memoType: memo.type
+                        ))
+                        continue
+                    }
+                    if let name = memo.location?.name,
+                       name.lowercased().contains(lowered) {
+                        results.append(SearchResult(
+                            dateString: dateString,
+                            snippet: name,
+                            matchKind: SearchResult.MatchKind.location,
+                            isDailyPageCompiled: isDailyCompiled,
+                            memoType: memo.type
+                        ))
+                        continue
+                    }
+                } else {
+                    // Filters only — include any memo that passed filter checks
+                    let snippet = memo.body.isEmpty
+                        ? (memo.location?.name ?? dateString)
+                        : String(memo.body.prefix(120))
                     results.append(SearchResult(
                         dateString: dateString,
-                        snippet: makeSnippet(transcript, around: lowered),
-                        matchKind: .memoBody,
-                        isDailyPageCompiled: isDailyCompiled
-                    ))
-                    continue
-                }
-                if let name = memo.location?.name,
-                   name.lowercased().contains(lowered) {
-                    results.append(SearchResult(
-                        dateString: dateString,
-                        snippet: name,
-                        matchKind: .location,
-                        isDailyPageCompiled: isDailyCompiled
+                        snippet: snippet,
+                        matchKind: SearchResult.MatchKind.memoBody,
+                        isDailyPageCompiled: isDailyCompiled,
+                        memoType: memo.type
                     ))
                 }
             }
