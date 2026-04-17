@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// - Displays frontmatter metadata (type, first_seen, occurrence_count)
 /// - Renders Markdown body with [[wikilink]] highlighting
-/// - Shows "该实体页尚未生成" for unknown slugs
+/// - Shows a "page not generated yet" placeholder for unknown slugs
 struct EntityPageView: View {
 
     let entityType: String  // "places", "people", or "themes"

@@ -706,7 +706,7 @@ struct CompilePromptCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 if isCompiling {
                     // US-004: single unified compiling indicator on screen.
-                    // Title + spinner share one line so this card is the only "正在编译" UI.
+                    // Title + spinner share one line so this card is the only "Compiling" UI.
                     HStack(spacing: 8) {
                         Text("正在编译 \(memoCount) 条 memo")
                             .sectionLabelStyle()

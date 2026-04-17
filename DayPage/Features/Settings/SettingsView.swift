@@ -218,8 +218,8 @@ struct SettingsView: View {
             }
             .foregroundColor(DSColor.onSurfaceVariant)
 
-            // InputBarV2 (Fromm style) — US-007. Invert binding so the visible
-            // label reads "使用旧版输入框" per PRD copy.
+            // InputBarV2 (Fromm style) — US-007. Invert the binding so the visible
+            // label reads "Use legacy input bar" per PRD copy.
             Toggle(isOn: Binding(
                 get: { !useInputBarV2 },
                 set: { useInputBarV2 = !$0 }
@@ -227,8 +227,8 @@ struct SettingsView: View {
                 Label("使用旧版输入框", systemImage: "keyboard")
             }
 
-            // Press-to-talk (US-008). Invert binding so the visible label reads
-            // "使用旧版语音录制" per PRD's legacy-fallback copy.
+            // Press-to-talk (US-008). Invert the binding so the visible label reads
+            // "Use legacy voice recording" per the PRD's legacy-fallback copy.
             Toggle(isOn: Binding(
                 get: { !usePressToTalk },
                 set: { usePressToTalk = !$0 }

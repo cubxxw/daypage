@@ -52,7 +52,7 @@ struct InputBarV2: View {
 
     /// Feature flag — when true, the right-side mic button is the WeChat-style
     /// press-to-talk gesture (US-008). When false, tapping the mic opens the
-    /// legacy VoiceRecordingView sheet. Settings → 外观 toggles this.
+    /// legacy VoiceRecordingView sheet. This is toggled in Settings -> Appearance.
     @AppStorage("usePressToTalk") private var usePressToTalk: Bool = true
 
     /// Voice service singleton used for live waveform + elapsed readouts

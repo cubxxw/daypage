@@ -35,7 +35,7 @@ struct OnThisDayCard: View {
                     .foregroundColor(DSColor.onBackgroundPrimary)
                     .lineLimit(2)
 
-                // "翻开那天 →" link
+                // "Open that day ->" link
                 HStack {
                     Spacer()
                     Text("翻开那天 →")

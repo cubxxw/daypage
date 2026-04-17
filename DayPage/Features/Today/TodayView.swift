@@ -9,7 +9,7 @@ struct TodayView: View {
     @StateObject private var voiceQueue = VoiceAttachmentQueue.shared
 
     /// Feature flag for the Fromm-style InputBarV2 (US-007). Default ON; users
-    /// can fall back to the legacy InputBarView via Settings → 外观.
+    /// can fall back to the legacy InputBarView via Settings -> Appearance.
     @AppStorage("useInputBarV2") private var useInputBarV2: Bool = true
 
     /// The draft text in the input bar.

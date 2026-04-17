@@ -86,7 +86,7 @@ final class WeatherService {
 
     // MARK: - Private Helpers
 
-    /// Parses the OpenWeatherMap JSON response and formats it as "32°C, 多云".
+    /// Parses the OpenWeatherMap JSON response and formats it as "32°C, cloudy".
     private func parseWeather(from data: Data) throws -> String {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw WeatherError.invalidResponse
