@@ -1,5 +1,15 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-013
+- Info.plist 添加 NSLocationAlwaysAndWhenInUseUsageDescription、NSLocationWhenInUseUsageDescription，UIBackgroundModes 新增 location
+- LocationService.swift 新增 `requestAlwaysAuthorization()` 和 `hasAlwaysAuthorization: Bool` 属性
+- SettingsView.swift 重写：API Keys 分区使用正确的 `Secrets.*` 属性；权限分区显示定位授权状态（中文标签 + 颜色）+ "启用被动位置"行（已授权显示绿勾，未授权显示授权按钮）
+- **Learnings for future iterations:**
+  - Secrets 枚举在 `DayPage/Config/GeneratedSecrets.swift` 中，属性名为 `dashScopeApiKey`、`openAIWhisperApiKey`、`openWeatherApiKey`（非 GeneratedSecrets.xxx）
+  - `CLLocationManager.requestAlwaysAuthorization()` 只有在当前状态为 notDetermined 或 authorizedWhenInUse 时才有效
+  - Info.plist 同时需要 NSLocationWhenInUseUsageDescription（系统要求必须存在）和 NSLocationAlwaysAndWhenInUseUsageDescription
+---
+
 ## 2026-04-17 - US-012
 - DayPageApp.swift: 新增 `compilationDidStart` 和 `compilationDidEnd` 两个 Notification.Name
 - BackgroundCompilationService.swift: 在 `handleBackgroundTask` 和 `backfillIfNeeded` 中，Task 开始时 post `compilationDidStart`，defer post `compilationDidEnd`
