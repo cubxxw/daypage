@@ -51,6 +51,8 @@ struct DailyPageView: View {
     @State private var model: DailyPageModel? = nil
     @State private var rawText: String = ""
     @State private var rawMemos: [Memo] = []
+    @State private var selectedEntitySlug: String? = nil
+    @State private var selectedEntityType: String = "themes"
 
     var body: some View {
         NavigationStack {
@@ -103,6 +105,14 @@ struct DailyPageView: View {
             }
         }
         .onAppear { loadPage() }
+        .sheet(isPresented: Binding(
+            get: { selectedEntitySlug != nil },
+            set: { if !$0 { selectedEntitySlug = nil } }
+        )) {
+            if let slug = selectedEntitySlug {
+                EntityPageView(entityType: selectedEntityType, entitySlug: slug)
+            }
+        }
     }
 
     // MARK: - Segmented Control
@@ -313,7 +323,11 @@ struct DailyPageView: View {
                                 .cornerRadius(0)
                         }
                         HStack(spacing: 0) {
-                            WikilinkText(text: loc.name, onTap: nil)
+                            WikilinkText(text: loc.name, onTap: {
+                                let (type, slug) = resolveEntityTypeAndSlug(loc.name)
+                                selectedEntityType = type
+                                selectedEntitySlug = slug
+                            })
                             if !loc.note.isEmpty {
                                 Text(" — \(loc.note)")
                                     .bodySMStyle()
@@ -401,63 +415,31 @@ struct DailyPageView: View {
 
     // MARK: - Wikilink Text Rendering
 
-    /// Renders a string replacing [[slug]] patterns with amber-colored inline spans.
-    /// Tapping a wikilink navigates to the EntityPageView (stub for MVP).
+    /// Renders a string replacing [[slug]] patterns with tappable amber-colored spans.
+    /// Tapping a wikilink navigates to the corresponding EntityPageView via sheet.
     @ViewBuilder
     private func wikifiedText(_ text: String) -> some View {
-        let attributed = buildAttributedString(text)
-        Text(attributed)
-            .bodyMDStyle()
-            .foregroundColor(DSColor.onSurface)
-            .lineSpacing(3)
+        WikilinkBodyText(text: text) { slug in
+            let (type, _) = resolveEntityTypeAndSlug(slug)
+            selectedEntityType = type
+            selectedEntitySlug = slug
+        }
     }
 
-    private func buildAttributedString(_ text: String) -> AttributedString {
-        var result = AttributedString()
-
-        // Pattern: [[slug]] or [[slug|Display Name]]
-        let pattern = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#)
-        let nsText = text as NSString
-        let range = NSRange(location: 0, length: nsText.length)
-        let matches = pattern?.matches(in: text, range: range) ?? []
-
-        var lastEnd = text.startIndex
-
-        for match in matches {
-            let matchRange = Range(match.range, in: text)!
-            let innerRange = Range(match.range(at: 1), in: text)!
-            let inner = String(text[innerRange])
-
-            // Append text before this match
-            let before = String(text[lastEnd ..< matchRange.lowerBound])
-            if !before.isEmpty {
-                result.append(AttributedString(before))
+    /// Resolves entity type from slug by scanning wiki directories.
+    /// Falls back to "themes" if not found (creates empty entity page on first tap).
+    private func resolveEntityTypeAndSlug(_ inner: String) -> (type: String, slug: String) {
+        let slug = inner.contains("|")
+            ? String(inner.split(separator: "|", maxSplits: 1).first ?? Substring(inner))
+            : inner
+        let wikiBase = VaultInitializer.vaultURL.appendingPathComponent("wiki")
+        for type in ["places", "people", "themes"] {
+            let url = wikiBase.appendingPathComponent(type).appendingPathComponent("\(slug).md")
+            if FileManager.default.fileExists(atPath: url.path) {
+                return (type, slug)
             }
-
-            // Determine display name
-            let displayName: String
-            if inner.contains("|") {
-                displayName = String(inner.split(separator: "|", maxSplits: 1).last ?? Substring(inner))
-            } else {
-                displayName = inner.replacingOccurrences(of: "-", with: " ").capitalized
-            }
-
-            // Wikilink span
-            var linkStr = AttributedString("[[" + displayName + "]]")
-            linkStr.foregroundColor = DSColor.amberArchival
-            linkStr.font = .custom("Inter-Medium", size: 15)
-            result.append(linkStr)
-
-            lastEnd = matchRange.upperBound
         }
-
-        // Append remaining text
-        let tail = String(text[lastEnd...])
-        if !tail.isEmpty {
-            result.append(AttributedString(tail))
-        }
-
-        return result
+        return ("themes", slug)
     }
 
     // MARK: - Load

@@ -127,6 +127,76 @@ struct WikilinkText: View {
     }
 }
 
+// MARK: - Wikilink Body Text
+
+/// Renders a block of text that may contain [[slug]] or [[slug|Display Name]] wikilinks.
+/// Wikilinks are rendered in amber; tapping any wikilink fires the callback for the first
+/// found link, which is sufficient for most single-entity paragraphs.
+struct WikilinkBodyText: View {
+    let text: String
+    let onWikilinkTap: (String) -> Void
+
+    private struct Segment {
+        let content: String
+        let isLink: Bool
+        let inner: String
+    }
+
+    private var segments: [Segment] {
+        var result: [Segment] = []
+        let pattern = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#)
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        let matches = pattern?.matches(in: text, range: fullRange) ?? []
+        var lastEnd = text.startIndex
+
+        for match in matches {
+            guard let matchRange = Range(match.range, in: text),
+                  let innerRange = Range(match.range(at: 1), in: text) else { continue }
+            let inner = String(text[innerRange])
+            let before = String(text[lastEnd ..< matchRange.lowerBound])
+            if !before.isEmpty { result.append(Segment(content: before, isLink: false, inner: "")) }
+            let displayName = inner.contains("|")
+                ? String(inner.split(separator: "|", maxSplits: 1).last ?? Substring(inner))
+                : inner.replacingOccurrences(of: "-", with: " ").capitalized
+            result.append(Segment(content: "[[" + displayName + "]]", isLink: true, inner: inner))
+            lastEnd = matchRange.upperBound
+        }
+        let tail = String(text[lastEnd...])
+        if !tail.isEmpty { result.append(Segment(content: tail, isLink: false, inner: "")) }
+        return result
+    }
+
+    private var firstLinkInner: String? {
+        segments.first(where: { $0.isLink })?.inner
+    }
+
+    var body: some View {
+        let rendered = segments.reduce(Text("")) { acc, seg in
+            if seg.isLink {
+                return acc + Text(seg.content)
+                    .font(.custom("Inter-Medium", size: 15))
+                    .foregroundColor(DSColor.amberArchival)
+            } else {
+                return acc + Text(seg.content)
+                    .font(.custom("Inter-Regular", size: 15))
+                    .foregroundColor(DSColor.onSurface)
+            }
+        }
+
+        if let linkInner = firstLinkInner {
+            rendered
+                .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onTapGesture { onWikilinkTap(linkInner) }
+        } else {
+            rendered
+                .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 // MARK: - Status Badge
 
 enum BadgeStyle {

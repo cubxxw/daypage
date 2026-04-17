@@ -16,6 +16,8 @@ struct EntityPageView: View {
     @State private var model: EntityModel? = nil
     @State private var notFound: Bool = false
     @State private var selectedDate: String? = nil
+    @State private var selectedEntitySlug: String? = nil
+    @State private var selectedEntityType: String = "themes"
 
     var body: some View {
         NavigationStack {
@@ -69,6 +71,14 @@ struct EntityPageView: View {
         )) {
             if let dateStr = selectedDate {
                 DailyPageView(dateString: dateStr)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { selectedEntitySlug != nil },
+            set: { if !$0 { selectedEntitySlug = nil } }
+        )) {
+            if let slug = selectedEntitySlug {
+                EntityPageView(entityType: selectedEntityType, entitySlug: slug)
             }
         }
     }
@@ -205,43 +215,26 @@ struct EntityPageView: View {
 
     @ViewBuilder
     private func wikifiedText(_ text: String) -> some View {
-        Text(buildAttributedString(text))
-            .bodyMDStyle()
-            .foregroundColor(DSColor.onSurface)
-            .lineSpacing(3)
+        WikilinkBodyText(text: text) { inner in
+            let (type, slug) = resolveEntityTypeAndSlug(inner)
+            selectedEntityType = type
+            selectedEntitySlug = slug
+        }
     }
 
-    private func buildAttributedString(_ text: String) -> AttributedString {
-        var result = AttributedString()
-        let pattern = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#)
-        let nsText = text as NSString
-        let range = NSRange(location: 0, length: nsText.length)
-        let matches = pattern?.matches(in: text, range: range) ?? []
-        var lastEnd = text.startIndex
-
-        for match in matches {
-            let matchRange = Range(match.range, in: text)!
-            let innerRange = Range(match.range(at: 1), in: text)!
-            let inner = String(text[innerRange])
-
-            let before = String(text[lastEnd ..< matchRange.lowerBound])
-            if !before.isEmpty { result.append(AttributedString(before)) }
-
-            let displayName = inner.contains("|")
-                ? String(inner.split(separator: "|", maxSplits: 1).last ?? Substring(inner))
-                : inner.replacingOccurrences(of: "-", with: " ").capitalized
-
-            var linkStr = AttributedString("[[" + displayName + "]]")
-            linkStr.foregroundColor = DSColor.amberArchival
-            linkStr.font = .custom("Inter-Medium", size: 15)
-            result.append(linkStr)
-
-            lastEnd = matchRange.upperBound
+    /// Resolves entity type from slug by scanning wiki directories.
+    private func resolveEntityTypeAndSlug(_ inner: String) -> (type: String, slug: String) {
+        let slug = inner.contains("|")
+            ? String(inner.split(separator: "|", maxSplits: 1).first ?? Substring(inner))
+            : inner
+        let wikiBase = VaultInitializer.vaultURL.appendingPathComponent("wiki")
+        for type in ["places", "people", "themes"] {
+            let url = wikiBase.appendingPathComponent(type).appendingPathComponent("\(slug).md")
+            if FileManager.default.fileExists(atPath: url.path) {
+                return (type, slug)
+            }
         }
-
-        let tail = String(text[lastEnd...])
-        if !tail.isEmpty { result.append(AttributedString(tail)) }
-        return result
+        return ("themes", slug)
     }
 
     // MARK: - Load
