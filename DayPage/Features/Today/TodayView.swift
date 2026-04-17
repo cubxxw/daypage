@@ -146,14 +146,9 @@ struct TodayView: View {
 
                                 // Memo cards (reverse-chronological)
                                 if viewModel.memos.isEmpty && !viewModel.isLoading {
-                                    VStack(spacing: 8) {
-                                        Spacer(minLength: 32)
-                                        Text("今天还没有记录")
-                                            .bodySMStyle()
-                                            .foregroundColor(DSColor.onSurfaceVariant)
-                                        Spacer(minLength: 32)
+                                    TodayEmptyStateView { suggestion in
+                                        draftText = suggestion
                                     }
-                                    .frame(maxWidth: .infinity)
                                 } else {
                                     ForEach(Array(viewModel.memos.enumerated()), id: \.element.id) { idx, memo in
                                         TimelineRow(

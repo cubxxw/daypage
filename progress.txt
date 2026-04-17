@@ -233,3 +233,16 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - .pressableCard() 需在 .cornerRadius + .surfaceElevatedShadow 之后应用，否则 overlay clip shape 无法正确圆角裁剪
   - UINotificationFeedbackGenerator 调用无需 prepare()，直接 notificationOccurred() 在 Swift 并发 context 中可用
 ---
+
+## 2026-04-17 - US-023
+- 新建 DayPage/Features/Today/TodayEmptyStateView.swift：TodayEmptyStateView / ArchiveEmptyStateView / GraphEmptyStateView 三个空状态组件
+- TodayEmptyStateView：Circle+SF Symbol(.pencil.and.scribble)插图 + h2标题"记下今天的第一个观察" + 3个 SuggestionChip ("今天天气如何"/"现在在哪"/"在想什么")
+- SuggestionChip：captionText + accentAmber 前景色 + accentSoft 背景 + accentBorder 描边 + cornerRadius 20pt；点击回调 onChipTap(text)
+- TodayView 空状态从 "今天还没有记录" 文本 → TodayEmptyStateView { draftText = $0 }；chip 点击填充 draftText，焦点由用户自行点击输入框（无需自动 focus）
+- 注册 pbxproj：PBXBuildFile A10000044, PBXFileReference A20000044，加入 Today group children + Sources phase
+- Files changed: DayPage/Features/Today/TodayEmptyStateView.swift (new), DayPage/Features/Today/TodayView.swift, DayPage.xcodeproj/project.pbxproj, prd.json
+- **Learnings for future iterations:**
+  - chip 点击填充 draftText 直接赋值即可，SwiftUI @State 绑定会自动更新输入框内容
+  - SF Symbol "pencil.and.scribble" 在 iOS 16+ 可用，适合 Today 插图；"calendar" 适合 Archive；"point.3.connected.trianglepath.dotted" 适合 Graph
+  - ArchiveEmptyStateView / GraphEmptyStateView 已创建备用，供后续 Archive / Graph tab 接入
+---

@@ -413,8 +413,8 @@
         "Verify in iOS Simulator: delete all memos in vault/raw, relaunch - Today empty state shows illustration + 3 chips; tap a chip - input field fills in"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "TodayEmptyStateView：插图(SF Symbol)+h2标题+3个SuggestionChip；chip点击填充draftText不自动发送；ArchiveEmptyStateView和GraphEmptyStateView备用。注册 pbxproj A10000044/A20000044。"
     },
     {
       "id": "US-024",
