@@ -5,6 +5,7 @@ struct TodayView: View {
 
     @StateObject private var viewModel = TodayViewModel()
     @StateObject private var passiveLocation = PassiveLocationService.shared
+    @StateObject private var bannerCenter = BannerCenter.shared
 
     /// The draft text in the input bar.
     @State private var draftText: String = ""
@@ -26,7 +27,7 @@ struct TodayView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .top) {
                 DSColor.background.ignoresSafeArea()
                 VStack(spacing: 0) {
                     // MARK: Header
@@ -309,6 +310,7 @@ struct TodayView: View {
                 )
                 .ignoresSafeArea()
             }
+            .bannerOverlay()
         }
     }
 

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RootView: View {
+    @StateObject private var bannerCenter = BannerCenter.shared
+
     var body: some View {
         TabView {
             TodayView()
