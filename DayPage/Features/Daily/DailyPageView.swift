@@ -50,6 +50,7 @@ struct DailyPageView: View {
     @State private var selectedTab: DailyPageTab = .digest
     @State private var model: DailyPageModel? = nil
     @State private var rawText: String = ""
+    @State private var rawMemos: [Memo] = []
 
     var body: some View {
         NavigationStack {
@@ -165,16 +166,33 @@ struct DailyPageView: View {
         }
     }
 
-    // MARK: - Timeline Content (simple raw view for MVP)
+    // MARK: - Timeline Content
 
     @ViewBuilder
     private func timelineContent(model: DailyPageModel) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Show raw Markdown with wiki link highlighting
-            wikifiedText(rawText)
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 32)
+        if rawMemos.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "tray")
+                    .font(.system(size: 32))
+                    .foregroundColor(DSColor.onSurfaceVariant.opacity(0.5))
+                Text("该日无原始记录")
+                    .font(.custom("SpaceGrotesk-Bold", size: 14))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 60)
+        } else {
+            LazyVStack(spacing: 8) {
+                ForEach(Array(rawMemos.enumerated()), id: \.element.id) { idx, memo in
+                    TimelineRow(
+                        memo: memo,
+                        isLast: idx == rawMemos.count - 1
+                    )
+                    .padding(.horizontal, 20)
+                }
+            }
+            .padding(.top, 16)
+            .padding(.bottom, 32)
         }
     }
 
@@ -442,9 +460,18 @@ struct DailyPageView: View {
             .appendingPathComponent("daily")
             .appendingPathComponent("\(dateString).md")
 
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return }
-        rawText = content
-        model = DailyPageParser.parse(content: content, dateString: dateString)
+        if let content = try? String(contentsOf: url, encoding: .utf8) {
+            rawText = content
+            model = DailyPageParser.parse(content: content, dateString: dateString)
+        }
+
+        // Load raw memos for Timeline Tab
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        let date = parser.date(from: dateString) ?? Date()
+        let loaded = (try? RawStorage.read(for: date)) ?? []
+        rawMemos = loaded.sorted { $0.created < $1.created }
     }
 }
 
