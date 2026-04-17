@@ -153,3 +153,14 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - SettingsView 直接用 @StateObject 注入 BannerCenter，可在 List 内调 bannerCenter.show()
   - Vault 大小计算用 Task.detached(priority:.utility)，完成后 MainActor.run 更新 UI
 ---
+
+## 2026-04-17 - US-017
+- 新增 v3 暖白 token 系列（前缀命名区分旧 token）：backgroundWarm/surfaceWhite/surfaceSunken、onBackgroundPrimary/Muted/Subtle、accentAmber/Hover/Soft/Border、successGreen/Soft、warningAmber/Soft、errorRed/Soft、heatmapEmpty/Low/Mid/High、borderSubtle/Default
+- 旧 legacy token 保留（不加 @available deprecated 避免编译警告洪水，待 US-018 完成迁移后再考虑删除）
+- 新增 SurfaceElevatedShadow ViewModifier + .surfaceElevatedShadow() 扩展
+- Info.plist UIUserInterfaceStyle = Light 锁定暂缓，US-018 视觉升级后统一处理
+- Files changed: DayPage/DesignSystem/Colors.swift, prd.json
+- **Learnings for future iterations:**
+  - 保留旧 token 不加 deprecated 是防止大量编译警告；实际迁移在 US-018 完成后
+  - 新 token 名称带语义前缀（backgroundWarm/accentAmber/successGreen）而非颜色值，便于主题替换
+---

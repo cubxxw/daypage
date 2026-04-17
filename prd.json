@@ -306,8 +306,8 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "新增 v3 暖白 token 前缀(backgroundWarm/surfaceWhite/accentAmber等)；旧 token 保留不标 deprecated（避免编译警告洪水）；SurfaceElevatedShadow ViewModifier；Info.plist 锁定 Light mode 暂缓（待 US-018 一起）"
     },
     {
       "id": "US-018",
