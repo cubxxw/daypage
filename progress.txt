@@ -1,5 +1,22 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-014
+- 新建 DayPage/Services/PassiveLocationService.swift：使用 CLLocationManager.startMonitoringVisits()
+- VisitDraft 模型（Codable/Identifiable）含 id/arrivalDate/departureDate/lat/lng/placeName/status 字段
+- didVisit 回调：新建 VisitDraft，追加到 pendingDrafts，保存到 vault/drafts/visits.json
+- geocodeAndUpdate：CLGeocoder 反向地理编码，更新 placeName 后重新保存 JSON
+- locationManagerDidChangeAuthorization：Always 时自动启动，其他状态自动停止
+- confirmDraft：创建 .location Memo 并写入当日 .md，更新 status=confirmed
+- ignoreDraft：更新 status=ignored
+- DayPageApp.swift onAppear：调用 PassiveLocationService.shared.startMonitoringIfAuthorized()
+- project.pbxproj：A20000032/A10000032 注册新文件
+- **Learnings for future iterations:**
+  - CLVisit.arrivalDate 为 .distantPast 表示刚到达（用 Date()），departureDate 为 .distantFuture 表示仍在（用 nil）
+  - vault/drafts/ 目录不在 VaultInitializer 的默认目录列表中，需在 saveDrafts() 中按需创建
+  - PassiveLocationService 需在 DayPageApp.onAppear 中调用 startMonitoringIfAuthorized()，授权升级后 delegate 会自动触发启动
+  - CLGeocoder 使用 completion handler（非 async/await），需要 Task { @MainActor } 更新 UI 状态
+---
+
 ## 2026-04-17 - US-013
 - Info.plist 添加 NSLocationAlwaysAndWhenInUseUsageDescription、NSLocationWhenInUseUsageDescription，UIBackgroundModes 新增 location
 - LocationService.swift 新增 `requestAlwaysAuthorization()` 和 `hasAlwaysAuthorization: Bool` 属性
