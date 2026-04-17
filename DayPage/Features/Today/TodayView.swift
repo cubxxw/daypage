@@ -4,6 +4,7 @@ import CoreLocation
 struct TodayView: View {
 
     @StateObject private var viewModel = TodayViewModel()
+    @StateObject private var passiveLocation = PassiveLocationService.shared
 
     /// The draft text in the input bar.
     @State private var draftText: String = ""
@@ -18,6 +19,10 @@ struct TodayView: View {
     @State private var currentTime: Date = Date()
 
     private let headerTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
+    private var todayPendingDrafts: [VisitDraft] {
+        passiveLocation.todayPendingDrafts()
+    }
 
     var body: some View {
         NavigationStack {
@@ -87,6 +92,31 @@ struct TodayView: View {
                         } onDismiss: {
                             viewModel.compilationFailedError = nil
                         }
+                    }
+
+                    // MARK: Location Draft Card
+                    if !todayPendingDrafts.isEmpty {
+                        LocationDraftCard(
+                            drafts: todayPendingDrafts,
+                            onConfirm: { draft in
+                                try? passiveLocation.confirmDraft(draft)
+                                viewModel.load()
+                            },
+                            onIgnore: { draft in
+                                passiveLocation.ignoreDraft(draft)
+                            },
+                            onConfirmAll: {
+                                for draft in todayPendingDrafts {
+                                    try? passiveLocation.confirmDraft(draft)
+                                }
+                                viewModel.load()
+                            },
+                            onIgnoreAll: {
+                                for draft in todayPendingDrafts {
+                                    passiveLocation.ignoreDraft(draft)
+                                }
+                            }
+                        )
                     }
 
                     // MARK: Timeline (75% of available space)
@@ -342,6 +372,148 @@ struct CompilingBadge: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(DSColor.primary.opacity(0.12))
+    }
+}
+
+// MARK: - LocationDraftCard
+
+/// Card shown at the top of Today View listing passively-detected visits pending user action.
+struct LocationDraftCard: View {
+    let drafts: [VisitDraft]
+    let onConfirm: (VisitDraft) -> Void
+    let onIgnore: (VisitDraft) -> Void
+    let onConfirmAll: () -> Void
+    let onIgnoreAll: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row
+            HStack(spacing: 6) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(DSColor.primary)
+                Text("检测到位置到达")
+                    .font(.custom("Inter-Medium", size: 13))
+                    .foregroundColor(DSColor.onSurface)
+                Spacer()
+                Button("全部忽略") {
+                    onIgnoreAll()
+                }
+                .font(.custom("Inter-Regular", size: 12))
+                .foregroundColor(DSColor.onSurfaceVariant)
+                Button("全部确认") {
+                    onConfirmAll()
+                }
+                .font(.custom("Inter-Medium", size: 12))
+                .foregroundColor(DSColor.primary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+
+            Divider()
+                .background(DSColor.outlineVariant)
+
+            ForEach(drafts) { draft in
+                LocationDraftRow(
+                    draft: draft,
+                    onConfirm: { onConfirm(draft) },
+                    onIgnore: { onIgnore(draft) }
+                )
+                if draft.id != drafts.last?.id {
+                    Divider()
+                        .background(DSColor.outlineVariant)
+                        .padding(.leading, 16)
+                }
+            }
+        }
+        .background(DSColor.surfaceContainer)
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(DSColor.outlineVariant),
+            alignment: .bottom
+        )
+    }
+}
+
+// MARK: - LocationDraftRow
+
+private struct LocationDraftRow: View {
+    let draft: VisitDraft
+    let onConfirm: () -> Void
+    let onIgnore: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "mappin.circle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(DSColor.primary.opacity(0.7))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(draft.placeName ?? "未知地点")
+                    .font(.custom("Inter-Medium", size: 13))
+                    .foregroundColor(DSColor.onSurface)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(formatTime(draft.arrivalDate))
+                        .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                    if let dur = durationText {
+                        Text("·")
+                            .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                        Text(dur)
+                            .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                    }
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button {
+                    onIgnore()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .frame(width: 28, height: 28)
+                        .background(DSColor.surfaceContainerHigh)
+                }
+
+                Button {
+                    onConfirm()
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(DSColor.primary)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        return f.string(from: date)
+    }
+
+    private var durationText: String? {
+        guard let dep = draft.departureDate else { return "仍在此处" }
+        let secs = dep.timeIntervalSince(draft.arrivalDate)
+        guard secs > 0 else { return nil }
+        let mins = Int(secs / 60)
+        if mins < 60 { return "停留 \(mins) 分钟" }
+        let h = mins / 60; let m = mins % 60
+        return m == 0 ? "停留 \(h) 小时" : "停留 \(h) 小时 \(m) 分钟"
     }
 }
 
