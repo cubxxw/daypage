@@ -11,6 +11,9 @@ struct TodayView: View {
     /// Whether to show the Daily Page sheet.
     @State private var showDailyPage: Bool = false
 
+    /// Whether to show the Settings sheet.
+    @State private var showSettings: Bool = false
+
     /// Current time for the header timestamp (refreshed every minute).
     @State private var currentTime: Date = Date()
 
@@ -45,11 +48,15 @@ struct TodayView: View {
                             .padding(.vertical, 4)
                             .background(DSColor.surfaceContainer)
 
-                        // Settings icon (decorative for MVP)
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 18, weight: .regular))
-                            .foregroundColor(DSColor.onSurface)
-                            .frame(width: 32, height: 32)
+                        // Settings icon
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 18, weight: .regular))
+                                .foregroundColor(DSColor.onSurface)
+                                .frame(width: 32, height: 32)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .frame(height: 56)
@@ -215,6 +222,9 @@ struct TodayView: View {
                 )
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.hidden)
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
         }
     }
