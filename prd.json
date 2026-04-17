@@ -252,8 +252,8 @@
         "Verify in iOS Simulator: attach photo + location -> two chips appear; remove photo -> one chip left; send -> memo created with remaining attachment"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "chip: icon(12pt)+text(JetBrainsMono 11pt, ≤20 chars)+X，高度 32pt，圆角 6pt，背景 surfaceContainerHigh"
     },
     {
       "id": "US-015",

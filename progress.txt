@@ -109,3 +109,15 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - 不能在 ToolbarItemGroup(placement: .keyboard) 里的子控件中声明 .sheet，需要挂载到父 View 的 .sheet 上
   - onVoiceComplete 回调比 NotificationCenter 更简洁，避免跨层类型转换
 ---
+
+## 2026-04-17 - US-014
+- 替换 attachmentCard (64x64 大卡片) → attachmentChip (32pt 高 chip)
+- chip 布局：图标(12pt) + 文本(JetBrainsMono 11pt, ≤20 chars, .middle 截断) + X 按钮
+- chipContent() 辅助函数根据附件类型返回 (icon, label)
+- 水平 ScrollView，间距 8pt，背景 surfaceContainerHigh，圆角 6pt
+- 删除 photoCard/fileCard/voiceCard 大卡片实现及 attachmentCard wrapper
+- Files changed: DayPage/Features/Today/InputBarView.swift, prd.json
+- **Learnings for future iterations:**
+  - .frame(maxWidth: 120) 限制文字最大宽度防止 chip 过宽
+  - truncationMode(.middle) 比 .tail 更适合文件名（保留扩展名）
+---
