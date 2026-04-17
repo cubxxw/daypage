@@ -6,15 +6,24 @@ import PhotosUI
 
 // MARK: - Pending Attachment
 
+// MARK: - FilePickerResult
+
+struct FilePickerResult {
+    let filePath: String   // relative path under vault
+    let fileName: String
+}
+
 /// Represents a staged attachment waiting to be included in the next submit.
 enum PendingAttachment: Identifiable {
     case photo(PhotoPickerResult)
     case voice(VoiceRecordingResult)
+    case file(FilePickerResult)
 
     var id: String {
         switch self {
         case .photo(let r): return "photo-\(r.filePath)"
         case .voice(let r): return "voice-\(r.filePath)"
+        case .file(let r): return "file-\(r.filePath)"
         }
     }
 
@@ -30,6 +39,8 @@ enum PendingAttachment: Identifiable {
             return Memo.Attachment(file: r.filePath, kind: "photo", duration: nil, transcript: exifSummary)
         case .voice(let r):
             return Memo.Attachment(file: r.filePath, kind: "audio", duration: r.duration, transcript: r.transcript)
+        case .file(let r):
+            return Memo.Attachment(file: r.filePath, kind: "file", duration: nil, transcript: r.fileName)
         }
     }
 }
@@ -75,6 +86,12 @@ final class TodayViewModel: ObservableObject {
     /// Whether AI compilation is in progress.
     @Published var isCompiling: Bool = false
 
+    /// Whether background (auto/backfill) compilation is in progress.
+    @Published var isBackgroundCompiling: Bool = false
+
+    /// Set when background compilation fails after all retries (triggers error banner).
+    @Published var compilationFailedError: String? = nil
+
     /// Pending photo results (can accumulate before submission, cleared after).
     @Published var pendingPhotos: [PhotoPickerResult] = []
 
@@ -83,6 +100,16 @@ final class TodayViewModel: ObservableObject {
 
     /// Whether the voice recording sheet is presented.
     @Published var isShowingVoiceRecorder: Bool = false
+
+    /// Whether the camera capture sheet is presented.
+    @Published var isShowingCamera: Bool = false
+
+    /// Whether any API key is missing (triggers banner in TodayView).
+    var hasApiKeysMissing: Bool {
+        Secrets.dashScopeApiKey.isEmpty
+            || Secrets.openAIWhisperApiKey.isEmpty
+            || Secrets.openWeatherApiKey.isEmpty
+    }
 
     // MARK: Private
 
@@ -97,6 +124,37 @@ final class TodayViewModel: ObservableObject {
 
     init(date: Date = Date()) {
         self.date = date
+        observeCompilationFailure()
+    }
+
+    private func observeCompilationFailure() {
+        NotificationCenter.default.addObserver(
+            forName: .compilationDidFail,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.compilationFailedError = "后台编译失败，请检查网络或 API Key 后重试"
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .compilationDidStart,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isBackgroundCompiling = true
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .compilationDidEnd,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isBackgroundCompiling = false
+            }
+        }
     }
 
     // MARK: - Load Memos
@@ -162,6 +220,67 @@ final class TodayViewModel: ObservableObject {
         isShowingVoiceRecorder = true
     }
 
+    /// Opens the camera capture sheet.
+    func startCameraCapture() {
+        isShowingCamera = true
+    }
+
+    /// Whether the document picker sheet is presented.
+    @Published var isShowingDocumentPicker: Bool = false
+
+    /// Opens the document picker sheet.
+    func startFilePicker() {
+        isShowingDocumentPicker = true
+    }
+
+    /// Copies a picked file into vault/raw/assets/files/ and stages it as a pending attachment.
+    func addFileAttachment(url: URL) {
+        isShowingDocumentPicker = false
+        let filesDir = VaultInitializer.vaultURL
+            .appendingPathComponent("raw/assets/files", isDirectory: true)
+        let fm = FileManager.default
+        try? fm.createDirectory(at: filesDir, withIntermediateDirectories: true)
+
+        let fileName = url.lastPathComponent
+        let destURL = filesDir.appendingPathComponent(fileName)
+        // If a file with the same name exists, append a timestamp suffix
+        let finalURL: URL
+        if fm.fileExists(atPath: destURL.path) {
+            let ts = Int(Date().timeIntervalSince1970)
+            let ext = url.pathExtension
+            let base = url.deletingPathExtension().lastPathComponent
+            let newName = ext.isEmpty ? "\(base)_\(ts)" : "\(base)_\(ts).\(ext)"
+            finalURL = filesDir.appendingPathComponent(newName)
+        } else {
+            finalURL = destURL
+        }
+
+        do {
+            try fm.copyItem(at: url, to: finalURL)
+        } catch {
+            submitError = "文件复制失败：\(error.localizedDescription)"
+            return
+        }
+
+        let relativePath = "raw/assets/files/\(finalURL.lastPathComponent)"
+        let result = FilePickerResult(filePath: relativePath, fileName: finalURL.lastPathComponent)
+        pendingAttachments.append(.file(result))
+    }
+
+    /// Processes a UIImage captured from the camera and stages it as a pending attachment.
+    func addCameraPhoto(_ image: UIImage) {
+        guard let data = image.jpegData(compressionQuality: 0.9) else { return }
+        isProcessingPhoto = true
+        Task {
+            defer { isProcessingPhoto = false }
+            guard let result = photoService.processImageData(data) else {
+                submitError = "照片处理失败，请重试"
+                return
+            }
+            pendingAttachments.append(.photo(result))
+        }
+    }
+
     /// Dismisses the voice recording sheet without saving.
     func cancelVoiceRecording() {
         voiceService.cancelRecording()
@@ -215,14 +334,17 @@ final class TodayViewModel: ObservableObject {
             // Determine type
             let hasPhotos = snapshotAttachments.contains { if case .photo = $0 { return true }; return false }
             let hasVoice  = snapshotAttachments.contains { if case .voice = $0 { return true }; return false }
+            let hasFiles  = snapshotAttachments.contains { if case .file = $0 { return true }; return false }
             let memoType: Memo.MemoType
-            let typeCount = (hasText ? 1 : 0) + (hasPhotos ? 1 : 0) + (hasVoice ? 1 : 0)
+            let typeCount = (hasText ? 1 : 0) + (hasPhotos ? 1 : 0) + (hasVoice ? 1 : 0) + (hasFiles ? 1 : 0)
             if typeCount > 1 {
                 memoType = .mixed
             } else if hasPhotos {
                 memoType = .photo
             } else if hasVoice {
                 memoType = .voice
+            } else if hasFiles {
+                memoType = .mixed
             } else {
                 memoType = .text
             }

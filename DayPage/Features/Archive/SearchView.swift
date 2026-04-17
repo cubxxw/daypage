@@ -15,6 +15,9 @@ struct SearchView: View {
     @State private var hasSearched: Bool = false
     @State private var searchTask: Task<Void, Never>? = nil
 
+    @State private var filters: SearchFilters = SearchFilters.empty
+    @State private var showFilters: Bool = false
+
     /// Invoked with "yyyy-MM-dd" when the user taps a hit.
     var onSelect: (String) -> Void
 
@@ -30,12 +33,18 @@ struct SearchView: View {
 
                     Divider().background(DSColor.outlineVariant)
 
+                    if showFilters {
+                        filterPanel
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        Divider().background(DSColor.outlineVariant)
+                    }
+
                     contentArea
                 }
             }
             .navigationBarHidden(true)
+            .animation(.easeInOut(duration: 0.2), value: showFilters)
             .onAppear {
-                // 延迟一拍确保 sheet 动画完成后再触发键盘，避免闪烁。
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isInputFocused = true
                 }
@@ -83,6 +92,17 @@ struct SearchView: View {
             .background(DSColor.surfaceContainer)
             .overlay(Rectangle().stroke(DSColor.outlineVariant, lineWidth: 1))
 
+            // Filter toggle button
+            Button(action: {
+                isInputFocused = false
+                showFilters.toggle()
+            }) {
+                Image(systemName: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(filters.isActive ? DSColor.primary : DSColor.onSurfaceVariant)
+            }
+            .buttonStyle(.plain)
+
             Button(action: { dismiss() }) {
                 Text("取消")
                     .monoLabelStyle(size: 11)
@@ -90,6 +110,173 @@ struct SearchView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    // MARK: - Filter Panel
+
+    private var filterPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Date range row
+            HStack(spacing: 8) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 12))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 16)
+
+                Text("日期范围")
+                    .monoLabelStyle(size: 11)
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 48, alignment: .leading)
+
+                Spacer()
+
+                DatePicker("", selection: Binding(
+                    get: { filters.startDate ?? Date.distantPast },
+                    set: { filters.startDate = $0 == Date.distantPast ? nil : $0 }
+                ), displayedComponents: .date)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .font(.custom("Inter-Regular", size: 12))
+                .frame(maxWidth: 120)
+                .overlay(
+                    filters.startDate == nil
+                        ? Text("开始日期").monoLabelStyle(size: 11).foregroundColor(DSColor.onSurfaceVariant).allowsHitTesting(false)
+                        : nil
+                )
+
+                Text("—")
+                    .monoLabelStyle(size: 11)
+                    .foregroundColor(DSColor.outline)
+
+                DatePicker("", selection: Binding(
+                    get: { filters.endDate ?? Date() },
+                    set: { filters.endDate = $0 }
+                ), displayedComponents: .date)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .font(.custom("Inter-Regular", size: 12))
+                .frame(maxWidth: 120)
+
+                if filters.startDate != nil || filters.endDate != nil {
+                    Button(action: {
+                        filters.startDate = nil
+                        filters.endDate = nil
+                        scheduleSearch()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Type multi-select row
+            HStack(spacing: 8) {
+                Image(systemName: "tag")
+                    .font(.system(size: 12))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 16)
+
+                Text("类型")
+                    .monoLabelStyle(size: 11)
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 48, alignment: .leading)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(Memo.MemoType.filterOptions, id: \.self) { type in
+                            typeChip(type)
+                        }
+                    }
+                }
+            }
+
+            // Location filter row
+            HStack(spacing: 8) {
+                Image(systemName: "mappin")
+                    .font(.system(size: 12))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 16)
+
+                Text("地点")
+                    .monoLabelStyle(size: 11)
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .frame(width: 48, alignment: .leading)
+
+                HStack(spacing: 6) {
+                    TextField("过滤地点名称", text: $filters.locationQuery)
+                        .font(.custom("Inter-Regular", size: 13))
+                        .foregroundColor(DSColor.onSurface)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .onChange(of: filters.locationQuery) { _ in scheduleSearch() }
+
+                    if !filters.locationQuery.isEmpty {
+                        Button(action: {
+                            filters.locationQuery = ""
+                            scheduleSearch()
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(DSColor.surfaceContainer)
+                .overlay(Rectangle().stroke(DSColor.outlineVariant, lineWidth: 1))
+            }
+
+            // Clear all filters
+            if filters.isActive {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        filters = .empty
+                        scheduleSearch()
+                    }) {
+                        Text("清除全部筛选")
+                            .monoLabelStyle(size: 10)
+                            .foregroundColor(DSColor.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(DSColor.surfaceContainer.opacity(0.5))
+    }
+
+    private func typeChip(_ type: Memo.MemoType) -> some View {
+        let isSelected = filters.types.contains(type)
+        return Button(action: {
+            if isSelected {
+                filters.types.remove(type)
+            } else {
+                filters.types.insert(type)
+            }
+            scheduleSearch()
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: type.iconName)
+                    .font(.system(size: 10))
+                Text(type.displayName)
+                    .monoLabelStyle(size: 10)
+            }
+            .foregroundColor(isSelected ? DSColor.onPrimary : DSColor.onSurfaceVariant)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isSelected ? DSColor.primary : DSColor.surfaceContainer)
+            .overlay(
+                Rectangle()
+                    .stroke(isSelected ? DSColor.primary : DSColor.outlineVariant, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Content
@@ -116,6 +303,15 @@ struct SearchView: View {
             Text("支持 memo 正文、位置名、日期")
                 .monoLabelStyle(size: 10)
                 .foregroundColor(DSColor.outline)
+
+            if filters.isActive {
+                Text("已启用筛选条件，点击搜索框输入关键词")
+                    .monoLabelStyle(size: 10)
+                    .foregroundColor(DSColor.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 80)
@@ -126,11 +322,19 @@ struct SearchView: View {
             Image(systemName: "tray")
                 .font(.system(size: 32, weight: .regular))
                 .foregroundColor(DSColor.outlineVariant)
-            Text("未找到「\(keyword)」的匹配结果")
-                .bodySMStyle()
-                .foregroundColor(DSColor.onSurfaceVariant)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            if keyword.isEmpty && filters.isActive {
+                Text("当前筛选条件下无匹配结果")
+                    .bodySMStyle()
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            } else {
+                Text("未找到「\(keyword)」的匹配结果")
+                    .bodySMStyle()
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 80)
@@ -144,6 +348,11 @@ struct SearchView: View {
                         .monoLabelStyle(size: 10)
                         .foregroundColor(DSColor.onSurfaceVariant)
                     Spacer()
+                    if filters.isActive {
+                        Label("已筛选", systemImage: "line.3.horizontal.decrease.circle.fill")
+                            .monoLabelStyle(size: 10)
+                            .foregroundColor(DSColor.primary)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -189,6 +398,15 @@ struct SearchView: View {
                         Text(matchLabel(for: result.matchKind))
                             .monoLabelStyle(size: 10)
                             .foregroundColor(DSColor.onSurfaceVariant)
+
+                        if let type = result.memoType {
+                            Image(systemName: type.iconName)
+                                .font(.system(size: 10))
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                            Text(type.displayName.uppercased())
+                                .monoLabelStyle(size: 10)
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                        }
                     }
                 }
                 .padding(16)
@@ -204,15 +422,17 @@ struct SearchView: View {
 
     private func scheduleSearch() {
         searchTask?.cancel()
-        let current = keyword
+        let currentKeyword = keyword
+        let currentFilters = filters
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 150_000_000)
             if Task.isCancelled { return }
-            let hits = SearchService.search(keyword: current)
+            let hits = SearchService.search(keyword: currentKeyword, filters: currentFilters)
             if Task.isCancelled { return }
             await MainActor.run {
                 self.results = hits
-                self.hasSearched = !current.trimmingCharacters(in: .whitespaces).isEmpty
+                let active = !currentKeyword.trimmingCharacters(in: .whitespaces).isEmpty || currentFilters.isActive
+                self.hasSearched = active
             }
         }
     }
@@ -243,6 +463,32 @@ struct SearchView: View {
         case .memoBody: return "MEMO"
         case .location: return "LOCATION"
         case .date:     return "DATE"
+        }
+    }
+}
+
+// MARK: - Memo.MemoType + UI helpers
+
+private extension Memo.MemoType {
+    static let filterOptions: [Memo.MemoType] = [.text, .voice, .photo, .location]
+
+    var displayName: String {
+        switch self {
+        case .text:     return "文字"
+        case .voice:    return "语音"
+        case .photo:    return "照片"
+        case .location: return "位置"
+        case .mixed:    return "混合"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .text:     return "doc.text"
+        case .voice:    return "waveform"
+        case .photo:    return "photo"
+        case .location: return "mappin"
+        case .mixed:    return "square.grid.2x2"
         }
     }
 }

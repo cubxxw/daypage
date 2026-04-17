@@ -11,10 +11,15 @@ struct EntityPageView: View {
 
     let entityType: String  // "places", "people", or "themes"
     let entitySlug: String
+    /// When presented from a Daily Page, pass the dateString to show a breadcrumb.
+    var sourceDateString: String? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var model: EntityModel? = nil
     @State private var notFound: Bool = false
+    @State private var selectedDate: String? = nil
+    @State private var selectedEntitySlug: String? = nil
+    @State private var selectedEntityType: String = "themes"
 
     var body: some View {
         NavigationStack {
@@ -48,10 +53,23 @@ struct EntityPageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "arrow.left")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(DSColor.onSurface)
+                    if let src = sourceDateString {
+                        Button(action: { dismiss() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.left")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text(src)
+                                    .font(.custom("JetBrainsMono-Regular", fixedSize: 11))
+                                    .kerning(0.5)
+                            }
+                            .foregroundColor(DSColor.primary)
+                        }
+                    } else {
+                        Button(action: { dismiss() }) {
+                            Image(systemName: "arrow.left")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(DSColor.onSurface)
+                        }
                     }
                 }
                 ToolbarItem(placement: .principal) {
@@ -62,6 +80,22 @@ struct EntityPageView: View {
             }
         }
         .onAppear { loadEntity() }
+        .sheet(isPresented: Binding(
+            get: { selectedDate != nil },
+            set: { if !$0 { selectedDate = nil } }
+        )) {
+            if let dateStr = selectedDate {
+                DailyPageView(dateString: dateStr)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { selectedEntitySlug != nil },
+            set: { if !$0 { selectedEntitySlug = nil } }
+        )) {
+            if let slug = selectedEntitySlug {
+                EntityPageView(entityType: selectedEntityType, entitySlug: slug)
+            }
+        }
     }
 
     // MARK: - Not Found
@@ -171,19 +205,22 @@ struct EntityPageView: View {
                     .foregroundColor(DSColor.onSurfaceVariant)
             } else {
                 ForEach(model.relatedDates, id: \.self) { dateStr in
-                    HStack {
-                        Text(dateStr)
-                            .monoLabelStyle(size: 11)
-                            .foregroundColor(DSColor.onSurface)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11))
-                            .foregroundColor(DSColor.onSurfaceVariant)
+                    Button(action: { selectedDate = dateStr }) {
+                        HStack {
+                            Text(dateStr)
+                                .monoLabelStyle(size: 11)
+                                .foregroundColor(DSColor.onSurface)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11))
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                        }
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 12)
+                        .background(DSColor.surfaceContainer)
+                        .cornerRadius(0)
                     }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 12)
-                    .background(DSColor.surfaceContainer)
-                    .cornerRadius(0)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -193,43 +230,26 @@ struct EntityPageView: View {
 
     @ViewBuilder
     private func wikifiedText(_ text: String) -> some View {
-        Text(buildAttributedString(text))
-            .bodyMDStyle()
-            .foregroundColor(DSColor.onSurface)
-            .lineSpacing(3)
+        WikilinkBodyText(text: text) { inner in
+            let (type, slug) = resolveEntityTypeAndSlug(inner)
+            selectedEntityType = type
+            selectedEntitySlug = slug
+        }
     }
 
-    private func buildAttributedString(_ text: String) -> AttributedString {
-        var result = AttributedString()
-        let pattern = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#)
-        let nsText = text as NSString
-        let range = NSRange(location: 0, length: nsText.length)
-        let matches = pattern?.matches(in: text, range: range) ?? []
-        var lastEnd = text.startIndex
-
-        for match in matches {
-            let matchRange = Range(match.range, in: text)!
-            let innerRange = Range(match.range(at: 1), in: text)!
-            let inner = String(text[innerRange])
-
-            let before = String(text[lastEnd ..< matchRange.lowerBound])
-            if !before.isEmpty { result.append(AttributedString(before)) }
-
-            let displayName = inner.contains("|")
-                ? String(inner.split(separator: "|", maxSplits: 1).last ?? Substring(inner))
-                : inner.replacingOccurrences(of: "-", with: " ").capitalized
-
-            var linkStr = AttributedString("[[" + displayName + "]]")
-            linkStr.foregroundColor = DSColor.amberArchival
-            linkStr.font = .custom("Inter-Medium", size: 15)
-            result.append(linkStr)
-
-            lastEnd = matchRange.upperBound
+    /// Resolves entity type from slug by scanning wiki directories.
+    private func resolveEntityTypeAndSlug(_ inner: String) -> (type: String, slug: String) {
+        let slug = inner.contains("|")
+            ? String(inner.split(separator: "|", maxSplits: 1).first ?? Substring(inner))
+            : inner
+        let wikiBase = VaultInitializer.vaultURL.appendingPathComponent("wiki")
+        for type in ["places", "people", "themes"] {
+            let url = wikiBase.appendingPathComponent(type).appendingPathComponent("\(slug).md")
+            if FileManager.default.fileExists(atPath: url.path) {
+                return (type, slug)
+            }
         }
-
-        let tail = String(text[lastEnd...])
-        if !tail.isEmpty { result.append(AttributedString(tail)) }
-        return result
+        return ("themes", slug)
     }
 
     // MARK: - Load

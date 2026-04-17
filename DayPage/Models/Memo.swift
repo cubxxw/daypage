@@ -14,7 +14,7 @@ struct Memo: Identifiable, Equatable {
         var lng: Double?
     }
 
-    enum MemoType: String, Equatable {
+    enum MemoType: String, Equatable, Hashable {
         case text
         case voice
         case photo

@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import ImageIO
 import AVFoundation
+import MapKit
 
 // MARK: - MemoCardView
 
@@ -11,7 +12,11 @@ struct MemoCardView: View {
 
     let memo: Memo
 
+    /// Optional callback invoked when the user confirms deletion of this memo.
+    var onDelete: (() -> Void)? = nil
+
     @State private var isExpanded: Bool = false
+    @State private var showLocationSheet: Bool = false
 
     // Maximum lines when collapsed
     private let previewLineLimit = 4
@@ -72,15 +77,20 @@ struct MemoCardView: View {
             .background(DSColor.surfaceContainer)
             .contentShape(Rectangle())
             .onTapGesture {
-                if let lat = memo.location?.lat, let lng = memo.location?.lng {
-                    let urlStr = "maps://?ll=\(lat),\(lng)"
-                    if let url = URL(string: urlStr) {
-                        UIApplication.shared.open(url)
-                    }
+                if memo.location?.lat != nil && memo.location?.lng != nil {
+                    showLocationSheet = true
                 }
             }
         }
         .cornerRadius(0)
+        .sheet(isPresented: $showLocationSheet) {
+            LocationPreviewSheet(
+                location: memo.location,
+                onDelete: onDelete
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Standard Card
@@ -102,7 +112,7 @@ struct MemoCardView: View {
                     VoiceMemoPlayerRow(
                         fileURL: VaultInitializer.vaultURL.appendingPathComponent(att.file),
                         duration: att.duration ?? 0,
-                        transcript: att.transcript ?? (memo.type == .voice ? memo.body : nil)
+                        transcript: att.transcript
                     )
                     .padding(.top, 6)
                 }
@@ -132,9 +142,36 @@ struct MemoCardView: View {
                 }
             }
 
+            // File attachment rows (for mixed memos with file attachments)
+            let fileAttachments = memo.attachments.filter { $0.kind == "file" }
+            if !fileAttachments.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(fileAttachments, id: \.file) { att in
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                            Text(att.transcript ?? URL(fileURLWithPath: att.file).lastPathComponent)
+                                .font(.custom("JetBrainsMono-Regular", fixedSize: 11))
+                                .foregroundColor(DSColor.onSurface)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                    }
+                }
+                .padding(.top, 6)
+            }
+
             // Body content (caption)
-            if !memo.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(memo.body.trimmingCharacters(in: .whitespacesAndNewlines))
+            // For voice-only memos, suppress body when it duplicates the transcript
+            // (legacy data had transcript copied into body before the fix).
+            let bodyText = memo.body.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isBodyDuplicateOfTranscript = memo.type == .voice &&
+                memo.attachments.contains(where: { $0.transcript == bodyText && !bodyText.isEmpty })
+            if !bodyText.isEmpty && !isBodyDuplicateOfTranscript {
+                Text(bodyText)
                     .bodySMStyle()
                     .foregroundColor(DSColor.onSurface)
                     .lineLimit(isExpanded ? nil : previewLineLimit)
@@ -268,9 +305,178 @@ struct MemoCardView: View {
     /// Whether the body is long enough to need an expand button.
     private var needsExpansionButton: Bool {
         let body = memo.body.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Approximate: if body has many newlines or is long
+        guard !body.isEmpty else { return false }
+        // Suppress for voice memos where body is a legacy duplicate of transcript.
+        let isDuplicate = memo.type == .voice &&
+            memo.attachments.contains(where: { $0.transcript == body })
+        guard !isDuplicate else { return false }
         let lineCount = body.components(separatedBy: "\n").count
         return lineCount > previewLineLimit || body.count > 200
+    }
+}
+
+// MARK: - LocationPreviewSheet
+
+/// Sheet shown when tapping a location card. Displays a MapKit map preview
+/// with options to open in Apple Maps or delete the attachment.
+struct LocationPreviewSheet: View {
+
+    let location: Memo.Location?
+    var onDelete: (() -> Void)?
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var coordinate: CLLocationCoordinate2D? {
+        guard let lat = location?.lat, let lng = location?.lng else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Handle bar area + title
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let name = location?.name, !name.isEmpty {
+                        Text(name.uppercased())
+                            .font(.custom("SpaceGrotesk-Bold", size: 16))
+                            .foregroundColor(DSColor.onSurface)
+                    } else {
+                        Text("位置附件")
+                            .font(.custom("SpaceGrotesk-Bold", size: 16))
+                            .foregroundColor(DSColor.onSurface)
+                    }
+                    if let coord = coordinate {
+                        Text(String(format: "%.5f°, %.5f°", coord.latitude, coord.longitude))
+                            .font(.custom("JetBrainsMono-Regular", fixedSize: 11))
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                    }
+                }
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .frame(width: 32, height: 32)
+                        .background(DSColor.surfaceContainerHigh)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            Divider().background(DSColor.outline)
+
+            // Map view
+            if let coord = coordinate {
+                MapPreviewView(coordinate: coord)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 260)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "map")
+                        .font(.system(size: 32))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                    Text("无坐标信息")
+                        .bodySMStyle()
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 260)
+                .background(DSColor.surfaceContainer)
+            }
+
+            Divider().background(DSColor.outline)
+
+            // Action buttons
+            VStack(spacing: 0) {
+                // Open in Apple Maps
+                Button(action: openInAppleMaps) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(DSColor.primary)
+                        Text("在 Apple Maps 中打开")
+                            .font(.custom("SpaceGrotesk-Medium", size: 15))
+                            .foregroundColor(DSColor.primary)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                }
+                .buttonStyle(.plain)
+                .disabled(coordinate == nil)
+
+                if onDelete != nil {
+                    Divider()
+                        .padding(.horizontal, 20)
+                        .background(DSColor.outlineVariant)
+
+                    Button(action: {
+                        dismiss()
+                        onDelete?()
+                    }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.red)
+                            Text("删除附件")
+                                .font(.custom("SpaceGrotesk-Medium", size: 15))
+                                .foregroundColor(.red)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .background(DSColor.surfaceContainer)
+
+            Spacer()
+        }
+        .background(DSColor.background.ignoresSafeArea())
+    }
+
+    private func openInAppleMaps() {
+        guard let coord = coordinate else { return }
+        let urlStr = "maps://?ll=\(coord.latitude),\(coord.longitude)"
+        if let url = URL(string: urlStr) {
+            UIApplication.shared.open(url)
+        }
+    }
+}
+
+// MARK: - MapPreviewView
+
+/// A UIViewRepresentable wrapper for MKMapView to show a static map snapshot with a pin.
+struct MapPreviewView: UIViewRepresentable {
+
+    let coordinate: CLLocationCoordinate2D
+
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView()
+        map.isUserInteractionEnabled = false
+        map.showsUserLocation = false
+        map.mapType = .standard
+        return map
+    }
+
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        mapView.setRegion(region, animated: false)
+
+        mapView.removeAnnotations(mapView.annotations)
+        let pin = MKPointAnnotation()
+        pin.coordinate = coordinate
+        mapView.addAnnotation(pin)
     }
 }
 

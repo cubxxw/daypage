@@ -19,6 +19,7 @@
 		A10000010 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010 /* TodayView.swift */; };
 		A10000011 /* ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000011 /* ArchiveView.swift */; };
 		A10000012 /* GraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000012 /* GraphView.swift */; };
+		A10000035 /* GraphViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000035 /* GraphViewModel.swift */; };
 		A10000013 /* TodayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000013 /* TodayViewModel.swift */; };
 		A10000014 /* MemoCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000014 /* MemoCardView.swift */; };
 		A10000015 /* InputBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000015 /* InputBarView.swift */; };
@@ -27,6 +28,8 @@
 		A10000018 /* PhotoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000018 /* PhotoService.swift */; };
 		A10000019 /* VoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000019 /* VoiceService.swift */; };
 		A10000020 /* VoiceRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000020 /* VoiceRecordingView.swift */; };
+		A10000033 /* CameraPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000033 /* CameraPickerView.swift */; };
+		A10000034 /* DocumentPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000034 /* DocumentPickerView.swift */; };
 		A10000021 /* CompilationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000021 /* CompilationService.swift */; };
 		A10000022 /* EntityPageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000022 /* EntityPageService.swift */; };
 		A10000023 /* BackgroundCompilationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000023 /* BackgroundCompilationService.swift */; };
@@ -34,6 +37,9 @@
 		A10000026 /* EntityPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000026 /* EntityPageView.swift */; };
 		A10000027 /* SearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000027 /* SearchService.swift */; };
 		A10000028 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000028 /* SearchView.swift */; };
+		A10000031 /* RawMemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000031 /* RawMemoView.swift */; };
+		A10000030 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000030 /* SettingsView.swift */; };
+		A10000032 /* PassiveLocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000032 /* PassiveLocationService.swift */; };
 		AF0000001 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000001 /* SpaceGrotesk-Light.ttf */; };
 		AF0000002 /* SpaceGrotesk-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000002 /* SpaceGrotesk-Regular.ttf */; };
 		AF0000003 /* SpaceGrotesk-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000003 /* SpaceGrotesk-Medium.ttf */; };
@@ -62,6 +68,7 @@
 		A20000010 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		A20000011 /* ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveView.swift; sourceTree = "<group>"; };
 		A20000012 /* GraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphView.swift; sourceTree = "<group>"; };
+		A20000035 /* GraphViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphViewModel.swift; sourceTree = "<group>"; };
 		A20000013 /* TodayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewModel.swift; sourceTree = "<group>"; };
 		A20000014 /* MemoCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoCardView.swift; sourceTree = "<group>"; };
 		A20000015 /* InputBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarView.swift; sourceTree = "<group>"; };
@@ -70,6 +77,8 @@
 		A20000018 /* PhotoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoService.swift; sourceTree = "<group>"; };
 		A20000019 /* VoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceService.swift; sourceTree = "<group>"; };
 		A20000020 /* VoiceRecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRecordingView.swift; sourceTree = "<group>"; };
+		A20000033 /* CameraPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerView.swift; sourceTree = "<group>"; };
+		A20000034 /* DocumentPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerView.swift; sourceTree = "<group>"; };
 		A20000021 /* CompilationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompilationService.swift; sourceTree = "<group>"; };
 		A20000022 /* EntityPageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPageService.swift; sourceTree = "<group>"; };
 		A20000023 /* BackgroundCompilationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundCompilationService.swift; sourceTree = "<group>"; };
@@ -79,6 +88,9 @@
 		A20000026 /* EntityPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityPageView.swift; sourceTree = "<group>"; };
 		A20000027 /* SearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchService.swift; sourceTree = "<group>"; };
 		A20000028 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		A20000031 /* RawMemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RawMemoView.swift; sourceTree = "<group>"; };
+		A20000030 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A20000032 /* PassiveLocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveLocationService.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF1000001 /* SpaceGrotesk-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Light.ttf"; sourceTree = "<group>"; };
 		AF1000002 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Regular.ttf"; sourceTree = "<group>"; };
@@ -150,8 +162,17 @@
 				A50000012 /* Archive */,
 				A50000013 /* Entity */,
 				A50000014 /* Graph */,
+				A50000015 /* Settings */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		A50000015 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A20000030 /* SettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		A50000005 /* Models */ = {
@@ -173,6 +194,7 @@
 				A20000022 /* EntityPageService.swift */,
 				A20000023 /* BackgroundCompilationService.swift */,
 				A20000027 /* SearchService.swift */,
+				A20000032 /* PassiveLocationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -210,6 +232,8 @@
 				A20000014 /* MemoCardView.swift */,
 				A20000015 /* InputBarView.swift */,
 				A20000020 /* VoiceRecordingView.swift */,
+				A20000033 /* CameraPickerView.swift */,
+				A20000034 /* DocumentPickerView.swift */,
 			);
 			path = Today;
 			sourceTree = "<group>";
@@ -227,6 +251,7 @@
 			children = (
 				A20000011 /* ArchiveView.swift */,
 				A20000028 /* SearchView.swift */,
+				A20000031 /* RawMemoView.swift */,
 			);
 			path = Archive;
 			sourceTree = "<group>";
@@ -243,6 +268,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000012 /* GraphView.swift */,
+				A20000035 /* GraphViewModel.swift */,
 			);
 			path = Graph;
 			sourceTree = "<group>";
@@ -387,6 +413,7 @@
 				A10000010 /* TodayView.swift in Sources */,
 				A10000011 /* ArchiveView.swift in Sources */,
 				A10000012 /* GraphView.swift in Sources */,
+				A10000035 /* GraphViewModel.swift in Sources */,
 				A10000013 /* TodayViewModel.swift in Sources */,
 				A10000014 /* MemoCardView.swift in Sources */,
 				A10000015 /* InputBarView.swift in Sources */,
@@ -395,6 +422,8 @@
 				A10000018 /* PhotoService.swift in Sources */,
 				A10000019 /* VoiceService.swift in Sources */,
 				A10000020 /* VoiceRecordingView.swift in Sources */,
+				A10000033 /* CameraPickerView.swift in Sources */,
+				A10000034 /* DocumentPickerView.swift in Sources */,
 				A10000021 /* CompilationService.swift in Sources */,
 				A10000022 /* EntityPageService.swift in Sources */,
 				A10000023 /* BackgroundCompilationService.swift in Sources */,
@@ -402,6 +431,9 @@
 				A10000026 /* EntityPageView.swift in Sources */,
 				A10000027 /* SearchService.swift in Sources */,
 				A10000028 /* SearchView.swift in Sources */,
+				A10000031 /* RawMemoView.swift in Sources */,
+				A10000030 /* SettingsView.swift in Sources */,
+				A10000032 /* PassiveLocationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
