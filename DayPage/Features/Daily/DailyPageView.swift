@@ -313,17 +313,17 @@ struct DailyPageView: View {
 
     private func headerSection(model: DailyPageModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Main date title — Space Grotesk 56px uppercase
-            Text(model.dateString.uppercased())
+            // Main date title — "APRIL 14" (month + day only, all caps)
+            Text(dailyPageMonthDay(model.dateString))
                 .displayLGStyle()
                 .foregroundColor(DSColor.primary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.6)
                 .padding(.bottom, 4)
 
-            // Weekday subtitle
-            Text(model.weekday.uppercased())
-                .monoLabelStyle(size: 13)
+            // Weekday + year subtitle — "Sunday, 2026"
+            Text(dailyPageWeekdayYear(model.dateString))
+                .captionText()
                 .foregroundColor(DSColor.onSurfaceVariant)
                 .padding(.bottom, 24)
 
@@ -540,6 +540,30 @@ struct DailyPageView: View {
             }
         }
         return ("themes", slug)
+    }
+
+    // MARK: - Date Helpers
+
+    private func dailyPageMonthDay(_ dateString: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateString) else { return dateString }
+        let f = DateFormatter()
+        f.dateFormat = "MMMM d"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.string(from: date).uppercased()
+    }
+
+    private func dailyPageWeekdayYear(_ dateString: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateString) else { return "" }
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, yyyy"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.string(from: date)
     }
 
     // MARK: - Load

@@ -46,6 +46,7 @@
 		A10000038 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000038 /* NetworkMonitor.swift */; };
 		A10000039 /* VoiceAttachmentQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000039 /* VoiceAttachmentQueue.swift */; };
 		A10000040 /* DayDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000040 /* DayDetailView.swift */; };
+		A10000042 /* RelativeTimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000042 /* RelativeTimeFormatter.swift */; };
 		AF0000001 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000001 /* SpaceGrotesk-Light.ttf */; };
 		AF0000002 /* SpaceGrotesk-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000002 /* SpaceGrotesk-Regular.ttf */; };
 		AF0000003 /* SpaceGrotesk-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000003 /* SpaceGrotesk-Medium.ttf */; };
@@ -103,6 +104,7 @@
 		A20000038 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		A20000039 /* VoiceAttachmentQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAttachmentQueue.swift; sourceTree = "<group>"; };
 		A20000040 /* DayDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDetailView.swift; sourceTree = "<group>"; };
+		A20000042 /* RelativeTimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeTimeFormatter.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF1000001 /* SpaceGrotesk-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Light.ttf"; sourceTree = "<group>"; };
 		AF1000002 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Regular.ttf"; sourceTree = "<group>"; };
@@ -139,9 +141,18 @@
 				A50000006 /* Services */,
 				A50000007 /* Storage */,
 				A50000008 /* Config */,
+				A50000020 /* Utilities */,
 				A50000009 /* Products */,
 			);
 			path = DayPage;
+			sourceTree = "<group>";
+		};
+		A50000020 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A20000042 /* RelativeTimeFormatter.swift */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 		A50000002 /* App */ = {
@@ -466,6 +477,7 @@
 				A10000037 /* AppBanner.swift in Sources */,
 				A10000038 /* NetworkMonitor.swift in Sources */,
 				A10000039 /* VoiceAttachmentQueue.swift in Sources */,
+				A10000042 /* RelativeTimeFormatter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

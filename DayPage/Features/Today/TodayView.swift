@@ -583,11 +583,12 @@ struct TimelineRow: View {
         HStack(alignment: .top, spacing: 0) {
             // Left timeline column: time label + connecting line
             VStack(spacing: 0) {
-                Text(memo.created.formatted(.dateTime.hour().minute()))
+                Text(RelativeTimeFormatter.relative(memo.created))
                     .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
                     .foregroundColor(DSColor.onSurfaceVariant)
-                    .frame(width: 40)
+                    .frame(width: 60)
                     .padding(.top, 10)
+                    .multilineTextAlignment(.center)
 
                 // Connecting line extends to bottom of card
                 if !isLast {

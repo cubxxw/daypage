@@ -207,7 +207,7 @@ struct EntityPageView: View {
                 ForEach(model.relatedDates, id: \.self) { dateStr in
                     Button(action: { selectedDate = dateStr }) {
                         HStack {
-                            Text(dateStr)
+                            Text(relativeDateLabel(dateStr))
                                 .monoLabelStyle(size: 11)
                                 .foregroundColor(DSColor.onSurface)
                             Spacer()
@@ -235,6 +235,23 @@ struct EntityPageView: View {
             selectedEntityType = type
             selectedEntitySlug = slug
         }
+    }
+
+    private func relativeDateLabel(_ dateString: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateString) else { return dateString }
+        let cal = Calendar.current
+        let now = Date()
+        if cal.isDateInToday(date) { return "TODAY" }
+        if cal.isDateInYesterday(date) { return "YESTERDAY" }
+        let daysDiff = cal.dateComponents([.day], from: date, to: now).day ?? 0
+        if daysDiff > 0 && daysDiff < 7 { return "\(daysDiff) DAYS AGO" }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.string(from: date).uppercased()
     }
 
     /// Resolves entity type from slug by scanning wiki directories.

@@ -42,7 +42,7 @@ struct MemoCardView: View {
             // Time + content
             VStack(alignment: .leading, spacing: 0) {
                 // Time chip
-                TimeChip(time: memo.created.formatted(.dateTime.hour().minute()))
+                TimeChip(time: RelativeTimeFormatter.relative(memo.created))
                     .padding(.horizontal, DSSpacing.cardInner)
                     .padding(.top, 10)
 
@@ -100,7 +100,7 @@ struct MemoCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Top row: time chip + type icon
             HStack(alignment: .center, spacing: 8) {
-                TimeChip(time: memo.created.formatted(.dateTime.hour().minute()))
+                TimeChip(time: RelativeTimeFormatter.relative(memo.created))
                 typeLabel
                 Spacer()
             }

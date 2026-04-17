@@ -890,6 +890,21 @@ struct ArchiveView: View {
         return formatter.string(from: date).uppercased()
     }
 
+    /// Human-friendly date label: TODAY / YESTERDAY / N DAYS AGO / APRIL 14.
+    private func relativeDateLabel(_ dateString: String) -> String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = parser.date(from: dateString) else { return dateString }
+        let cal = Calendar.current
+        let now = Date()
+        if cal.isDateInToday(date) { return "TODAY" }
+        if cal.isDateInYesterday(date) { return "YESTERDAY" }
+        let daysDiff = cal.dateComponents([.day], from: date, to: now).day ?? 0
+        if daysDiff > 0 && daysDiff < 7 { return "\(daysDiff) DAYS AGO" }
+        return formatArchiveDate(dateString)
+    }
+
     private func archiveListRow(stats: DayStats) -> some View {
         let isMetadataOnly = !stats.isDailyPageCompiled
         return Button(action: {
@@ -903,7 +918,7 @@ struct ArchiveView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(formatArchiveDate(stats.dateString))
+                        Text(relativeDateLabel(stats.dateString))
                             .font(.custom("SpaceGrotesk-Bold", size: 15))
                             .foregroundColor(DSColor.onSurface)
                             .opacity(isMetadataOnly ? 0.8 : 1.0)
