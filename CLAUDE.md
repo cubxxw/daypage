@@ -56,6 +56,7 @@ DayPage/
 - `MARK: -` section comments for navigation
 - No force-unwraps in production paths; prefer `guard let` / `throws`
 - No external dependencies without discussion — prefer Apple frameworks
+- For design-related issues, they should be deeply designed and discussed clearly with me. Then, submit a GitHub issue first. Use the appropriate branch to solve this issue. Finally, after testing and verification, create a PR. Remember to link this issue according to the PR guidelines.
 
 ## UI Design
 
