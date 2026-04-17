@@ -395,8 +395,8 @@
         "Verify in iOS Simulator (haptics only vibrate on device, but animations are visible): press a memo card - visibly scales to 98% and back; send a memo - new card slides in"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "PressableCardModifier(DragGesture+scaleEffect 0.98+overlay 0.04+haptic.light)；MemoCardView标准卡/位置卡+Archive列表行应用；展开用spring(0.4,0.8)；发送成功withAnimation spring插入+haptic.soft；编译成功.success/.error通知触觉"
     },
     {
       "id": "US-023",

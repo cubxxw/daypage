@@ -217,3 +217,19 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - DailyPageView 用私有函数（不是 RelativeTimeFormatter）格式化 header，因为 Daily Page 是确定日期，不是相对时间
   - Archive 列表行只显示 TODAY/YESTERDAY/N DAYS AGO（无时分），是日期维度而非 memo 时间维度
 ---
+
+## 2026-04-17 - US-022
+- 新建 DayPage/DesignSystem/Interactions.swift：PressableCardModifier (DragGesture + scaleEffect 0.98 + overlay black opacity 0.04 + haptic .light on press down)
+- MemoCardView 标准卡片和位置卡片均应用 .pressableCard()
+- MemoCardView 展开/收起改为 withAnimation(.spring(response: 0.4, dampingFraction: 0.8))
+- ArchiveView archiveListRow 应用 .pressableCard()
+- TodayViewModel.submitCombinedMemo：memos.insert 包裹 withAnimation spring + UIImpactFeedbackGenerator(.soft)
+- TodayView TimelineRow 添加 .transition(.move(edge: .bottom).combined(with: .opacity))
+- 编译成功：UINotificationFeedbackGenerator().notificationOccurred(.success)
+- 编译失败（4条错误路径）：UINotificationFeedbackGenerator().notificationOccurred(.error)
+- Files changed: Interactions.swift (new), MemoCardView.swift, ArchiveView.swift, TodayView.swift, TodayViewModel.swift, project.pbxproj, prd.json
+- **Learnings for future iterations:**
+  - PressableCardModifier 用 DragGesture(minimumDistance: 0) 而非 LongPressGesture 更准确捕获 onPress/onRelease
+  - .pressableCard() 需在 .cornerRadius + .surfaceElevatedShadow 之后应用，否则 overlay clip shape 无法正确圆角裁剪
+  - UINotificationFeedbackGenerator 调用无需 prepare()，直接 notificationOccurred() 在 Swift 并发 context 中可用
+---
