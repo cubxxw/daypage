@@ -1,5 +1,17 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-012
+- DayPageApp.swift: 新增 `compilationDidStart` 和 `compilationDidEnd` 两个 Notification.Name
+- BackgroundCompilationService.swift: 在 `handleBackgroundTask` 和 `backfillIfNeeded` 中，Task 开始时 post `compilationDidStart`，defer post `compilationDidEnd`
+- TodayViewModel.swift: 新增 `@Published var isBackgroundCompiling: Bool = false`，在 `observeCompilationFailure()` 中同时监听 `compilationDidStart`/`compilationDidEnd`
+- TodayView.swift: header 中新增 `CompilingBadge` 组件，当 `isCompiling || isBackgroundCompiling` 时显示；新增 `CompilingBadge` struct（ProgressView + "正在编译..." 文字 + 半透明 primary 背景）
+- 手动编译进度：CompilePromptCard 已有 isCompiling 参数渲染进度状态（ProgressView + 文字），此次利用了现有实现
+- **Learnings for future iterations:**
+  - NotificationCenter 通知发送无需 @MainActor，但 UI 状态更新（isBackgroundCompiling）需要 `Task { @MainActor ... }` 包裹
+  - BackgroundCompilationService 的 Task 中用 defer 保证 compilationDidEnd 在成功和失败两条路径都会发送
+  - CompilingBadge 使用 `DSColor.primary.opacity(0.12)` 作为背景色，与 header 整体设计一致
+---
+
 ## 2026-04-17 - US-011
 - BackgroundCompilationService: `compileWithRetry` 函数，delays=[0,30,120,600]秒，最多4次（首次+3次重试）
 - 三次重试都失败后调用 `sendFailureNotification`，通知 body="今日编译失败，点击查看"，userInfo=["compilationFailed": true]
