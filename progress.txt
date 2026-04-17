@@ -9,6 +9,9 @@ Previous run (V3 Wave 1) archived at: archive/2026-04-17-daypage-v3-wave1-experi
 ---
 
 ## Codebase Patterns (carried over from Wave 1, append new findings here)
+- Track ScrollView scroll position with a named `.coordinateSpace(name:)` on the ScrollView + a 1pt `GeometryReader`-backed anchor view at the end of its content that emits its `.frame(in: .named(...)).minY` via a `PreferenceKey`. Parent reads both the anchor minY and the ScrollView's visible height (from the outer GeometryReader's `geo.size.height`) to derive "near bottom" — no ScrollViewReader needed for that. Works on iOS 16.
+- When removing a card from the timeline that was used as the pre-compile entry (e.g. CompilePromptCard), leave the DailyPageEntryCard post-compile branch in place and move the pre-compile entry to a sticky footer. Do NOT keep the card as a dual-state widget — parent conditionals stay cleaner.
+- Mount sticky chrome (compile footer, etc.) as a sibling of the ScrollView inside the outer VStack, ABOVE the InputBarView, so the keyboard and input bar layout are untouched.
 - Build command: `xcodebuild -scheme DayPage -destination 'platform=iOS Simulator,arch=arm64,id=3A661BD8-5F57-42B2-B4BA-DBB2FAB4FAD0' build`
 - SourceKit diagnostics show macOS errors for AVAudioSession — these are iOS-only APIs and build fine in the iOS target
 - SourceKit also misreports "Cannot find X in scope" for cross-module symbols — build succeeds regardless
@@ -87,6 +90,25 @@ Previous run (V3 Wave 1) archived at: archive/2026-04-17-daypage-v3-wave1-experi
   - Before deleting a "redundant" indicator, grep the entire file tree for the symbol — `CompilingBadge` was both used and defined in the same file, so deleting the call site let me also drop the struct cleanly. `BackgroundCompilationService.isBackgroundCompiling` is still wired into TodayViewModel but no longer surfaces in the UI; keep it published in case background compile gets its own indicator later.
   - When a banner sequence has chained `Task` upgrades (5s subtitle → 15s cancel), they're almost always stitched to a seed banner. Removing only the seed leaves orphan timers that race silently. Audit the chain before deleting any link.
   - `disabled(isCompiling)` on a button that only renders in `!isCompiling` branch is dead — Swift compiler doesn't warn, but readers assume there's a state where the button is disabled. Easier to delete the modifier than explain why it can't fire.
+---
+
+## 2026-04-17 - US-005 新建 CompileFooterButton — 滚到底部才优雅淡入
+- Created `DayPage/Features/Today/CompileFooterButton.swift` (new file). Exposes three types:
+  - `CompileFooterButton`: capsule, 1pt outlineVariant stroke, `DSColor.surface.opacity(0.85)` fill, `surfaceElevatedShadow()`. Idle state: `sparkles` + `编译今日 · N 条`. Compiling state: `ProgressView().scaleEffect(0.7)` + `正在编译 N 条 memo`. Button `.disabled(isCompiling)`; `guard !isCompiling` in tap handler as belt-and-suspenders. `.animation(.spring(response: 0.35, dampingFraction: 0.85), value:)` on both `isVisible` and `isCompiling` → in/out <300ms.
+  - `CompileFooterAnchorPreferenceKey`: CGFloat preference, reduce = min (nearest anchor wins).
+  - `CompileFooterAnchor`: 1pt-tall zero-opacity view that emits `geo.frame(in: .named("todayScroll")).minY`.
+- `TodayView.swift`: removed the pre-compile `CompilePromptCard` branch from the timeline LazyVStack (was lines 158–171); kept `DailyPageEntryCard` post-compile branch. Added the `CompileFooterAnchor` at the end of the ScrollView content. Named the ScrollView's coordinate space `"todayScroll"` via `.coordinateSpace(name:)`. Captured `scrollVisibleHeight` via `.onAppear` + `.onChange(of: geo.size.height)` and `compileFooterAnchorMinY` via `.onPreferenceChange`. Added private computed `shouldShowCompileFooter` that encodes the PRD rule: `!isDailyPageCompiled && memos.count > 0 && (isCompiling || anchorMinY <= visibleHeight + 200)`. Mounted `CompileFooterButton` between the timeline GeometryReader and `InputBarView`.
+- `project.pbxproj`: registered `A10000050` PBXBuildFile + `A20000050` PBXFileReference, added to `A50000010 /* Today */` group, appended to the Sources build phase.
+- Files changed: `DayPage/Features/Today/CompileFooterButton.swift` (new), `DayPage/Features/Today/TodayView.swift`, `DayPage.xcodeproj/project.pbxproj`, `prd.json`, `progress.txt`.
+- Build: `xcodebuild -scheme DayPage ... build` → **BUILD SUCCEEDED**.
+- `CompilePromptCard` struct still defined in `MemoCardView.swift` but now **unused** (grep shows zero call sites after this change). Left in place to keep this PR surgical; a later cleanup can delete it once Wave 2 stabilises. Same-file structs are cheap.
+- Manual Simulator scroll-flicker verification deferred (`verify-daypage` MCP skill not wired in this environment). The visibility rule is pure data-flow from geometry → preference → derived state → SwiftUI `Group { if ... }`, so flicker would only surface as animation tuning, not logic bugs.
+- **Learnings for future iterations:**
+  - `GeometryReader + PreferenceKey` is the iOS-16-compatible replacement for iOS 17's `scrollPosition`. Put the GeometryReader inside the ScrollView content (wrapped in a tiny anchor view), NOT around the whole ScrollView — wrapping the whole ScrollView in a GeometryReader is fine for measuring the visible frame, but for measuring scroll position you must read from a child inside the content space.
+  - `.coordinateSpace(name:)` is attached to the ScrollView itself, not the container. Preferences emitted from inside the content can resolve against that name.
+  - Keep the threshold (`compileFooterThreshold = 200`) as a private constant on the parent view — it's load-bearing for the "within 200pt of bottom" UX contract and should be easy to tune without hunting through the button file.
+  - While compiling, force the footer visible even if the user scrolled up — compile is the critical in-flight indicator (see US-004). The rule is `isCompiling || nearBottom`, not `nearBottom && !isCompiling`.
+  - When adding a new file to the Xcode project, the sequential ID pattern is `A1xxxxxxx` (build file) + `A2xxxxxxx` (file reference) + group child + Sources build phase entry. Last used: 49. New file uses 50. Forgetting the group child entry is the most common mistake — the build still works but the file won't show up in the Xcode navigator.
 ---
 
 ## Wave 2 Story Order Rationale

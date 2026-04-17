@@ -23,7 +23,32 @@ struct TodayView: View {
     /// Current time for the header timestamp (refreshed every minute).
     @State private var currentTime: Date = Date()
 
+    /// Vertical slack (in points) between the bottom anchor and the ScrollView's
+    /// visible bottom that still counts as "near the bottom" for footer visibility.
+    /// Matches the 200pt spec in PRD US-005.
+    private let compileFooterThreshold: CGFloat = 200
+
+    /// Distance from the ScrollView's top edge to the bottom anchor.
+    /// When `anchorMinY <= visibleHeight + compileFooterThreshold` the user is
+    /// within 200pt of the content bottom and the footer should fade in.
+    @State private var compileFooterAnchorMinY: CGFloat = .infinity
+
+    /// Most recent visible height of the ScrollView.
+    @State private var scrollVisibleHeight: CGFloat = 0
+
     private let headerTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
+    /// Computed visibility for the sticky compile footer button.
+    /// PRD rule: show when daily page is not yet compiled, there is at least one
+    /// memo, and the bottom anchor is within `compileFooterThreshold` of the
+    /// visible bottom. Compile-in-flight keeps the button visible (morphs state).
+    private var shouldShowCompileFooter: Bool {
+        guard !viewModel.isDailyPageCompiled else { return false }
+        guard viewModel.memos.count > 0 else { return false }
+        if viewModel.isCompiling { return true }
+        guard scrollVisibleHeight > 0 else { return false }
+        return compileFooterAnchorMinY <= scrollVisibleHeight + compileFooterThreshold
+    }
 
     private var todayPendingDrafts: [VisitDraft] {
         passiveLocation.todayPendingDrafts()
@@ -149,22 +174,16 @@ struct TodayView: View {
                                     .padding(.top, 4)
                                 }
 
-                                // Daily Page entry card or compile prompt
-                                Group {
-                                    if viewModel.isDailyPageCompiled {
-                                        DailyPageEntryCard(
-                                            summary: viewModel.dailyPageSummary,
-                                            onTap: { showDailyPage = true }
-                                        )
-                                    } else {
-                                        CompilePromptCard(
-                                            memoCount: viewModel.memos.count,
-                                            isCompiling: viewModel.isCompiling,
-                                            onCompile: { viewModel.compile() }
-                                        )
-                                    }
+                                // Daily Page entry card (post-compile). Pre-compile entry
+                                // is now the sticky CompileFooterButton mounted above
+                                // InputBarView — see US-005.
+                                if viewModel.isDailyPageCompiled {
+                                    DailyPageEntryCard(
+                                        summary: viewModel.dailyPageSummary,
+                                        onTap: { showDailyPage = true }
+                                    )
+                                    .padding(.horizontal, 20)
                                 }
-                                .padding(.horizontal, 20)
 
                                 // Memo cards (reverse-chronological)
                                 if viewModel.memos.isEmpty && !viewModel.isLoading {
@@ -203,12 +222,29 @@ struct TodayView: View {
                                 }
 
                                 Spacer(minLength: 16)
+
+                                // Bottom anchor for CompileFooterButton visibility tracking (US-005).
+                                CompileFooterAnchor()
                             }
                             .padding(.top, 12)
                             .frame(minHeight: geo.size.height * 0.75)
                         }
+                        .coordinateSpace(name: "todayScroll")
                         .frame(maxHeight: geo.size.height)
+                        .onAppear { scrollVisibleHeight = geo.size.height }
+                        .onChange(of: geo.size.height) { h in scrollVisibleHeight = h }
+                        .onPreferenceChange(CompileFooterAnchorPreferenceKey.self) { minY in
+                            compileFooterAnchorMinY = minY
+                        }
                     }
+
+                    // MARK: Compile Footer Button (sticky, fades in near bottom of timeline)
+                    CompileFooterButton(
+                        memoCount: viewModel.memos.count,
+                        isCompiling: viewModel.isCompiling,
+                        isVisible: shouldShowCompileFooter,
+                        onTap: { viewModel.compile() }
+                    )
 
                     // MARK: Input Bar
                     InputBarView(

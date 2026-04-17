@@ -52,6 +52,7 @@
 		A10000045 /* OnThisDayIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000045 /* OnThisDayIndex.swift */; };
 		A10000047 /* OnThisDayScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000047 /* OnThisDayScheduler.swift */; };
 		A10000049 /* SampleDataSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000049 /* SampleDataSeeder.swift */; };
+		A10000050 /* CompileFooterButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000050 /* CompileFooterButton.swift */; };
 		A10000040 /* DayDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000040 /* DayDetailView.swift */; };
 		A10000042 /* RelativeTimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000042 /* RelativeTimeFormatter.swift */; };
 		AF0000001 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000001 /* SpaceGrotesk-Light.ttf */; };
@@ -117,6 +118,7 @@
 		A20000045 /* OnThisDayIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnThisDayIndex.swift; sourceTree = "<group>"; };
 		A20000047 /* OnThisDayScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnThisDayScheduler.swift; sourceTree = "<group>"; };
 		A20000049 /* SampleDataSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleDataSeeder.swift; sourceTree = "<group>"; };
+		A20000050 /* CompileFooterButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompileFooterButton.swift; sourceTree = "<group>"; };
 		A20000040 /* DayDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDetailView.swift; sourceTree = "<group>"; };
 		A20000042 /* RelativeTimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeTimeFormatter.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -299,6 +301,7 @@
 				A20000044 /* TodayEmptyStateView.swift */,
 				A20000046 /* OnThisDayCard.swift */,
 				A20000034 /* DocumentPickerView.swift */,
+				A20000050 /* CompileFooterButton.swift */,
 			);
 			path = Today;
 			sourceTree = "<group>";
@@ -513,6 +516,7 @@
 				A10000045 /* OnThisDayIndex.swift in Sources */,
 				A10000047 /* OnThisDayScheduler.swift in Sources */,
 				A10000049 /* SampleDataSeeder.swift in Sources */,
+				A10000050 /* CompileFooterButton.swift in Sources */,
 				A10000042 /* RelativeTimeFormatter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

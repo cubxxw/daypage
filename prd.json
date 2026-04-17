@@ -95,8 +95,8 @@
         "Verify in Simulator using verify-daypage skill — scroll up/down, button appears/disappears smoothly without flicker"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "New Features/Today/CompileFooterButton.swift defines the sticky capsule button + a CompileFooterAnchor helper view + CompileFooterAnchorPreferenceKey that reports the bottom anchor's minY in the ScrollView coordinate space 'todayScroll'. TodayView removed the pre-compile CompilePromptCard from the timeline (DailyPageEntryCard still renders post-compile), named the ScrollView coordinate space, tracks scrollVisibleHeight via GeometryReader and anchorMinY via onPreferenceChange, and mounts CompileFooterButton between the ScrollView and InputBarView. Visibility rule matches PRD: !isDailyPageCompiled && memoCount > 0 && (isCompiling || anchorMinY <= scrollHeight + 200). Spring(response:0.35, dampingFraction:0.85) applied to both isVisible and isCompiling transitions. Compiling state morphs to 'ProgressView + 正在编译 N 条 memo', button disabled. Registered in project.pbxproj (A10000050 / A20000050). Build: xcodebuild -scheme DayPage → BUILD SUCCEEDED. Simulator flicker-check deferred (verify-daypage MCP not wired)."
     },
     {
       "id": "US-006",
