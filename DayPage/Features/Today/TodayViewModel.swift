@@ -84,6 +84,13 @@ final class TodayViewModel: ObservableObject {
     /// Whether the voice recording sheet is presented.
     @Published var isShowingVoiceRecorder: Bool = false
 
+    /// Whether any API key is missing (triggers banner in TodayView).
+    var hasApiKeysMissing: Bool {
+        Secrets.dashScopeApiKey.isEmpty
+            || Secrets.openAIWhisperApiKey.isEmpty
+            || Secrets.openWeatherApiKey.isEmpty
+    }
+
     // MARK: Private
 
     private let date: Date

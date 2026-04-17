@@ -67,6 +67,13 @@ struct TodayView: View {
                     Divider()
                         .background(DSColor.outline)
 
+                    // MARK: API Key Missing Banner
+                    if viewModel.hasApiKeysMissing {
+                        ApiKeyMissingBanner {
+                            showSettings = true
+                        }
+                    }
+
                     // MARK: Timeline (75% of available space)
                     GeometryReader { geo in
                         ScrollView {
@@ -237,6 +244,33 @@ struct TodayView: View {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = TimeZone.current
         return f.string(from: date)
+    }
+}
+
+// MARK: - ApiKeyMissingBanner
+
+/// Yellow banner shown when one or more API keys are not configured.
+struct ApiKeyMissingBanner: View {
+    let onGoToSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(DSColor.warning)
+                .font(.system(size: 14))
+            Text("部分功能需要配置 API Key")
+                .font(.custom("Inter-Regular", size: 13))
+                .foregroundColor(DSColor.onWarningContainer)
+            Spacer()
+            Button("前往设置") {
+                onGoToSettings()
+            }
+            .font(.custom("Inter-Medium", size: 13))
+            .foregroundColor(DSColor.warning)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(DSColor.warningContainer)
     }
 }
 

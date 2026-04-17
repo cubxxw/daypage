@@ -97,6 +97,11 @@ enum DSColor {
     static let errorContainer = Color(hex: "ffdad6")
     static let onErrorContainer = Color(hex: "410002")
 
+    // MARK: Warning
+    static let warning = Color(hex: "B45309")
+    static let warningContainer = Color(hex: "FEF3C7")
+    static let onWarningContainer = Color(hex: "78350F")
+
     // MARK: Other
     static let surfaceTint = Color(hex: "5e5e5e")
     static let inversePrimary = Color(hex: "c6c6c6")
