@@ -309,3 +309,18 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - SettingsView @State 初始值用 OnThisDayScheduler.shared.xxx 读 UserDefaults，onChange 再写回去；不用 @ObservedObject 避免 singleton 变更触发全页重渲
   - Picker 用 if onThisDayEnabled { ... } 条件显示，比 .disabled 体验更清晰
 ---
+
+## 2026-04-17 - US-028
+- 新建 DayPage/Features/Onboarding/OnboardingView.swift：3页 TabView(.page) + PageControl
+- WelcomePage：Circle+SF Symbol插图 + h1 "DayPage" + bodyText 副标题 + "开始"按钮
+- PermissionsPage：麦克风/位置/通知 3张权限卡（HStack icon+text+授权按钮）；状态枚举 unknown/granted/denied；onAppear 检查当前状态；AVAudioSession.requestRecordPermission/LocationService.requestPermissionIfNeeded/UNUserNotificationCenter.requestAuthorization
+- ApiKeysPage：ScrollView + 3个 TextField + 粘贴按钮（UIPasteboard.general.string）；saveAndComplete() 写入 UserDefaults runtime key（注：GeneratedSecrets 读取环境变量，UserDefaults 存的只是引导期录入，实际运行时仍用 Secrets）
+- OnboardingView 完成：UserDefaults.set(true, forKey: "hasOnboarded") + hasOnboarded = true (Binding)
+- RootView：@State hasOnboarded 从 UserDefaults 读取；if/else 分支 OnboardingView(hasOnboarded:) / mainTabView
+- 注册 pbxproj：Onboarding group A50000017, A10000048/A20000048
+- Files changed: OnboardingView.swift (new), RootView.swift, project.pbxproj, prd.json
+- **Learnings for future iterations:**
+  - TabView(.page) 的 indexDisplayMode 指示点颜色由 .tint() 控制；需要在父 View 设置 .tint(accentAmber)
+  - PermissionsPage 授权后状态更新：requestRecordPermission 有 callback；requestPermissionIfNeeded 异步系统弹窗，需 asyncAfter(1s) 再 check
+  - RootView 用 @State hasOnboarded 而不是 @AppStorage，是因为 @AppStorage("hasOnboarded") 等同但 @State + init from UserDefaults 在重复使用时更安全（避免 onboarding 完成后刷新延迟）
+---

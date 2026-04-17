@@ -502,8 +502,8 @@
         "Verify in iOS Simulator: delete app data (clear UserDefaults) and relaunch - onboarding shows; complete it - lands on Today"
       ],
       "priority": 28,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "OnboardingView 3页 TabView(.page)：WelcomePage(插图+h1+开始按钮)+PermissionsPage(麦克风/位置/通知权限卡+授权按钮)+ApiKeysPage(3个 TextField+粘贴按钮+开始使用)；完成后 UserDefaults hasOnboarded=true；RootView @State hasOnboarded gate：false→OnboardingView，true→mainTabView。"
     },
     {
       "id": "US-029",
