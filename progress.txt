@@ -1,0 +1,43 @@
+# DayPage v2 Ralph Progress Log
+
+## 2026-04-17 - US-003
+- 在 TodayViewModel 添加 `hasApiKeysMissing` 计算属性（检测三个 key 是否 empty）
+- 在 TodayView Header 和 Timeline 之间插入 `ApiKeyMissingBanner` 组件
+- 在 DSColor 中新增 `warning`、`warningContainer`、`onWarningContainer` 三个颜色 token
+- **Learnings for future iterations:**
+  - DSColor 颜色 token 在 `DayPage/DesignSystem/Colors.swift` 中维护，新增颜色在此扩展
+  - Banner 通过计算属性驱动显示/隐藏，无需额外 @Published 状态
+  - build 命令需 `CODE_SIGNING_ALLOWED=NO` 以跳过 provisioning profile 检查
+---
+
+## Codebase Patterns
+- Build command: `xcodebuild -scheme DayPage -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build CODE_SIGNING_ALLOWED=NO -quiet 2>&1 | tail -5`
+- Project structure: `DayPage/Features/[Feature]/[Feature]View.swift`
+- Services: `@MainActor final class`, singletons
+- ViewModels: `@MainActor final class: ObservableObject` with `@Published`
+- No external dependencies (pure Apple frameworks)
+- Config/GeneratedSecrets.swift holds API keys (gitignored)
+- Persistence: YAML front-matter + Markdown in `vault/raw/YYYY-MM-DD.md`
+- Settings sheet 通过 TodayViewModel 的 `@Published var showSettings: Bool` 控制弹出
+
+---
+
+## 2026-04-17 - US-001
+- 创建了 DayPage/Features/Settings/SettingsView.swift
+- 包含三个分区：API Keys（DashScope/OpenAI/OpenWeather 状态）、权限、关于
+- 读取 GeneratedSecrets 检测 key 是否配置
+- **Learnings for future iterations:**
+  - GeneratedSecrets.swift 暴露 `dashScopeKey`, `openAIKey`, `openWeatherKey` 三个静态属性
+  - 使用 `.isEmpty` 判断 key 是否配置
+  - 颜色系统：已配置 = `.green`，未配置 = `.red`
+---
+
+## 2026-04-17 - US-002
+- 在 TodayViewModel 添加 `@Published var showSettings = false`
+- TodayView Header 设置按钮绑定到 showSettings，通过 `.sheet` 弹出 SettingsView
+- SettingsView 顶部添加关闭按钮（dismiss environment action）
+- **Learnings for future iterations:**
+  - TodayView 顶部按钮在 TodayView.swift 的 Header 区域（MARK: - Header）
+  - Sheet 弹出使用 `.sheet(isPresented:)` modifier 挂在 TodayView body 上
+  - SettingsView 需要 `@Environment(\.dismiss) var dismiss` 来关闭
+---
