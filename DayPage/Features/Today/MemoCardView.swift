@@ -112,7 +112,7 @@ struct MemoCardView: View {
                     VoiceMemoPlayerRow(
                         fileURL: VaultInitializer.vaultURL.appendingPathComponent(att.file),
                         duration: att.duration ?? 0,
-                        transcript: att.transcript ?? (memo.type == .voice ? memo.body : nil)
+                        transcript: att.transcript
                     )
                     .padding(.top, 6)
                 }
@@ -143,8 +143,13 @@ struct MemoCardView: View {
             }
 
             // Body content (caption)
-            if !memo.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(memo.body.trimmingCharacters(in: .whitespacesAndNewlines))
+            // For voice-only memos, suppress body when it duplicates the transcript
+            // (legacy data had transcript copied into body before the fix).
+            let bodyText = memo.body.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isBodyDuplicateOfTranscript = memo.type == .voice &&
+                memo.attachments.contains(where: { $0.transcript == bodyText && !bodyText.isEmpty })
+            if !bodyText.isEmpty && !isBodyDuplicateOfTranscript {
+                Text(bodyText)
                     .bodySMStyle()
                     .foregroundColor(DSColor.onSurface)
                     .lineLimit(isExpanded ? nil : previewLineLimit)
@@ -278,7 +283,11 @@ struct MemoCardView: View {
     /// Whether the body is long enough to need an expand button.
     private var needsExpansionButton: Bool {
         let body = memo.body.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Approximate: if body has many newlines or is long
+        guard !body.isEmpty else { return false }
+        // Suppress for voice memos where body is a legacy duplicate of transcript.
+        let isDuplicate = memo.type == .voice &&
+            memo.attachments.contains(where: { $0.transcript == body })
+        guard !isDuplicate else { return false }
         let lineCount = body.components(separatedBy: "\n").count
         return lineCount > previewLineLimit || body.count > 200
     }
