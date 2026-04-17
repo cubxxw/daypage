@@ -1,5 +1,19 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-015
+- TodayView 新增 `@StateObject private var passiveLocation = PassiveLocationService.shared`
+- 添加 `todayPendingDrafts` 计算属性，过滤今日 pending drafts
+- 在 Banner 区域后插入 `LocationDraftCard`，drafts 非空时显示
+- 新增 `LocationDraftCard` 组件：头部标题 + 全部忽略/全部确认批量按钮，列表展示各条 draft
+- 新增 `LocationDraftRow` 组件：显示地名、到达时间、停留时长；单条 ✓/✗ 操作按钮
+- 确认操作调用 `PassiveLocationService.confirmDraft`，成功后 `viewModel.load()` 刷新 memo 列表
+- 无 pending drafts 时卡片完全隐藏
+- **Learnings for future iterations:**
+  - `PassiveLocationService.shared` 是 `@MainActor final class`，在 TodayView 中用 `@StateObject` 持有 shared 实例可正确监听 `@Published pendingDrafts` 变化
+  - 草稿卡片放在 Banner 区域之后、GeometryReader Timeline 之前，与现有横幅设计风格一致
+  - `LocationDraftRow` 停留时长：`departureDate == nil` 显示"仍在此处"；`> 0` 显示分钟/小时
+---
+
 ## 2026-04-17 - US-014
 - 新建 DayPage/Services/PassiveLocationService.swift：使用 CLLocationManager.startMonitoringVisits()
 - VisitDraft 模型（Codable/Identifiable）含 id/arrivalDate/departureDate/lat/lng/placeName/status 字段
