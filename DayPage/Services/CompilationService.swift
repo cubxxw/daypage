@@ -349,7 +349,7 @@ final class CompilationService {
 
     private func callDashScope(prompt: String, apiKey: String) async throws -> String {
         let baseURL = Secrets.dashScopeBaseURL.isEmpty
-            ? "https://coding.dashscope.aliyuncs.com/v1"
+            ? "https://dashscope.aliyuncs.com/compatible-mode/v1"
             : Secrets.dashScopeBaseURL
         let model = Secrets.dashScopeModel.isEmpty ? "qwen3.5-plus" : Secrets.dashScopeModel
 
@@ -378,11 +378,18 @@ final class CompilationService {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let http = response as? HTTPURLResponse else {
+            #if DEBUG
+            print("[DashScope] URL=\(url.absoluteString) status=- body=No HTTP response")
+            #endif
             throw CompilationError.networkError("No HTTP response")
         }
 
         guard http.statusCode == 200 else {
             let bodyStr = String(data: data, encoding: .utf8) ?? "(empty)"
+            #if DEBUG
+            let snippet = String(bodyStr.prefix(500))
+            print("[DashScope] URL=\(url.absoluteString) status=\(http.statusCode) body=\(snippet)")
+            #endif
             throw CompilationError.apiError(statusCode: http.statusCode, body: bodyStr)
         }
 
