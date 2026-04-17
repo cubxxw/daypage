@@ -203,85 +203,59 @@ struct InputBarView: View {
         }
     }
 
-    // MARK: - Attachment Preview Row
+    // MARK: - Attachment Chip Row
 
     @ViewBuilder
     private var attachmentPreviewRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(pendingAttachments) { att in
-                    attachmentCard(att)
+                    attachmentChip(att)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
         }
         .background(DSColor.surfaceContainerLow)
     }
 
     @ViewBuilder
-    private func attachmentCard(_ att: PendingAttachment) -> some View {
-        ZStack(alignment: .topTrailing) {
-            switch att {
-            case .photo(let result):
-                photoCard(result)
-            case .voice(let result):
-                voiceCard(result)
-            case .file(let result):
-                fileCard(result)
-            }
+    private func attachmentChip(_ att: PendingAttachment) -> some View {
+        let (icon, label) = chipContent(att)
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(DSColor.onSurfaceVariant)
+            Text(label)
+                .font(.custom("JetBrainsMono-Regular", fixedSize: 11))
+                .foregroundColor(DSColor.onSurfaceVariant)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 120)
             Button(action: { onRemoveAttachment(att.id) }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(DSColor.onSurface)
-                    .background(Circle().fill(DSColor.surfaceContainerHigh))
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(DSColor.onSurfaceVariant)
             }
             .buttonStyle(.plain)
-            .offset(x: 6, y: -6)
         }
-    }
-
-    @ViewBuilder
-    private func photoCard(_ result: PhotoPickerResult) -> some View {
-        let fileURL = VaultInitializer.vaultURL.appendingPathComponent(result.filePath)
-        let uiImage: UIImage? = {
-            guard let data = try? Data(contentsOf: fileURL) else { return nil }
-            return UIImage(data: data)
-        }()
-        Group {
-            if let img = uiImage {
-                Image(uiImage: img).resizable().aspectRatio(contentMode: .fill)
-            } else {
-                Rectangle().fill(DSColor.surfaceContainerHigh)
-                    .overlay(Image(systemName: "photo").foregroundColor(DSColor.onSurfaceVariant))
-            }
-        }
-        .frame(width: 64, height: 64)
-        .clipped()
-        .cornerRadius(0)
-    }
-
-    @ViewBuilder
-    private func fileCard(_ result: FilePickerResult) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: "doc.fill").font(.system(size: 20)).foregroundColor(DSColor.onSurfaceVariant)
-            Text(result.fileName).monoLabelStyle(size: 9).foregroundColor(DSColor.onSurfaceVariant)
-                .lineLimit(2).multilineTextAlignment(.center)
-        }
-        .frame(width: 64, height: 64)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .frame(height: 32)
         .background(DSColor.surfaceContainerHigh)
-        .cornerRadius(0)
+        .cornerRadius(6)
     }
 
-    @ViewBuilder
-    private func voiceCard(_ result: VoiceRecordingResult) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: "mic.fill").font(.system(size: 20)).foregroundColor(DSColor.onSurfaceVariant)
-            Text(formatDuration(result.duration)).monoLabelStyle(size: 9).foregroundColor(DSColor.onSurfaceVariant)
+    private func chipContent(_ att: PendingAttachment) -> (icon: String, label: String) {
+        switch att {
+        case .photo(let result):
+            let name = (result.filePath as NSString).lastPathComponent
+            return ("photo", String(name.prefix(20)))
+        case .voice(let result):
+            return ("mic.fill", formatDuration(result.duration))
+        case .file(let result):
+            return ("doc.fill", String(result.fileName.prefix(20)))
         }
-        .frame(width: 64, height: 64)
-        .background(DSColor.surfaceContainerHigh)
-        .cornerRadius(0)
     }
 
     // MARK: - Location Chip
