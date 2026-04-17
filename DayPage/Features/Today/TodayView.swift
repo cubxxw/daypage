@@ -50,13 +50,21 @@ struct TodayView: View {
 
                         Spacer()
 
-                        // Timestamp badge
+                        // Timestamp badge (long press 1.5s → force-refresh On This Day)
                         Text(formattedTimestamp(currentTime))
                             .monoLabelStyle(size: 10)
                             .foregroundColor(DSColor.onSurfaceVariant)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(DSColor.surfaceContainer)
+                            .onLongPressGesture(minimumDuration: 1.5) {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                if let entry = OnThisDayScheduler.shared.forceRefresh() {
+                                    viewModel.onThisDayEntry = entry
+                                } else {
+                                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                                }
+                            }
 
                         // Compiling badge (shown during manual or background compilation)
                         if viewModel.isCompiling || viewModel.isBackgroundCompiling {

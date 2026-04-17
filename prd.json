@@ -483,8 +483,8 @@
         "Verify in iOS Simulator: long-press large date - card appears (if history exists) or nothing happens silently; go to Settings, change 刷新时间, verify UserDefaults updated"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "时间戳 badge 上 .onLongPressGesture(1.5s)：haptic.medium + forceRefresh() → onThisDayEntry 或 haptic.warning；无视觉提示。SettingsView 外观 section 添加 On This Day Toggle + 刷新时间 Picker (0/6/9h)；关闭时 Picker 隐藏。"
     },
     {
       "id": "US-028",

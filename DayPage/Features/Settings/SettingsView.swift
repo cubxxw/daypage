@@ -16,6 +16,10 @@ struct SettingsView: View {
     @State private var whisperTesting = false
     @State private var weatherTesting = false
 
+    // On This Day settings (backed by OnThisDayScheduler.shared via UserDefaults)
+    @State private var onThisDayEnabled: Bool = OnThisDayScheduler.shared.isEnabled
+    @State private var onThisDayRefreshHour: Int = OnThisDayScheduler.shared.refreshHour
+
     // Data section state
     @State private var vaultSizeLabel: String = "计算中…"
     @State private var showExportAlert = false
@@ -187,6 +191,25 @@ struct SettingsView: View {
                     .foregroundColor(DSColor.onSurfaceVariant)
             }
             .foregroundColor(DSColor.onSurfaceVariant)
+
+            // On This Day configuration
+            Toggle(isOn: $onThisDayEnabled) {
+                Label("On This Day", systemImage: "calendar.badge.clock")
+            }
+            .onChange(of: onThisDayEnabled) { val in
+                OnThisDayScheduler.shared.isEnabled = val
+            }
+
+            if onThisDayEnabled {
+                Picker("刷新时间", selection: $onThisDayRefreshHour) {
+                    Text("午夜 00:00").tag(0)
+                    Text("清晨 06:00").tag(6)
+                    Text("上午 09:00").tag(9)
+                }
+                .onChange(of: onThisDayRefreshHour) { val in
+                    OnThisDayScheduler.shared.refreshHour = val
+                }
+            }
         }
     }
 

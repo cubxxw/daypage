@@ -296,3 +296,16 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - forceRefresh() 不需要检查 nextFireAt，只检查 isEnabled；这使长按手势可以强制刷新
   - significantTimeChangeNotification 的时机不稳定，时区跳变判断用 abs(diff) > 3600 避免频繁更新
 ---
+
+## 2026-04-17 - US-027
+- TodayView 时间戳 badge 添加 .onLongPressGesture(minimumDuration: 1.5)
+- 长按：UIImpactFeedbackGenerator(.medium).impactOccurred()；forceRefresh() 有结果 → viewModel.onThisDayEntry = entry；nil → UINotificationFeedbackGenerator().notificationOccurred(.warning)
+- 无任何视觉提示（无下划线/图标/辅助功能提示），保持隐藏手势特性
+- SettingsView 外观 Section 新增：Toggle "On This Day" (.calendar.badge.clock) + Picker "刷新时间" (00:00/06:00/09:00，关闭时隐藏)
+- Toggle/Picker onChange 直接更新 OnThisDayScheduler.shared.isEnabled/refreshHour（UserDefaults 持久化）
+- Files changed: TodayView.swift, SettingsView.swift, prd.json, progress.txt
+- **Learnings for future iterations:**
+  - .onLongPressGesture 可直接附加到 Text，无需包 ZStack；minimumDuration: 1.5 在 SwiftUI 里工作正常
+  - SettingsView @State 初始值用 OnThisDayScheduler.shared.xxx 读 UserDefaults，onChange 再写回去；不用 @ObservedObject 避免 singleton 变更触发全页重渲
+  - Picker 用 if onThisDayEnabled { ... } 条件显示，比 .disabled 体验更清晰
+---
