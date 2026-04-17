@@ -1,5 +1,23 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-021
+- Info.plist 添加 NSSpeechRecognitionUsageDescription 和 NSMicrophoneUsageDescription
+- VoiceService.swift: import Speech，新增 liveTranscript @Published 属性；新增 speechRecognizer/recognitionRequest/recognitionTask/audioEngine 私有属性
+- startLiveTranscription()：请求 SFSpeechRecognizer 授权，创建 AVAudioEngine + SFSpeechAudioBufferRecognitionRequest，通过 installTap 将音频缓冲输入识别器，识别结果实时更新 liveTranscript
+- stopLiveTranscription()：取消识别任务，移除 tap，停止引擎，清空引用
+- startRecording() 完成后调用 startLiveTranscription()；pauseRecording() 停止识别；resumeRecording() 重新启动识别
+- stopAndTranscribe()：停止前捕获 liveTranscript，有内容则直接用，否则调用 Whisper API（回退）
+- cancelRecording()/reset() 均调用 stopLiveTranscription() 清理资源
+- VoiceRecordingView.swift: 新增 liveTranscriptView 组件，录音/暂停状态下显示"实时转写"标签 + 文字（限 4 行，animating）；无文字时显示占位提示
+- 文件：DayPage/App/Info.plist、DayPage/Services/VoiceService.swift、DayPage/Features/Today/VoiceRecordingView.swift
+- **Learnings for future iterations:**
+  - AVAudioEngine 和 AVAudioRecorder 不能同时使用同一 audio session，需先完成 AVAudioSession 配置再启动两者；SFSpeechRecognizer 通过 AVAudioEngine.inputNode tap 获取音频，与 AVAudioRecorder 并行工作需确保 session category 已激活
+  - SFSpeechRecognizer.requestAuthorization 是 completion handler 形式，用 withCheckedContinuation 转为 async/await
+  - startLiveTranscription 是 async 方法，在 resumeRecording 中用 Task { await ... } 调用（不能 await，因 resumeRecording 是同步方法）
+  - recognitionTask 的 error 回调也需处理（isFinal == true 时停止任务），否则任务会泄漏
+  - liveTranscript 在 stopAndTranscribe 前捕获为 capturedLiveTranscript，因为 stopLiveTranscription 后 liveTranscript 不会立即清除，但逻辑更清晰
+---
+
 ## 2026-04-17 - US-020
 - MonthlySummaryFilter enum（全部/有位置/有照片）新增于 ArchiveView.swift
 - ArchiveViewModel 新增 filteredDays(filter:) 和 generateMarkdownExport(filter:) 方法
