@@ -132,7 +132,7 @@
         "Verify in iOS Simulator: trigger compile with airplane mode on -> info banner appears; turn on network, trigger compile with invalid API key -> error banner with 前往设置 action"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
