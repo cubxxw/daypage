@@ -10,6 +10,17 @@
   - build 命令需 `CODE_SIGNING_ALLOWED=NO` 以跳过 provisioning profile 检查
 ---
 
+## 2026-04-17 - US-004
+- 新建 DayPage/Features/Archive/RawMemoView.swift：显示原始 memo 列表，复用 TimelineRow + MemoCardView
+- ArchiveView 添加 showRawMemo / showNoRecordAlert 状态，提取 handleDateTap 辅助方法
+- 日历单元格和列表行都使用统一的 handleDateTap 处理三种情况（已编译/有memo未编译/无记录）
+- 向 project.pbxproj 添加新文件时需使用唯一 ID（避免与已有 A20000029=Assets.xcassets 冲突）
+- **Learnings for future iterations:**
+  - 新建 .swift 文件必须手动添加到 project.pbxproj 的 PBXBuildFile、PBXFileReference、PBXGroup 和 PBXSourcesBuildPhase 四处
+  - ID 选取：检查 pbxproj 中现有 A200000xx 序号，用下一个未占用的（如 A20000031）
+  - `RawStorage.read(for: Date)` 是同步方法，直接调用即可，无需 async/await
+---
+
 ## Codebase Patterns
 - Build command: `xcodebuild -scheme DayPage -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build CODE_SIGNING_ALLOWED=NO -quiet 2>&1 | tail -5`
 - Project structure: `DayPage/Features/[Feature]/[Feature]View.swift`
@@ -19,6 +30,7 @@
 - Config/GeneratedSecrets.swift holds API keys (gitignored)
 - Persistence: YAML front-matter + Markdown in `vault/raw/YYYY-MM-DD.md`
 - Settings sheet 通过 TodayViewModel 的 `@Published var showSettings: Bool` 控制弹出
+- 新建 Swift 文件必须手动加到 project.pbxproj 四处（PBXBuildFile/PBXFileReference/PBXGroup/PBXSourcesBuildPhase），且 ID 须唯一
 
 ---
 
