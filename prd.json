@@ -518,8 +518,8 @@
         "Verify in iOS Simulator: fresh install + onboarding - Today shows today empty, Archive shows yesterday has 3 memos; tap 清除示例数据 in Settings - those 3 memos removed"
       ],
       "priority": 29,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "SampleDataSeeder：hasSeededSamples UserDefaults flag；seedIfNeeded() 写3条固定 UUID 的 memo（text/voice/photo）到昨天文件；clearSampleData() 过滤固定 UUID 再写回；DayPageApp.onAppear+OnboardingView 完成时调用；SettingsView 数据 section 条件显示"清除示例数据"按钮。"
     }
   ]
 }

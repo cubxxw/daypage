@@ -70,6 +70,10 @@ struct DayPageApp: App {
                     checkApiKeys()
                     // Load On This Day index
                     Task { await OnThisDayIndex.shared.loadIndex() }
+                    // Seed sample data on first launch after onboarding
+                    if UserDefaults.standard.bool(forKey: "hasOnboarded") {
+                        SampleDataSeeder.seedIfNeeded()
+                    }
                 }
         }
     }

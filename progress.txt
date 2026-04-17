@@ -324,3 +324,20 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - PermissionsPage 授权后状态更新：requestRecordPermission 有 callback；requestPermissionIfNeeded 异步系统弹窗，需 asyncAfter(1s) 再 check
   - RootView 用 @State hasOnboarded 而不是 @AppStorage，是因为 @AppStorage("hasOnboarded") 等同但 @State + init from UserDefaults 在重复使用时更安全（避免 onboarding 完成后刷新延迟）
 ---
+
+## 2026-04-17 - US-029
+- 新建 DayPage/Services/SampleDataSeeder.swift：enum（无 actor 隔离）
+- 固定 UUID 常量：SAMPLE-001/002/003（便于后续 clearSampleData 精确匹配）
+- seedIfNeeded()：hasSeededSamples false → 检查昨日文件是否空 → 写3条 memo（text/voice/photo）→ set true
+- clearSampleData()：读昨日文件 → 过滤 sampleMemoIds → 空则删文件否则 atomicWrite → set false
+- DayPageLogger.shared.error 在 nonisolated 上下文用 Task { @MainActor in ... } 包裹
+- DayPageApp.onAppear：hasOnboarded → seedIfNeeded()
+- OnboardingView 完成回调：seedIfNeeded() + hasOnboarded = true
+- SettingsView 数据 section：if SampleDataSeeder.hasSeededSamples → 显示"清除示例数据"destructive Button → clearSampleData() + success banner
+- 注册 pbxproj：A10000049/A20000049
+- Files changed: SampleDataSeeder.swift (new), OnboardingView.swift, DayPageApp.swift, SettingsView.swift, project.pbxproj, prd.json
+- **Learnings for future iterations:**
+  - nonisolated enum/struct 里调用 @MainActor 方法需用 Task { @MainActor in }；不能用 DispatchQueue.main.async（不支持 actor 隔离）
+  - 固定 UUID string "SAMPLE-001-0000-0000-000000000001" 可以 UUID(uuidString:) 解析（只要是有效 v4 格式）
+  - SampleDataSeeder.hasSeededSamples 是计算属性读 UserDefaults，在 SwiftUI body 里每次 render 都读；需要 @State 或条件 if 来控制显示，不需要 @Published
+---

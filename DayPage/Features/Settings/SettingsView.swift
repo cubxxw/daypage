@@ -229,12 +229,26 @@ struct SettingsView: View {
                 Label("导出全部 Markdown", systemImage: "square.and.arrow.up")
             }
 
+            if SampleDataSeeder.hasSeededSamples {
+                Button(role: .destructive) {
+                    SampleDataSeeder.clearSampleData()
+                    bannerCenter.show(AppBannerModel(
+                        kind: .success,
+                        title: "示例数据已清除",
+                        autoDismiss: true
+                    ))
+                } label: {
+                    Label("清除示例数据", systemImage: "trash")
+                }
+            }
+
             if let result = exportResult {
                 Text(result)
                     .font(.caption)
                     .foregroundColor(DSColor.onSurfaceVariant)
             }
         }
+        .onAppear { computeVaultSize() }
     }
 
     // MARK: - About Section

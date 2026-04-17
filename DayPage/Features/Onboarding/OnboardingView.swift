@@ -18,6 +18,7 @@ struct OnboardingView: View {
                 .tag(1)
             ApiKeysPage(onComplete: {
                 UserDefaults.standard.set(true, forKey: "hasOnboarded")
+                SampleDataSeeder.seedIfNeeded()
                 hasOnboarded = true
             })
             .tag(2)
