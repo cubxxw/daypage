@@ -1,5 +1,17 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-018
+- 定位重复来源：MemoCardView.standardCard 中两处问题（VoiceMemoPlayerRow transcript 回退逻辑 + body 区域重复显示）
+- 修复1：VoiceMemoPlayerRow 的 transcript 参数移除 `att.transcript ?? (memo.type == .voice ? memo.body : nil)` 中的 `?? memo.body` 回退逻辑
+- 修复2：body 区域增加 `isBodyDuplicateOfTranscript` 检测，voice 类型 memo 的 body 若与 attachment.transcript 相同则跳过显示（兼容旧数据）
+- 修复3：`needsExpansionButton` 增加 `isDuplicate` 检测，隐藏文本不显示展开按钮
+- 文件：DayPage/Features/Today/MemoCardView.swift
+- **Learnings for future iterations:**
+  - 重复根源：旧代码在 submitCombinedMemo 中把 transcript 复制到 memo.body，同时 VoiceMemoPlayerRow 也从 att.transcript 显示一次，body 区域再显示一次（共两次）
+  - 新数据（US-017 修复后）body 为空，不会重复；旧数据需在 UI 层检测 body == transcript 并跳过显示
+  - `att.transcript ?? memo.body` 的回退逻辑是错误设计，若 transcript 未保存则应显示"转写不可用"而非重复 body
+---
+
 ## 2026-04-17 - US-016
 - MemoCardView.locationCard 点击行为改为弹出 Sheet（showLocationSheet state）而非直接打开 Apple Maps
 - 新增 LocationPreviewSheet 组件：标题栏（地名+坐标+关闭按钮）+ MapPreviewView（MapKit MKMapView）+ 底部操作区
