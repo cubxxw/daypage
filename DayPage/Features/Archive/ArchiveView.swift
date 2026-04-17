@@ -7,6 +7,14 @@ enum ArchiveMode {
     case list
 }
 
+// MARK: - MonthlySummaryFilter
+
+enum MonthlySummaryFilter: String, CaseIterable {
+    case all = "全部"
+    case hasLocation = "有位置"
+    case hasPhoto = "有照片"
+}
+
 // MARK: - SystemStatus
 
 enum SystemStatus {
@@ -276,6 +284,50 @@ final class ArchiveViewModel: ObservableObject {
             .sorted { $0.dateString > $1.dateString }
     }
 
+    // MARK: Monthly Filter
+
+    func filteredDays(filter: MonthlySummaryFilter) -> [DayStats] {
+        switch filter {
+        case .all:
+            return sortedDays
+        case .hasLocation:
+            return sortedDays.filter { $0.uniqueLocations > 0 }
+        case .hasPhoto:
+            return sortedDays.filter { $0.photoCount > 0 }
+        }
+    }
+
+    // MARK: Export
+
+    func generateMarkdownExport(filter: MonthlySummaryFilter) -> String {
+        let days = filteredDays(filter: filter)
+        var lines: [String] = []
+        lines.append("# \(currentMonthTitle) 月度摘要")
+        lines.append("")
+        lines.append("- 总记录：\(totalEntries) 条")
+        lines.append("- 照片：\(totalPhotos) 张")
+        lines.append("- 语音：\(totalVoiceMinutes) 分钟")
+        lines.append("- 地点：\(totalLocations) 处")
+        lines.append("")
+        if filter != .all {
+            lines.append("> 筛选：\(filter.rawValue)")
+            lines.append("")
+        }
+        lines.append("---")
+        lines.append("")
+        for stats in days {
+            lines.append("## \(stats.dateString)")
+            if let summary = stats.dailySummary, !summary.isEmpty {
+                lines.append("")
+                lines.append(summary)
+            }
+            lines.append("")
+            lines.append("- 记录：\(stats.memoCount) 条，照片：\(stats.photoCount) 张，语音：\(stats.voiceMinutes) 分钟，地点：\(stats.uniqueLocations) 处")
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: Private Helpers
 
     private func numberOfDays(year: Int, month: Int) -> Int {
@@ -325,6 +377,9 @@ struct ArchiveView: View {
     @State private var showRawMemo: Bool = false
     @State private var showSearch: Bool = false
     @State private var showNoRecordAlert: Bool = false
+    @State private var summaryFilter: MonthlySummaryFilter = .all
+    @State private var showShareSheet: Bool = false
+    @State private var shareItems: [Any] = []
 
     var body: some View {
         NavigationStack {
@@ -608,7 +663,118 @@ struct ArchiveView: View {
                 summaryCard("PHOTOS CAPTURED", value: "\(viewModel.totalPhotos)", accentPrimary: false)
                 summaryCard("TRAVEL LOCATIONS", value: "\(viewModel.totalLocations)", accentPrimary: true)
             }
+
+            // Filter chips
+            HStack(spacing: 8) {
+                ForEach(MonthlySummaryFilter.allCases, id: \.rawValue) { filter in
+                    filterChip(filter)
+                }
+                Spacer()
+            }
+
+            // Filtered day list (when not showing all, or always for quick browse)
+            if summaryFilter != .all {
+                let filtered = viewModel.filteredDays(filter: summaryFilter)
+                if filtered.isEmpty {
+                    Text("无符合条件的日期")
+                        .monoLabelStyle(size: 11)
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(spacing: 4) {
+                        ForEach(filtered, id: \.dateString) { stats in
+                            Button(action: { handleDateTap(dateStr: stats.dateString, stats: stats) }) {
+                                HStack {
+                                    Text(formatArchiveDate(stats.dateString))
+                                        .monoLabelStyle(size: 11)
+                                        .foregroundColor(DSColor.onSurface)
+                                    Spacer()
+                                    if stats.photoCount > 0 {
+                                        Label("\(stats.photoCount)", systemImage: "photo")
+                                            .monoLabelStyle(size: 10)
+                                            .foregroundColor(DSColor.onSurfaceVariant)
+                                    }
+                                    if stats.uniqueLocations > 0 {
+                                        Label("\(stats.uniqueLocations)", systemImage: "mappin")
+                                            .monoLabelStyle(size: 10)
+                                            .foregroundColor(DSColor.onSurfaceVariant)
+                                    }
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(DSColor.surfaceContainer)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            // Export / Share actions
+            HStack(spacing: 12) {
+                Button(action: exportMarkdown) {
+                    Label("导出 Markdown", systemImage: "square.and.arrow.up")
+                        .monoLabelStyle(size: 11)
+                        .foregroundColor(DSColor.onSurface)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(DSColor.surfaceContainer)
+                        .overlay(Rectangle().stroke(DSColor.outlineVariant, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: shareScreenshot) {
+                    Label("截图分享", systemImage: "camera")
+                        .monoLabelStyle(size: 11)
+                        .foregroundColor(DSColor.onSurface)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(DSColor.surfaceContainer)
+                        .overlay(Rectangle().stroke(DSColor.outlineVariant, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
         }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheetView(activityItems: shareItems)
+        }
+    }
+
+    private func filterChip(_ filter: MonthlySummaryFilter) -> some View {
+        let isSelected = summaryFilter == filter
+        return Button(action: { summaryFilter = filter }) {
+            Text(filter.rawValue)
+                .monoLabelStyle(size: 10)
+                .foregroundColor(isSelected ? DSColor.onPrimary : DSColor.onSurfaceVariant)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(isSelected ? DSColor.primary : DSColor.surfaceContainer)
+                .overlay(Rectangle().stroke(DSColor.outlineVariant, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func exportMarkdown() {
+        let markdown = viewModel.generateMarkdownExport(filter: summaryFilter)
+        let filename = "\(viewModel.currentMonthTitle.lowercased().replacingOccurrences(of: " ", with: "-"))-summary.md"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try? markdown.write(to: tempURL, atomically: true, encoding: .utf8)
+        shareItems = [tempURL]
+        showShareSheet = true
+    }
+
+    private func shareScreenshot() {
+        // Capture the current window's screenshot
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return }
+        let renderer = UIGraphicsImageRenderer(size: window.bounds.size)
+        let image = renderer.image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        shareItems = [image]
+        showShareSheet = true
     }
 
     private func summaryCard(_ label: String, value: String, unit: String? = nil, accentPrimary: Bool) -> some View {
@@ -786,6 +952,18 @@ struct ArchiveView: View {
                 .foregroundColor(DSColor.onSurfaceVariant)
         }
     }
+}
+
+// MARK: - ShareSheetView
+
+private struct ShareSheetView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - ArtifactGeometricView
