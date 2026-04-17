@@ -353,7 +353,7 @@
         "xcodebuild -scheme DayPage build 通过"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

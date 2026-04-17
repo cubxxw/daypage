@@ -1,5 +1,21 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-025
+- GraphNode 新增 dates: Set<String>（记录实体出现的 YYYY-MM-DD 日期）、entitySlug 计算属性
+- GraphViewModel 新增过滤状态：searchQuery @Published、filterStartDate/filterEndDate @Published；filteredNodes 计算属性（搜索 localizedCaseInsensitiveContains + 日期范围过滤）；filteredEdges 计算属性（双端点均在 filteredNodes.ids 中）
+- buildGraph 扫描日期文件时同时追踪每个实体 id 出现的日期集合（entityDates[id].insert(dateStr)）
+- GraphView 新增顶部搜索栏（HStack + TextField + magnifyingglass 图标）；筛选按钮（line.3.horizontal.decrease.circle）切换日期面板；日期面板包含开始/结束两个 DatePicker.compact 各带"清除"按钮；showFilters @State + .animation
+- graphCanvas 改用 filteredNodes/filteredEdges 绘制；非过滤节点 opacity 0.2 dimmed；搜索匹配节点标签 primary 色加粗；每个过滤节点有 Circle()透明 tap target（onTapGesture → selectedNode + showEntityPage）
+- .sheet(isPresented: $showEntityPage) 打开 EntityPageView(entityType: node.entityType, entitySlug: node.entitySlug)
+- emptyState 区分"尚无知识图谱"和"无匹配节点"两种提示，分别对应 nodes.isEmpty 和 filteredNodes.isEmpty
+- 文件：DayPage/Features/Graph/GraphView.swift（更新）、DayPage/Features/Graph/GraphViewModel.swift（更新）
+- **Learnings for future iterations:**
+  - SwiftUI Canvas 中透明 tap target 要用单独的 ForEach overlay Circle + .contentShape(Circle()) + .onTapGesture，不能在 Canvas 内部处理点击
+  - 节点高亮（dim non-match）在 Canvas 里通过 opacity 参数控制，filteredIDs = Set(filteredNodes.map{$0.id}) 在 graphCanvas computed var 内计算
+  - DatePicker .compact style 在 SwiftUI 中表现为行内的小控件，比 .graphical 省空间
+  - Binding<Date> 包装 Date? 需要用 Binding(get:set:) 显式构造，不能直接 $ 绑定 Optional<Date>
+---
+
 ## 2026-04-17 - US-024
 - RootView.swift：移除 GraphView tab 的 `.disabled(true)`
 - 新建 DayPage/Features/Graph/GraphViewModel.swift：GraphNode（id/name/entityType/position/velocity/color）、GraphEdge（id/sourceID/targetID）、GraphViewModel(@MainActor ObservableObject)；load() 用 Task.detached 异步扫描；buildGraph() (nonisolated) 扫描 wiki/daily/*.md 提取 [[wiki/type/slug|Name]] wikilink，同时扫描实体目录；同日出现的两个实体之间建边（edgeSet 去重）；节点初始位置圆形分布；simulationStep() 实现力导向物理模拟（斥力6000、引力0.04、阻尼0.85、重力向中心）
