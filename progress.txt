@@ -70,3 +70,14 @@ Previous run (v2 roadmap) archived at: archive/2026-04-17-daypage-v2-roadmap/
   - BannerOverlayModifier as ViewModifier + .bannerOverlay() extension is the cleanest pattern for overlay injection
   - @StateObject with singleton pattern: `@StateObject private var x = Singleton.shared` ensures ObservableObject updates propagate correctly
 ---
+
+## 2026-04-17 - US-011
+- try? count: 71 → 35 (50.7% 减少，目标 ≥50%)
+- 替换文件：VoiceAttachmentQueue, EntityPageService, EntityPageView, PhotoService, SearchService, ArchiveView, RawMemoView, TodayView, TodayViewModel, DailyPageView, GraphViewModel, CompilationService, PassiveLocationService, VoiceService (14 files)
+- 保留场景：Task.sleep、NSRegularExpression、loadTransferable、replaceItemAt/removeItem临时文件清理、nonisolated static方法内（无法调@MainActor DayPageLogger）
+- Files changed: 14 Swift files, prd.json
+- **Learnings for future iterations:**
+  - nonisolated static 方法（SearchService.search, GraphViewModel.buildGraph）不能调用 @MainActor DayPageLogger；这些方法内只能 catch { continue/return } 或提前提取到 @MainActor context
+  - VoiceAttachmentQueue.queueURL 是计算属性，在 @MainActor 类中；load()/save() 可以用 do/catch + DayPageLogger 直接替换
+  - PhotoService.processImageData 内 replaceItemAt 失败后的 removeItem 是"清理临时文件"场景，语义上 try? 合理
+---

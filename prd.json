@@ -183,7 +183,7 @@
         "Verify in iOS Simulator: record voice offline -> banner + placeholder appears, go online -> transcript fills in, banner disappears"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -199,8 +199,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "71 → 35 try? (50.7% 减少)，nonisolated static 方法内不能调 DayPageLogger，保留 catch { continue/return }"
     },
     {
       "id": "US-012",
