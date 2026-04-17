@@ -219,6 +219,9 @@ struct TodayView: View {
                         onStartVoiceRecording: {
                             viewModel.startVoiceRecording()
                         },
+                        onVoiceComplete: { result in
+                            viewModel.addVoiceAttachment(result: result)
+                        },
                         onAddFile: {
                             viewModel.startFilePicker()
                         },

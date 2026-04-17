@@ -25,6 +25,7 @@ struct InputBarView: View {
     var onCapturePhoto: () -> Void
     var onRemoveAttachment: (String) -> Void
     var onStartVoiceRecording: () -> Void
+    var onVoiceComplete: (VoiceRecordingResult) -> Void
     var onAddFile: () -> Void
     var onSubmit: () -> Void
 
@@ -33,6 +34,7 @@ struct InputBarView: View {
     @FocusState private var isFocused: Bool
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showPhotoSourceDialog: Bool = false
+    @State private var showVoiceSheet: Bool = false
 
     // MARK: Body
 
@@ -94,6 +96,17 @@ struct InputBarView: View {
         .confirmationDialog("选择照片来源", isPresented: $showPhotoSourceDialog, titleVisibility: .visible) {
             Button("拍照") { onCapturePhoto() }
             Button("取消", role: .cancel) {}
+        }
+        .sheet(isPresented: $showVoiceSheet) {
+            VoiceRecordingView(
+                onComplete: { result in
+                    showVoiceSheet = false
+                    onVoiceComplete(result)
+                },
+                onCancel: { showVoiceSheet = false }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -159,25 +172,35 @@ struct InputBarView: View {
     private var submitButton: some View {
         let hasContent = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                          || !pendingAttachments.isEmpty
-        Button(action: {
-            guard hasContent, !isSubmitting else { return }
-            onSubmit()
-        }) {
+        let icon = isSubmitting ? "arrow.up" : "arrow.up"
+        ZStack {
             if isSubmitting {
                 ProgressView()
                     .tint(DSColor.onPrimary)
                     .frame(width: 44, height: 44)
                     .background(DSColor.onSurfaceVariant)
             } else {
-                Image(systemName: "arrow.up")
+                Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(hasContent ? DSColor.onPrimary : DSColor.onSurfaceVariant)
                     .frame(width: 44, height: 44)
                     .background(hasContent ? DSColor.primary : DSColor.surfaceContainerHigh)
             }
         }
-        .disabled(!hasContent || isSubmitting)
         .cornerRadius(0)
+        .contentShape(Rectangle())
+        // Short tap: send text
+        .onTapGesture {
+            guard hasContent, !isSubmitting else { return }
+            onSubmit()
+        }
+        // Long press (0.3s): open voice recording half-sheet
+        .onLongPressGesture(minimumDuration: 0.3) {
+            guard !isSubmitting else { return }
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            showVoiceSheet = true
+        }
     }
 
     // MARK: - Attachment Preview Row
