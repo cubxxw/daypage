@@ -33,6 +33,12 @@ struct InputBarV2: View {
     var onRemoveAttachment: (String) -> Void
     var onStartVoiceRecording: () -> Void
     var onVoiceComplete: (VoiceRecordingResult) -> Void
+    /// Called when a press-to-talk release-in-place produces a finished
+    /// recording. Parent should stage it and submit immediately.
+    var onPressToTalkSend: (VoiceRecordingResult) -> Void
+    /// Called when a press-to-talk left-swipe-release produces a transcript.
+    /// Parent should fill draftText; do NOT submit.
+    var onPressToTalkTranscribe: (String) -> Void
     var onAddFile: () -> Void
     var onSubmit: () -> Void
 
@@ -44,10 +50,33 @@ struct InputBarV2: View {
     @State private var showPhotosPicker: Bool = false
     @State private var showVoiceSheet: Bool = false
 
+    /// Feature flag — when true, the right-side mic button is the WeChat-style
+    /// press-to-talk gesture (US-008). When false, tapping the mic opens the
+    /// legacy VoiceRecordingView sheet. Settings → 外观 toggles this.
+    @AppStorage("usePressToTalk") private var usePressToTalk: Bool = true
+
+    /// Voice service singleton used for live waveform + elapsed readouts
+    /// inside the press-to-talk overlay.
+    @StateObject private var voiceService = VoiceService.shared
+
+    /// Current press-to-talk gesture phase; drives overlay visibility + style.
+    @State private var pressToTalkPhase: PressToTalkPhase = .idle
+
     // MARK: Body
 
     var body: some View {
         VStack(spacing: 0) {
+            // Press-to-talk overlay — floats above the input bar while the user
+            // is holding the mic. Shows waveform + timer + swipe hints.
+            if let overlayMode = pressToTalkOverlayMode {
+                RecordingOverlayView(
+                    mode: overlayMode,
+                    elapsedSeconds: voiceService.elapsedSeconds,
+                    waveform: voiceService.waveformHistory
+                )
+                .animation(.spring(response: 0.28, dampingFraction: 0.85), value: overlayMode)
+            }
+
             Divider()
                 .background(DSColor.outline)
 
@@ -223,9 +252,22 @@ struct InputBarV2: View {
             .buttonStyle(.plain)
             .disabled(isSubmitting)
             .accessibilityLabel("发送")
+        } else if usePressToTalk {
+            // Press-to-talk (US-008): press+hold to record, release to send,
+            // swipe up to cancel, swipe left to transcribe-only.
+            PressToTalkButton(
+                onPressStart: { handlePressToTalkStart() },
+                onReleaseSend: { handlePressToTalkReleaseSend() },
+                onReleaseCancel: { handlePressToTalkReleaseCancel() },
+                onReleaseTranscribe: { handlePressToTalkReleaseTranscribe() },
+                onPhaseChange: { phase in
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                        pressToTalkPhase = phase
+                    }
+                }
+            )
         } else {
-            // Mic button — tap opens legacy voice sheet; long-press for future
-            // US-008 PressToTalkButton integration.
+            // Legacy mic button — tap opens the VoiceRecordingView sheet.
             Button {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 onStartVoiceRecording()
@@ -239,6 +281,58 @@ struct InputBarV2: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("语音录制")
+        }
+    }
+
+    // MARK: - Press-to-Talk Handlers
+
+    /// Maps the current gesture phase to the RecordingOverlayView mode.
+    private var pressToTalkOverlayMode: RecordingOverlayMode? {
+        switch pressToTalkPhase {
+        case .idle: return nil
+        case .recording: return .recording
+        case .cancelArmed: return .cancelArmed
+        case .transcribeArmed: return .transcribeArmed
+        case .transcribing: return .transcribing
+        }
+    }
+
+    private func handlePressToTalkStart() {
+        Task { @MainActor in
+            await voiceService.startRecording()
+        }
+    }
+
+    private func handlePressToTalkReleaseSend() {
+        Task { @MainActor in
+            guard let result = await voiceService.stopAndTranscribe() else {
+                pressToTalkPhase = .idle
+                return
+            }
+            onPressToTalkSend(result)
+            pressToTalkPhase = .idle
+        }
+    }
+
+    private func handlePressToTalkReleaseCancel() {
+        voiceService.cancelRecording()
+        pressToTalkPhase = .idle
+    }
+
+    private func handlePressToTalkReleaseTranscribe() {
+        // Stay in .transcribing until the Whisper call returns.
+        Task { @MainActor in
+            guard let result = await voiceService.stopAndTranscribe() else {
+                pressToTalkPhase = .idle
+                return
+            }
+            if let transcript = result.transcript, !transcript.isEmpty {
+                onPressToTalkTranscribe(transcript)
+            }
+            // Discard the audio file — transcribe-only path does not stage a voice attachment.
+            try? FileManager.default.removeItem(at: result.fileURL)
+            voiceService.reset()
+            pressToTalkPhase = .idle
         }
     }
 

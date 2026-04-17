@@ -27,6 +27,7 @@ struct SettingsView: View {
 
     // Input bar variant (US-007). Default ON; toggle surfaces legacy fallback.
     @AppStorage("useInputBarV2") private var useInputBarV2: Bool = true
+    @AppStorage("usePressToTalk") private var usePressToTalk: Bool = true
 
     // Data section state
     @State private var vaultSizeLabel: String = "计算中…"
@@ -224,6 +225,15 @@ struct SettingsView: View {
                 set: { useInputBarV2 = !$0 }
             )) {
                 Label("使用旧版输入框", systemImage: "keyboard")
+            }
+
+            // Press-to-talk (US-008). Invert binding so the visible label reads
+            // "使用旧版语音录制" per PRD's legacy-fallback copy.
+            Toggle(isOn: Binding(
+                get: { !usePressToTalk },
+                set: { usePressToTalk = !$0 }
+            )) {
+                Label("使用旧版语音录制", systemImage: "mic.circle")
             }
 
             // On This Day configuration

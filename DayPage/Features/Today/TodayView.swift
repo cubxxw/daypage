@@ -267,6 +267,23 @@ struct TodayView: View {
                             onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
                             onStartVoiceRecording: { viewModel.startVoiceRecording() },
                             onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
+                            onPressToTalkSend: { result in
+                                // Stage the recording, then submit immediately —
+                                // press-to-talk release-in-place is a send gesture.
+                                viewModel.addVoiceAttachment(result: result)
+                                let body = draftText
+                                draftText = ""
+                                viewModel.submitCombinedMemo(body: body)
+                            },
+                            onPressToTalkTranscribe: { transcript in
+                                // Fill the draft field but do NOT submit — user
+                                // should review/edit before sending.
+                                if draftText.isEmpty {
+                                    draftText = transcript
+                                } else {
+                                    draftText += (draftText.hasSuffix(" ") ? "" : " ") + transcript
+                                }
+                            },
                             onAddFile: { viewModel.startFilePicker() },
                             onSubmit: {
                                 let body = draftText

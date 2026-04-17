@@ -55,6 +55,9 @@
 		A10000050 /* CompileFooterButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000050 /* CompileFooterButton.swift */; };
 		A10000051 /* InputBarV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000051 /* InputBarV2.swift */; };
 		A10000052 /* AttachmentMenuPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000052 /* AttachmentMenuPopover.swift */; };
+		A10000053 /* InputTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000053 /* InputTokens.swift */; };
+		A10000054 /* RecordingOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000054 /* RecordingOverlayView.swift */; };
+		A10000055 /* PressToTalkButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000055 /* PressToTalkButton.swift */; };
 		A10000040 /* DayDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000040 /* DayDetailView.swift */; };
 		A10000042 /* RelativeTimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000042 /* RelativeTimeFormatter.swift */; };
 		AF0000001 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000001 /* SpaceGrotesk-Light.ttf */; };
@@ -123,6 +126,9 @@
 		A20000050 /* CompileFooterButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompileFooterButton.swift; sourceTree = "<group>"; };
 		A20000051 /* InputBarV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarV2.swift; sourceTree = "<group>"; };
 		A20000052 /* AttachmentMenuPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentMenuPopover.swift; sourceTree = "<group>"; };
+		A20000053 /* InputTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputTokens.swift; sourceTree = "<group>"; };
+		A20000054 /* RecordingOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingOverlayView.swift; sourceTree = "<group>"; };
+		A20000055 /* PressToTalkButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PressToTalkButton.swift; sourceTree = "<group>"; };
 		A20000040 /* DayDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDetailView.swift; sourceTree = "<group>"; };
 		A20000042 /* RelativeTimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeTimeFormatter.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -195,6 +201,7 @@
 				A20000007 /* Components.swift */,
 				A20000041 /* Spacing.swift */,
 				A20000043 /* Interactions.swift */,
+				A20000053 /* InputTokens.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -308,6 +315,8 @@
 				A20000050 /* CompileFooterButton.swift */,
 				A20000051 /* InputBarV2.swift */,
 				A20000052 /* AttachmentMenuPopover.swift */,
+				A20000054 /* RecordingOverlayView.swift */,
+				A20000055 /* PressToTalkButton.swift */,
 			);
 			path = Today;
 			sourceTree = "<group>";
@@ -525,6 +534,9 @@
 				A10000050 /* CompileFooterButton.swift in Sources */,
 				A10000051 /* InputBarV2.swift in Sources */,
 				A10000052 /* AttachmentMenuPopover.swift in Sources */,
+				A10000053 /* InputTokens.swift in Sources */,
+				A10000054 /* RecordingOverlayView.swift in Sources */,
+				A10000055 /* PressToTalkButton.swift in Sources */,
 				A10000042 /* RelativeTimeFormatter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
