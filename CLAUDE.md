@@ -27,7 +27,7 @@ DayPage: a personal logging tool centered on daily raw data capture. Users dump,
 
 | Feature | Choice | Notes |
 |---|---|---|
-| Provider | **Aliyun DashScope** (OpenAI-compatible) | `CompilationService.swift`, model `qwen3.5-plus`, base URL `https://coding.dashscope.aliyuncs.com/v1` |
+| Provider | **Aliyun DashScope** (OpenAI-compatible) | `CompilationService.swift`, model `qwen3.5-plus`, base URL `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | API key | `Config/GeneratedSecrets.swift` (auto-generated from env, not committed) | Never hardcode in source |
 | Schedule | **BGTaskScheduler** (`BGAppRefreshTask`) | Identifier `com.daypage.daily-compilation`, 02:00 local daily, with backfill + local notification (`BackgroundCompilationService.swift`) |
 | Input | Text only — no raw audio / image bytes sent | ~2k–5k tokens per day for 20 memos |

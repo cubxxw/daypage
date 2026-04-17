@@ -8,6 +8,10 @@ struct TodayView: View {
     @StateObject private var bannerCenter = BannerCenter.shared
     @StateObject private var voiceQueue = VoiceAttachmentQueue.shared
 
+    /// Feature flag for the Fromm-style InputBarV2 (US-007). Default ON; users
+    /// can fall back to the legacy InputBarView via Settings → 外观.
+    @AppStorage("useInputBarV2") private var useInputBarV2: Bool = true
+
     /// The draft text in the input bar.
     @State private var draftText: String = ""
 
@@ -23,7 +27,32 @@ struct TodayView: View {
     /// Current time for the header timestamp (refreshed every minute).
     @State private var currentTime: Date = Date()
 
+    /// Vertical slack (in points) between the bottom anchor and the ScrollView's
+    /// visible bottom that still counts as "near the bottom" for footer visibility.
+    /// Matches the 200pt spec in PRD US-005.
+    private let compileFooterThreshold: CGFloat = 200
+
+    /// Distance from the ScrollView's top edge to the bottom anchor.
+    /// When `anchorMinY <= visibleHeight + compileFooterThreshold` the user is
+    /// within 200pt of the content bottom and the footer should fade in.
+    @State private var compileFooterAnchorMinY: CGFloat = .infinity
+
+    /// Most recent visible height of the ScrollView.
+    @State private var scrollVisibleHeight: CGFloat = 0
+
     private let headerTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
+    /// Computed visibility for the sticky compile footer button.
+    /// PRD rule: show when daily page is not yet compiled, there is at least one
+    /// memo, and the bottom anchor is within `compileFooterThreshold` of the
+    /// visible bottom. Compile-in-flight keeps the button visible (morphs state).
+    private var shouldShowCompileFooter: Bool {
+        guard !viewModel.isDailyPageCompiled else { return false }
+        guard viewModel.memos.count > 0 else { return false }
+        if viewModel.isCompiling { return true }
+        guard scrollVisibleHeight > 0 else { return false }
+        return compileFooterAnchorMinY <= scrollVisibleHeight + compileFooterThreshold
+    }
 
     private var todayPendingDrafts: [VisitDraft] {
         passiveLocation.todayPendingDrafts()
@@ -65,11 +94,6 @@ struct TodayView: View {
                                     UINotificationFeedbackGenerator().notificationOccurred(.warning)
                                 }
                             }
-
-                        // Compiling badge (shown during manual or background compilation)
-                        if viewModel.isCompiling || viewModel.isBackgroundCompiling {
-                            CompilingBadge()
-                        }
 
                         // Settings icon
                         Button {
@@ -154,22 +178,16 @@ struct TodayView: View {
                                     .padding(.top, 4)
                                 }
 
-                                // Daily Page entry card or compile prompt
-                                Group {
-                                    if viewModel.isDailyPageCompiled {
-                                        DailyPageEntryCard(
-                                            summary: viewModel.dailyPageSummary,
-                                            onTap: { showDailyPage = true }
-                                        )
-                                    } else {
-                                        CompilePromptCard(
-                                            memoCount: viewModel.memos.count,
-                                            isCompiling: viewModel.isCompiling,
-                                            onCompile: { viewModel.compile() }
-                                        )
-                                    }
+                                // Daily Page entry card (post-compile). Pre-compile entry
+                                // is now the sticky CompileFooterButton mounted above
+                                // InputBarView — see US-005.
+                                if viewModel.isDailyPageCompiled {
+                                    DailyPageEntryCard(
+                                        summary: viewModel.dailyPageSummary,
+                                        onTap: { showDailyPage = true }
+                                    )
+                                    .padding(.horizontal, 20)
                                 }
-                                .padding(.horizontal, 20)
 
                                 // Memo cards (reverse-chronological)
                                 if viewModel.memos.isEmpty && !viewModel.isLoading {
@@ -208,52 +226,95 @@ struct TodayView: View {
                                 }
 
                                 Spacer(minLength: 16)
+
+                                // Bottom anchor for CompileFooterButton visibility tracking (US-005).
+                                CompileFooterAnchor()
                             }
                             .padding(.top, 12)
                             .frame(minHeight: geo.size.height * 0.75)
                         }
+                        .coordinateSpace(name: "todayScroll")
                         .frame(maxHeight: geo.size.height)
+                        .onAppear { scrollVisibleHeight = geo.size.height }
+                        .onChange(of: geo.size.height) { h in scrollVisibleHeight = h }
+                        .onPreferenceChange(CompileFooterAnchorPreferenceKey.self) { minY in
+                            compileFooterAnchorMinY = minY
+                        }
                     }
 
-                    // MARK: Input Bar
-                    InputBarView(
-                        text: $draftText,
-                        isSubmitting: viewModel.isSubmitting,
-                        isLocating: viewModel.isLocating,
-                        pendingLocation: viewModel.pendingLocation,
-                        locationAuthStatus: LocationService.shared.authorizationStatus,
-                        isProcessingPhoto: viewModel.isProcessingPhoto,
-                        pendingAttachments: viewModel.pendingAttachments,
-                        onFetchLocation: {
-                            viewModel.fetchLocation()
-                        },
-                        onClearLocation: {
-                            viewModel.clearPendingLocation()
-                        },
-                        onAddPhoto: { item in
-                            viewModel.addPhotoAttachment(item: item)
-                        },
-                        onCapturePhoto: {
-                            viewModel.startCameraCapture()
-                        },
-                        onRemoveAttachment: { id in
-                            viewModel.removePendingAttachment(id: id)
-                        },
-                        onStartVoiceRecording: {
-                            viewModel.startVoiceRecording()
-                        },
-                        onVoiceComplete: { result in
-                            viewModel.addVoiceAttachment(result: result)
-                        },
-                        onAddFile: {
-                            viewModel.startFilePicker()
-                        },
-                        onSubmit: {
-                            let body = draftText
-                            draftText = ""
-                            viewModel.submitCombinedMemo(body: body)
-                        }
+                    // MARK: Compile Footer Button (sticky, fades in near bottom of timeline)
+                    CompileFooterButton(
+                        memoCount: viewModel.memos.count,
+                        isCompiling: viewModel.isCompiling,
+                        isVisible: shouldShowCompileFooter,
+                        onTap: { viewModel.compile() }
                     )
+
+                    // MARK: Input Bar — V2 (Fromm style) or legacy V1 per user setting.
+                    if useInputBarV2 {
+                        InputBarV2(
+                            text: $draftText,
+                            isSubmitting: viewModel.isSubmitting,
+                            isLocating: viewModel.isLocating,
+                            pendingLocation: viewModel.pendingLocation,
+                            locationAuthStatus: LocationService.shared.authorizationStatus,
+                            isProcessingPhoto: viewModel.isProcessingPhoto,
+                            pendingAttachments: viewModel.pendingAttachments,
+                            onFetchLocation: { viewModel.fetchLocation() },
+                            onClearLocation: { viewModel.clearPendingLocation() },
+                            onAddPhoto: { item in viewModel.addPhotoAttachment(item: item) },
+                            onCapturePhoto: { viewModel.startCameraCapture() },
+                            onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
+                            onStartVoiceRecording: { viewModel.startVoiceRecording() },
+                            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
+                            onPressToTalkSend: { result in
+                                // Stage the recording, then submit immediately —
+                                // press-to-talk release-in-place is a send gesture.
+                                viewModel.addVoiceAttachment(result: result)
+                                let body = draftText
+                                draftText = ""
+                                viewModel.submitCombinedMemo(body: body)
+                            },
+                            onPressToTalkTranscribe: { transcript in
+                                // Fill the draft field but do NOT submit — user
+                                // should review/edit before sending.
+                                if draftText.isEmpty {
+                                    draftText = transcript
+                                } else {
+                                    draftText += (draftText.hasSuffix(" ") ? "" : " ") + transcript
+                                }
+                            },
+                            onAddFile: { viewModel.startFilePicker() },
+                            onSubmit: {
+                                let body = draftText
+                                draftText = ""
+                                viewModel.submitCombinedMemo(body: body)
+                            }
+                        )
+                    } else {
+                        InputBarView(
+                            text: $draftText,
+                            isSubmitting: viewModel.isSubmitting,
+                            isLocating: viewModel.isLocating,
+                            pendingLocation: viewModel.pendingLocation,
+                            locationAuthStatus: LocationService.shared.authorizationStatus,
+                            isProcessingPhoto: viewModel.isProcessingPhoto,
+                            pendingAttachments: viewModel.pendingAttachments,
+                            onFetchLocation: { viewModel.fetchLocation() },
+                            onClearLocation: { viewModel.clearPendingLocation() },
+                            onAddPhoto: { item in viewModel.addPhotoAttachment(item: item) },
+                            onCapturePhoto: { viewModel.startCameraCapture() },
+                            onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
+                            onStartVoiceRecording: { viewModel.startVoiceRecording() },
+                            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
+                            onAddFile: { viewModel.startFilePicker() },
+                            onSubmit: {
+                                let body = draftText
+                                draftText = ""
+                                viewModel.submitCombinedMemo(body: body)
+                            }
+                        )
+                    }
                 }
                 // Submit error toast
                 .overlay(alignment: .top) {
@@ -445,25 +506,6 @@ struct CompilationFailedBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(DSColor.errorContainer)
-    }
-}
-
-// MARK: - CompilingBadge
-
-/// Small badge shown in the Today header when compilation is in progress.
-struct CompilingBadge: View {
-    var body: some View {
-        HStack(spacing: 4) {
-            ProgressView()
-                .scaleEffect(0.6)
-                .tint(DSColor.onSurface)
-            Text("正在编译...")
-                .font(.custom("JetBrainsMono-Regular", fixedSize: 10))
-                .foregroundColor(DSColor.onSurface)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(DSColor.primary.opacity(0.12))
     }
 }
 
