@@ -1,5 +1,15 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-006
+- 在 EntityPageView 添加 `@State private var selectedDate: String?` 状态
+- relatedMemos() 中每个日期行用 Button 包装，点击时 `selectedDate = dateStr`
+- 通过 `.sheet(isPresented:)` 展示 DailyPageView(dateString: selectedDate)
+- **Learnings for future iterations:**
+  - EntityPageView 已有 NavigationStack，sheet 方式比 NavigationLink 更简洁
+  - String 不符合 Identifiable，用 `Binding<Bool>` + 单独 state 变量配合 `.sheet(isPresented:)` 代替 `.sheet(item:)`
+  - relatedDates 是从 section body 解析出以 `- YYYY-MM-DD` 开头的行
+---
+
 ## 2026-04-17 - US-005
 - US-005 的功能已在 US-004 实现期间一并完成
 - archiveListRow 中 Button 调用 handleDateTap，与日历单元格行为一致
