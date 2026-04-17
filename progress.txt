@@ -1,5 +1,15 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-008
+- 修改 `metaChipVoice()` 函数：遍历 `rawMemos`，过滤 `kind == "audio"` 附件，汇总 `duration`，格式化为 `🎙️ mm:ss`
+- 无语音附件时返回 `EmptyView()`，有时显示格式化 chip
+- 文件：`DayPage/Features/Daily/DailyPageView.swift`（第 260-271 行）
+- **Learnings for future iterations:**
+  - `rawMemos` 已在 `loadPage()` 中同步加载，metadata chip 函数可直接访问 `rawMemos` state 变量
+  - `Attachment.kind == "audio"` 标识语音附件，`Attachment.duration` 是 `Double?`（秒）
+  - `metaChipVoice` 接收 `model: DailyPageModel` 参数但实际数据来自 `rawMemos`（model 不含语音时长）
+---
+
 ## 2026-04-17 - US-007
 - 在 DailyPageView 添加 `@State private var rawMemos: [Memo] = []` 状态
 - 修改 `loadPage()` 在加载 Daily Page 内容时同步用 `RawStorage.read(for:)` 加载原始 memos

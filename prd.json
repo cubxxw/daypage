@@ -111,7 +111,7 @@
         "xcodebuild -scheme DayPage build 通过"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
