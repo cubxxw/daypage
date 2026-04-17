@@ -28,3 +28,12 @@
   - BUILD SUCCEEDED（iPhone 17 Simulator），只有已知 AccentColor 和旧 allowBluetooth 的 warning，不影响功能
 ---
 
+## 2026-04-17 - US-002
+- 实现内容：将 Today Header 设置图标从装饰性变为可交互 Button，点击触发 .sheet(isPresented: $showSettings) 打开 SettingsView；SettingsView 内已有关闭按钮（@Environment(\.dismiss)）
+- 文件变更：DayPage/Features/Today/TodayView.swift（新增 @State showSettings、Button 包装、.sheet 修饰符）
+- **Learnings for future iterations:**
+  - TodayView 的 sheet 修饰符全部追加在 NavigationStack 闭包末尾（.sheet 链），顺序无影响
+  - SettingsView 已有 NavigationStack + ToolbarItem(.confirmationAction) 关闭按钮，无需在 sheet 调用处再包
+  - xcodebuild build 用 'platform=iOS Simulator,name=iPhone 17' 而非已废弃的 iPhone 15 Pro
+---
+
