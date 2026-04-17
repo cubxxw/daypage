@@ -1,5 +1,20 @@
 # DayPage v2 Ralph Progress Log
 
+## 2026-04-17 - US-019
+- SearchService.search() 新增 filters: SearchFilters 参数，支持日期范围（startDate/endDate）、类型集合（Set<Memo.MemoType>）、地点关键词筛选
+- SearchResult 新增 memoType: Memo.MemoType? 字段
+- SearchFilters 结构体定义（isActive 计算属性）
+- SearchView 顶部新增可折叠筛选面板：日期范围（compact DatePicker）+ 类型多选 chip + 地点 TextField + 清除全部
+- 仅筛选无关键词时返回通过筛选的所有 memo（hasSearched = true）
+- 空结果 empty state 文字适配"仅筛选"场景
+- 文件：DayPage/Services/SearchService.swift、DayPage/Features/Archive/SearchView.swift、DayPage/Models/Memo.swift
+- **Learnings for future iterations:**
+  - Memo.MemoType 需要 Hashable conformance 才能放入 Set；原只有 Equatable，直接加 Hashable（String rawValue 自动合成）
+  - SearchService.swift 无 import SwiftUI，MemoType 用完整路径 `Memo.MemoType`；static let empty 中的 nil 参数需要显式类型（Date?.none）
+  - SearchView 中的 typeChip 函数参数和扩展方法都要用 `Memo.MemoType` 全路径
+  - 筛选面板 animation 用 `.animation(.easeInOut, value: showFilters)` 配合 `.transition(.opacity.combined(with: .move(edge: .top)))`
+---
+
 ## 2026-04-17 - US-018
 - 定位重复来源：MemoCardView.standardCard 中两处问题（VoiceMemoPlayerRow transcript 回退逻辑 + body 区域重复显示）
 - 修复1：VoiceMemoPlayerRow 的 transcript 参数移除 `att.transcript ?? (memo.type == .voice ? memo.body : nil)` 中的 `?? memo.body` 回退逻辑
