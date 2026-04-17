@@ -74,8 +74,8 @@
         "Verify in Simulator using verify-daypage skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Removed initial BannerCenter progress call in TodayViewModel.compile() and the dependent slowTask/cancelTask upgrade paths (the 'kind == .progress' guards became dead code once the seed banner was gone). Retry-callback no-op'd — future retry telemetry should route through a @Published field so CompilePromptCard owns the indicator. Deleted CompilingBadge usage in TodayView header AND the unused struct itself. CompilePromptCard.body now branches on isCompiling: compiling state collapses to ONE row 'Text + ProgressView' instead of header+sublabel; the 'disabled' modifier is gone since the button only renders in non-compiling state. Success/offline/missingApiKey/401/parseError/network failure banners untouched. Build passes; manual Simulator verify-daypage check deferred (skill not wired)."
     },
     {
       "id": "US-005",

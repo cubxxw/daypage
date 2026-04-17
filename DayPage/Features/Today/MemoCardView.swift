@@ -704,42 +704,43 @@ struct CompilePromptCard: View {
                 .frame(width: 4)
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Text(isCompiling ? "正在编译..." : "今日还未编译")
-                        .sectionLabelStyle()
-                        .foregroundColor(isCompiling ? DSColor.onSurface : DSColor.onSurfaceVariant)
-
-                    if isCompiling {
+                if isCompiling {
+                    // US-004: single unified compiling indicator on screen.
+                    // Title + spinner share one line so this card is the only "正在编译" UI.
+                    HStack(spacing: 8) {
+                        Text("正在编译 \(memoCount) 条 memo")
+                            .sectionLabelStyle()
+                            .foregroundColor(DSColor.onSurface)
                         ProgressView()
                             .scaleEffect(0.7)
                             .tint(DSColor.onSurfaceVariant)
+                        Spacer(minLength: 0)
                     }
-                }
-
-                if isCompiling {
-                    Text("正在编译 \(memoCount) 条 memo...")
-                        .bodySMStyle()
-                        .foregroundColor(DSColor.onSurfaceVariant)
-                } else if memoCount > 0 {
-                    Text("已有 \(memoCount) 条记录，点击立即编译")
-                        .bodySMStyle()
-                        .foregroundColor(DSColor.onSurfaceVariant)
-
-                    Button(action: { onCompile?() }) {
-                        Text("立即编译")
-                            .monoLabelStyle(size: 10)
-                            .foregroundColor(DSColor.onPrimary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(DSColor.primary)
-                            .cornerRadius(DSSpacing.radiusSmall)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isCompiling)
                 } else {
-                    Text("记录今天的想法，晚些时候将自动编译成日记")
-                        .bodySMStyle()
+                    Text("今日还未编译")
+                        .sectionLabelStyle()
                         .foregroundColor(DSColor.onSurfaceVariant)
+
+                    if memoCount > 0 {
+                        Text("已有 \(memoCount) 条记录，点击立即编译")
+                            .bodySMStyle()
+                            .foregroundColor(DSColor.onSurfaceVariant)
+
+                        Button(action: { onCompile?() }) {
+                            Text("立即编译")
+                                .monoLabelStyle(size: 10)
+                                .foregroundColor(DSColor.onPrimary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(DSColor.primary)
+                                .cornerRadius(DSSpacing.radiusSmall)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Text("记录今天的想法，晚些时候将自动编译成日记")
+                            .bodySMStyle()
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                    }
                 }
             }
             .padding(12)

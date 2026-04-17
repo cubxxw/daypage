@@ -24,6 +24,8 @@ Previous run (V3 Wave 1) archived at: archive/2026-04-17-daypage-v3-wave1-experi
 - When a file-backed view (RawMemoView, DailyPageView) is opened, double-check `FileManager.default.fileExists(atPath:)` inside its own load path even if the parent already checked. Log `url.path` + `errno` on any miss — both are necessary to diagnose sandbox / migration issues.
 - When adding a "test this endpoint" Settings action, ALWAYS resolve baseURL/model the same way the production service does (`Secrets.*.isEmpty ? defaultLiteral : Secrets.*`). If you hardcode a URL in Settings, you will silently drift from CompilationService and the test can green while real compile 404s.
 - NSURLError codes (timeout=-1001, notConnected=-1009, cannotFindHost=-1003, cannotConnect=-1004) are the right bucket for network-layer hints; HTTP status codes only show up when the server actually responded.
+- "Single source of truth for in-flight UI state": when collapsing redundant indicators, also delete the timed `Task` chains that only existed to refresh the now-removed banner. They become dead code (`kind == .progress` guards never fire), and leaving them in the file plants traps for future readers. Either fully delete or pipe their signal into the surviving indicator's view-model field.
+- BannerCenter is the right channel for **terminal** outcomes (success / offline / error) but a poor fit for in-flight progress — it competes with timeline cards. Reserve it for "the operation is done, here is the verdict" messages.
 
 ---
 
@@ -69,6 +71,22 @@ Previous run (V3 Wave 1) archived at: archive/2026-04-17-daypage-v3-wave1-experi
   - Using a tiny fileprivate `enum APITestResult` is nicer than juggling `(Bool, String)` tuples or two optional `@State`s. Keep it fileprivate to the view — do NOT hoist to a shared type until there's a second caller.
   - `bannerCenter.show(...)` is the right channel for app-wide outcomes, but for a "test connection" button the user is already looking at, inline rendering under the row is stronger UX — leave the banner out to avoid duplicate signals.
   - `Secrets.dashScopeModel` default must match CompilationService.swift exactly (`qwen3.5-plus`) — if one drifts, the success banner will show a model that was never used.
+---
+
+## 2026-04-17 - US-004 删除三处冗余编译提示 — 统一到 CompilePromptCard
+- Removed `BannerCenter.shared.show(... .progress ...)` seed call in `TodayViewModel.compile()` (was at line 463).
+- Deleted the dependent `slowTask` (5s "网络较慢" upgrade) and `cancelTask` (15s 取消按钮 upgrade). Their `kind == .progress` guards became permanently false once the seed banner was gone — pure dead code.
+- Replaced the retry `progressCallback` body with a no-op (`{ _, _ in }`) so retries no longer push extra "正在编译...重试 N/M" banners. Future retry telemetry should land in a `@Published` viewmodel field that CompilePromptCard renders inline; centralizing the "single in-flight indicator" rule.
+- Kept ALL terminal banners untouched: `.success` ("今日 Daily Page 已生成"), `.info` (.offline), `.error` (missingApiKey / 401 / parseError / network failure with retry).
+- `TodayView.swift`: removed `if viewModel.isCompiling || viewModel.isBackgroundCompiling { CompilingBadge() }` from the header HStack (was lines 69-72). Deleted the entire `CompilingBadge` struct + its `// MARK: - CompilingBadge` block since `grep CompilingBadge DayPage/` returns zero matches after removal.
+- `MemoCardView.CompilePromptCard.body`: split the body on `if isCompiling`. Compiling state is now ONE line — `Text("正在编译 \(memoCount) 条 memo") + ProgressView()` inside an HStack. Non-compiling branch keeps the "今日还未编译" + memoCount sub-text + "立即编译" button. Removed the `.disabled(isCompiling)` modifier on the button since it's only mounted in the non-compiling branch.
+- Files changed: `DayPage/Features/Today/TodayViewModel.swift`, `DayPage/Features/Today/TodayView.swift`, `DayPage/Features/Today/MemoCardView.swift`, `prd.json`, `progress.txt`.
+- Build: `xcodebuild -scheme DayPage ... build` → BUILD SUCCEEDED.
+- Manual Simulator click-through deferred (verify-daypage skill not wired). The state is provably single-indicator: only `CompilePromptCard` reads `isCompiling` from the viewmodel after this change; no other view does.
+- **Learnings for future iterations:**
+  - Before deleting a "redundant" indicator, grep the entire file tree for the symbol — `CompilingBadge` was both used and defined in the same file, so deleting the call site let me also drop the struct cleanly. `BackgroundCompilationService.isBackgroundCompiling` is still wired into TodayViewModel but no longer surfaces in the UI; keep it published in case background compile gets its own indicator later.
+  - When a banner sequence has chained `Task` upgrades (5s subtitle → 15s cancel), they're almost always stitched to a seed banner. Removing only the seed leaves orphan timers that race silently. Audit the chain before deleting any link.
+  - `disabled(isCompiling)` on a button that only renders in `!isCompiling` branch is dead — Swift compiler doesn't warn, but readers assume there's a state where the button is disabled. Easier to delete the modifier than explain why it can't fire.
 ---
 
 ## Wave 2 Story Order Rationale

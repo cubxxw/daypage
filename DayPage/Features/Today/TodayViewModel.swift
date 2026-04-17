@@ -454,13 +454,12 @@ final class TodayViewModel: ObservableObject {
     private var compilationTask: Task<Void, Never>?
 
     /// Triggers manual AI compilation for today's memos.
-    /// Shows BannerCenter progress/retry/success/failure banners.
+    /// During compilation, the only on-screen indicator is `CompilePromptCard`'s compiling state
+    /// (US-004). BannerCenter is reserved for terminal outcomes — success / offline / error.
     func compile() {
         guard !isCompiling else { return }
         isCompiling = true
         submitError = nil
-
-        BannerCenter.shared.show(AppBannerModel(kind: .progress, title: "正在编译你的今天..."))
 
         compilationTask = Task {
             defer {
@@ -468,50 +467,12 @@ final class TodayViewModel: ObservableObject {
                 compilationTask = nil
             }
 
-            // Slow-network subtitle upgrade after 5 seconds
-            let slowTask = Task {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-                if !Task.isCancelled {
-                    let current = BannerCenter.shared.currentBanner
-                    if current?.kind == .progress {
-                        BannerCenter.shared.show(AppBannerModel(
-                            kind: .progress,
-                            title: "正在编译你的今天...",
-                            subtitle: "网络较慢，请稍候..."
-                        ))
-                    }
-                }
-            }
-
-            // Cancel button after 15 seconds
-            let cancelTask = Task {
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
-                if !Task.isCancelled {
-                    let current = BannerCenter.shared.currentBanner
-                    if current?.kind == .progress {
-                        let self_ = self
-                        BannerCenter.shared.show(AppBannerModel(
-                            kind: .progress,
-                            title: "正在编译你的今天...",
-                            subtitle: "请稍候，或取消后稍后重试",
-                            secondaryAction: BannerAction(label: "取消") {
-                                self_.compilationTask?.cancel()
-                            }
-                        ))
-                    }
-                }
-            }
-
             do {
-                try await compilationService.compile(for: date, trigger: "manual") { attempt, maxAttempts in
-                    BannerCenter.shared.show(AppBannerModel(
-                        kind: .progress,
-                        title: "正在编译你的今天...",
-                        subtitle: "正在重试（\(attempt)/\(maxAttempts)）..."
-                    ))
-                }
-                slowTask.cancel()
-                cancelTask.cancel()
+                // Retry attempts no longer push progress banners — CompilePromptCard owns the
+                // single in-flight indicator. The callback is intentionally a no-op here; if
+                // future telemetry needs retry counts, route them through a @Published field
+                // so CompilePromptCard can render the attempt inline.
+                try await compilationService.compile(for: date, trigger: "manual") { _, _ in }
                 checkDailyPage()
                 await OnThisDayIndex.shared.rebuildIndex()
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -521,16 +482,12 @@ final class TodayViewModel: ObservableObject {
                     autoDismiss: true
                 ))
             } catch CompilationError.offline {
-                slowTask.cancel()
-                cancelTask.cancel()
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .info,
                     title: "当前离线，已加入队列",
                     autoDismiss: true
                 ))
             } catch CompilationError.missingApiKey {
-                slowTask.cancel()
-                cancelTask.cancel()
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .error,
@@ -538,8 +495,6 @@ final class TodayViewModel: ObservableObject {
                     primaryAction: BannerAction(label: "前往设置") { }
                 ))
             } catch CompilationError.apiError(let code, _) where code == 401 {
-                slowTask.cancel()
-                cancelTask.cancel()
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .error,
@@ -547,8 +502,6 @@ final class TodayViewModel: ObservableObject {
                     primaryAction: BannerAction(label: "前往设置") { }
                 ))
             } catch CompilationError.parseError {
-                slowTask.cancel()
-                cancelTask.cancel()
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .error,
@@ -556,8 +509,6 @@ final class TodayViewModel: ObservableObject {
                     primaryAction: BannerAction(label: "查看日志") { }
                 ))
             } catch {
-                slowTask.cancel()
-                cancelTask.cancel()
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
                 let self_ = self
                 BannerCenter.shared.show(AppBannerModel(
