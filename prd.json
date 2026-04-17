@@ -148,7 +148,7 @@
         "Verify in iOS Simulator: clear one key in GeneratedSecrets, relaunch -> banner appears"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

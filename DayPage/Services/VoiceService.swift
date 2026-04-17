@@ -187,6 +187,11 @@ final class VoiceService: NSObject, ObservableObject {
 
         let transcript = await transcribeAudio(at: fileURL)
 
+        // If transcription failed and we are offline, enqueue for later
+        if transcript == nil && !NetworkMonitor.shared.isOnline {
+            VoiceAttachmentQueue.shared.enqueue(audioPath: filePath, memoDate: Date())
+        }
+
         let result = VoiceRecordingResult(
             filePath: filePath,
             fileURL: fileURL,
