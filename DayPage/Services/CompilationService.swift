@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 // MARK: - CompilationService
 
@@ -28,8 +29,18 @@ final class CompilationService {
     /// Compiles the raw memos for the given date into a Daily Page.
     /// - Parameter date: The date to compile. Defaults to today.
     /// - Parameter trigger: How the compilation was triggered ("manual" | "auto").
+    /// - Parameter onRetry: Called before each retry attempt with (attempt, maxAttempts).
     /// - Throws: `CompilationError` on API, parsing, or file-system failures.
-    func compile(for date: Date = Date(), trigger: String = "manual") async throws {
+    func compile(
+        for date: Date = Date(),
+        trigger: String = "manual",
+        onRetry: ((Int, Int) -> Void)? = nil
+    ) async throws {
+        // Offline preflight check
+        guard NetworkMonitor.shared.isOnline else {
+            throw CompilationError.offline
+        }
+
         let startTime = Date()
         let dateString = dateFormatter.string(from: date)
 
@@ -48,13 +59,17 @@ final class CompilationService {
             memoCount: memos.count
         )
 
-        // 4. Call DashScope API
+        // 4. Call DashScope API with retry
         let apiKey = Secrets.dashScopeApiKey
         guard !apiKey.isEmpty else {
             throw CompilationError.missingApiKey
         }
 
-        let compiledText = try await callDashScope(prompt: prompt, apiKey: apiKey)
+        let compiledText = try await callDashScopeWithRetry(
+            prompt: prompt,
+            apiKey: apiKey,
+            onRetry: onRetry
+        )
 
         // 5. Parse structured output (Daily Page + Entity update instructions + hot cache)
         let (dailyPageText, entityInstructions, hotCacheText) = try parseStructuredOutputWithHot(compiledText)
@@ -272,7 +287,49 @@ final class CompilationService {
         """
     }
 
-    // MARK: - DashScope API
+    // MARK: - DashScope API (with retry)
+
+    private func callDashScopeWithRetry(
+        prompt: String,
+        apiKey: String,
+        onRetry: ((Int, Int) -> Void)?
+    ) async throws -> String {
+        let maxAttempts = 3
+        let backoffSeconds: [Double] = [0, 2, 6]
+        var lastError: Error = CompilationError.networkError("Unknown")
+
+        for attempt in 1...maxAttempts {
+            if attempt > 1 {
+                onRetry?(attempt, maxAttempts)
+                let delay = backoffSeconds[min(attempt - 1, backoffSeconds.count - 1)]
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            do {
+                return try await callDashScope(prompt: prompt, apiKey: apiKey)
+            } catch let error as CompilationError {
+                switch error {
+                case .apiError(let code, _) where code == 401 || code == 403 || code == 400:
+                    throw error // Do not retry auth/bad-request errors
+                case .parseError:
+                    throw error // Do not retry parse errors
+                case .missingApiKey:
+                    throw error
+                default:
+                    lastError = error
+                }
+            } catch let urlError as URLError {
+                switch urlError.code {
+                case .timedOut, .notConnectedToInternet, .networkConnectionLost:
+                    lastError = urlError
+                default:
+                    throw urlError
+                }
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
+    }
 
     private func callDashScope(prompt: String, apiKey: String) async throws -> String {
         let baseURL = Secrets.dashScopeBaseURL.isEmpty
@@ -476,6 +533,7 @@ enum CompilationError: LocalizedError {
     case apiError(statusCode: Int, body: String)
     case parseError(String)
     case fileSystemError(String)
+    case offline
 
     var errorDescription: String? {
         switch self {
@@ -496,6 +554,8 @@ enum CompilationError: LocalizedError {
             return "LLM 返回格式错误：\(msg)"
         case .fileSystemError(let msg):
             return "文件写入失败：\(msg)"
+        case .offline:
+            return "当前离线，已加入队列，联网后自动编译"
         }
     }
 }
