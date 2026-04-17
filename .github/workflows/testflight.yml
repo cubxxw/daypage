@@ -46,6 +46,12 @@ jobs:
           restore-keys: |
             deriveddata-
 
+      # ── 3.5 Validate Fastfile syntax (fail fast before long build) ───────
+      - name: Validate Fastfile
+        run: |
+          ruby -c fastlane/Fastfile
+          bundle exec fastlane lanes > /dev/null
+
       # ── 4. Write .env from GitHub Secret ─────────────────────────────────
       # .env 不提交到仓库，在 CI 中通过 secret 注入
       # GitHub Secret: ENV_FILE — 存储完整的 .env 文件内容（多行）
@@ -118,6 +124,8 @@ jobs:
           APP_STORE_CONNECT_API_KEY_CONTENT:    ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
           PROVISIONING_PROFILE_UUID:            ${{ env.PROVISIONING_PROFILE_UUID }}
           GH_TOKEN:                             ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_NAME:                      ${{ github.ref_name }}
+          GITHUB_REF_TYPE:                      ${{ github.ref_type }}
           FASTLANE_XCODE_LIST_TIMEOUT:          "120"
           FASTLANE_SKIP_UPDATE_CHECK:           "1"
         run: |

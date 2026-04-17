@@ -1,3 +1,5 @@
+require "shellwords"
+
 # 加载根目录 .env 文件（fastlane 默认只读 fastlane/.env）
 env_file = File.expand_path("../.env", __dir__)
 if File.exist?(env_file)
@@ -114,14 +116,24 @@ platform :ios do
       )
     )
 
-    # 创建 GitHub Release（仅在 tag 触发时有意义；无 GH_TOKEN 时跳过）
-    if ENV["GH_TOKEN"] && !git_tag_name.to_s.empty?
-      tag = git_tag_name.strip
-      release_notes = changelog_from_git_commits(commits_count: 20, pretty: "- %s")
-      sh("gh release create '#{tag}' build/DayPage.ipa \
-          --title 'DayPage #{tag}' \
-          --notes '#{release_notes.gsub("'", "\\\\'")}' \
-          --prerelease") rescue UI.important "GitHub Release 创建失败（非致命）"
+    # Create GitHub Release (only meaningful on tag push; skip if no token or not a tag build)
+    # GITHUB_REF_NAME is injected by GitHub Actions; GITHUB_REF_TYPE == "tag" iff triggered by tag push
+    if ENV["GH_TOKEN"] && ENV["GITHUB_REF_TYPE"] == "tag" && !ENV["GITHUB_REF_NAME"].to_s.empty?
+      tag = ENV["GITHUB_REF_NAME"]
+      ipa_path = "build/DayPage.ipa"
+      if File.exist?(ipa_path)
+        release_notes = changelog_from_git_commits(commits_count: 20, pretty: "- %s")
+        begin
+          sh("gh release create '#{tag}' '#{ipa_path}' \
+              --title 'DayPage #{tag}' \
+              --notes #{release_notes.shellescape} \
+              --prerelease")
+        rescue => e
+          UI.important "GitHub Release creation failed (non-fatal): #{e.message}"
+        end
+      else
+        UI.important "Skipping GitHub Release: #{ipa_path} not found"
+      end
     end
 
     UI.success "TestFlight beta uploaded"
