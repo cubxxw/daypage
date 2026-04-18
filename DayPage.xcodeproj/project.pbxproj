@@ -750,16 +750,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6RG2F8YY59;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DayPage/App/Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPage 需要您的位置来为 memo 添加地点标记。";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "DayPage 需要访问麦克风，以便录制语音 memo 并自动转写为文字。";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "DayPage 需要访问相册，以便将照片附加到 memo 并保留原始 EXIF 数据。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -783,16 +775,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6RG2F8YY59;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DayPage/App/Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "DayPage 需要您的位置来为 memo 添加地点标记。";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "DayPage 需要访问麦克风，以便录制语音 memo 并自动转写为文字。";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "DayPage 需要访问相册，以便将照片附加到 memo 并保留原始 EXIF 数据。";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
