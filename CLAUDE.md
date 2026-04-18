@@ -83,8 +83,10 @@ Graph Tab has **no design** (Post-MVP, PRD NG-3) — keep the placeholder.
 
 No test target exists yet. When adding tests, create a `DayPageTests` target using **Swift Testing** (iOS 16+ supports it via the `Testing` package on Xcode 16+) or XCTest if the project stays on older Xcode.
 
+**Default simulator**: use **iPhone 17** for all builds, runs, and UI verification (e.g. `xcodebuild -scheme DayPage -destination 'platform=iOS Simulator,name=iPhone 17'`).
+
 Before marking any task complete:
 1. Build the `DayPage` scheme (`xcodebuild -scheme DayPage build`)
 2. Run any existing tests
 3. For storage-related changes, inspect the actual `.md` file written under `vault/raw/` (use `get_app_container` to locate the sandbox) and verify YAML front-matter + Markdown structure
-4. For UI changes, launch the app in Simulator and verify visually — SwiftUI preview alone is not sufficient
+4. For UI changes, launch the app in Simulator (iPhone 17) and verify visually — SwiftUI preview alone is not sufficient
