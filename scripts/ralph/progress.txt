@@ -20,3 +20,15 @@ Started: Sun Apr 19 15:50:05 +07 2026
   - Use `kind = upToNextMajorVersion; minimumVersion = 2.0.0` for semver constraint
   - Build succeeded: `** BUILD SUCCEEDED **`
 ---
+
+## 2026-04-19 - US-002
+- Verified `supabaseURL` and `supabaseAnonKey` already present in `GeneratedSecrets.swift`
+- Verified `generate_secrets.sh` already reads `SUPABASE_URL` and `SUPABASE_ANON_KEY` from `.env`
+- Verified `.env` already contains real Supabase URL and anon key values
+- Verified `GeneratedSecrets.swift` listed in `.gitignore` (both `Config/` and `DayPage/Config/` paths)
+- Build passes: `** BUILD SUCCEEDED **`
+- **Learnings for future iterations:**
+  - US-002 was already implemented as part of the Supabase secrets support (PR #86 / commit e8acf2d)
+  - `GeneratedSecrets.swift` uses `enum Secrets` (not struct) — reference as `Secrets.supabaseURL`
+  - Both `supabaseURL` and `supabaseAnonKey` are `String` properties inside `enum Secrets`
+---

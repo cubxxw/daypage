@@ -28,7 +28,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Actual URL/key values must be filled in by the developer from Supabase Dashboard before runtime."
     },
     {
