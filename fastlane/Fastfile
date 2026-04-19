@@ -75,15 +75,25 @@ platform :ios do
     # 本地开发若未设置 PROVISIONING_PROFILE_UUID 则回退到自动签名
     use_manual_signing = !ENV["PROVISIONING_PROFILE_UUID"].to_s.empty?
 
+    if use_manual_signing
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path:                  "DayPage.xcodeproj",
+        team_id:               ENV["DEVELOPMENT_TEAM"],
+        code_sign_identity:    "Apple Distribution",
+        profile_uuid:          ENV["PROVISIONING_PROFILE_UUID"]
+      )
+    end
+
     export_opts = use_manual_signing ? {
-      method:                 "app-store",
-      signingStyle:           "manual",
-      teamID:                 ENV["DEVELOPMENT_TEAM"],
-      provisioningProfiles:   { "com.daypage.app" => ENV["PROVISIONING_PROFILE_UUID"] }
+      method:               "app-store",
+      signingStyle:         "manual",
+      teamID:               ENV["DEVELOPMENT_TEAM"],
+      provisioningProfiles: { "com.daypage.app" => ENV["PROVISIONING_PROFILE_UUID"] }
     } : {
-      method:                 "app-store",
-      signingStyle:           "automatic",
-      teamID:                 ENV["DEVELOPMENT_TEAM"]
+      method:    "app-store",
+      signingStyle: "automatic",
+      teamID:    ENV["DEVELOPMENT_TEAM"]
     }
 
     build_app(
@@ -95,9 +105,7 @@ platform :ios do
       output_directory: "build",
       output_name:      "DayPage.ipa",
       export_options:   export_opts,
-      xcargs:           use_manual_signing \
-        ? "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]=#{ENV['PROVISIONING_PROFILE_UUID']}" \
-        : "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} -allowProvisioningUpdates"
+      xcargs:           use_manual_signing ? "" : "-allowProvisioningUpdates"
     )
 
     upload_to_testflight(
@@ -129,15 +137,25 @@ platform :ios do
 
     use_manual_signing = !ENV["PROVISIONING_PROFILE_UUID"].to_s.empty?
 
+    if use_manual_signing
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path:                  "DayPage.xcodeproj",
+        team_id:               ENV["DEVELOPMENT_TEAM"],
+        code_sign_identity:    "Apple Distribution",
+        profile_uuid:          ENV["PROVISIONING_PROFILE_UUID"]
+      )
+    end
+
     export_opts = use_manual_signing ? {
-      method:                 "app-store",
-      signingStyle:           "manual",
-      teamID:                 ENV["DEVELOPMENT_TEAM"],
-      provisioningProfiles:   { "com.daypage.app" => ENV["PROVISIONING_PROFILE_UUID"] }
+      method:               "app-store",
+      signingStyle:         "manual",
+      teamID:               ENV["DEVELOPMENT_TEAM"],
+      provisioningProfiles: { "com.daypage.app" => ENV["PROVISIONING_PROFILE_UUID"] }
     } : {
-      method:                 "app-store",
-      signingStyle:           "automatic",
-      teamID:                 ENV["DEVELOPMENT_TEAM"]
+      method:      "app-store",
+      signingStyle: "automatic",
+      teamID:      ENV["DEVELOPMENT_TEAM"]
     }
 
     build_app(
@@ -149,9 +167,7 @@ platform :ios do
       output_directory: "build",
       output_name:      "DayPage.ipa",
       export_options:   export_opts,
-      xcargs:           use_manual_signing \
-        ? "CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\" DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]=#{ENV['PROVISIONING_PROFILE_UUID']}" \
-        : "CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=#{ENV['DEVELOPMENT_TEAM']} -allowProvisioningUpdates"
+      xcargs:           use_manual_signing ? "" : "-allowProvisioningUpdates"
     )
 
     upload_to_app_store(
