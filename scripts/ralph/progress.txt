@@ -105,6 +105,18 @@ Started: Sun Apr 19 15:50:05 +07 2026
   - Must also add `daypage://auth/callback` in Supabase Dashboard → Authentication → URL Configuration (manual developer step)
 ---
 
+## 2026-04-19 - US-009
+- Added `@EnvironmentObject private var authService: AuthService` and `@State private var showAccountSheet` to `TodayView`
+- Added account avatar button (28pt circle, `#1E1E1E` background, `#2A2A2A` 1pt border, first letter of email in Inter Medium 13pt `#A0A0A0`) after Settings icon, visible only when `authService.session != nil`
+- Created `DayPage/Features/Auth/AccountSheet.swift`: bottom sheet with drag handle, email display 14pt `#6B6B6B`, Sign Out button `#E05A5A`, resets `authSkipped = false` on sign out
+- Registered `AccountSheet.swift` (A10000074/A20000074) in `project.pbxproj`
+- Build passes: `** BUILD SUCCEEDED **`
+- **Learnings for future iterations:**
+  - `Color(DSColor.outline)` fails on iOS 16 — use `DSColor.outline` directly as `ShapeStyle`
+  - `authService.session?.user.email` gives the user's email from Supabase session
+  - After sign out, set `authSkipped = false` so the auth gate re-presents automatically
+---
+
 ## 2026-04-19 - US-007
 - `EmailAuthView.swift` was already created as part of US-005 (required by AuthView's navigation)
 - All acceptance criteria verified: dark background, grain overlay, back chevron, heading, email TextField with validation regex, Send button with active/disabled states, success state, error display

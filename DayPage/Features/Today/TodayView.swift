@@ -3,10 +3,13 @@ import CoreLocation
 
 struct TodayView: View {
 
+    @EnvironmentObject private var authService: AuthService
     @StateObject private var viewModel = TodayViewModel()
     @StateObject private var passiveLocation = PassiveLocationService.shared
     @StateObject private var bannerCenter = BannerCenter.shared
     @StateObject private var voiceQueue = VoiceAttachmentQueue.shared
+
+    @State private var showAccountSheet: Bool = false
 
     /// Feature flag for the Fromm-style InputBarV2 (US-007). Default ON; users
     /// can fall back to the legacy InputBarView via Settings -> Appearance.
@@ -102,6 +105,15 @@ struct TodayView: View {
                                 .font(.system(size: 18, weight: .regular))
                                 .foregroundColor(DSColor.onSurface)
                                 .frame(width: 32, height: 32)
+                        }
+
+                        // Account avatar — shown when logged in
+                        if authService.session != nil {
+                            Button {
+                                showAccountSheet = true
+                            } label: {
+                                accountAvatar
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -432,6 +444,27 @@ struct TodayView: View {
                 DayDetailView(dateString: target.dateString)
             }
             .bannerOverlay()
+            .sheet(isPresented: $showAccountSheet) {
+                AccountSheet()
+            }
+        }
+    }
+
+    // MARK: - Account Avatar
+
+    private var accountAvatar: some View {
+        let email = authService.session?.user.email ?? ""
+        let initial = email.first.map { String($0).uppercased() } ?? "?"
+        return ZStack {
+            Circle()
+                .fill(Color(hex: "1E1E1E"))
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Circle().stroke(Color(hex: "2A2A2A"), lineWidth: 1)
+                )
+            Text(initial)
+                .font(.custom("Inter-Medium", size: 13))
+                .foregroundColor(Color(hex: "A0A0A0"))
         }
     }
 

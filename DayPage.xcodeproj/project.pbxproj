@@ -83,6 +83,7 @@
 		A10000070 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000070 /* AuthService.swift */; };
 		A10000072 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000072 /* AuthView.swift */; };
 		A10000073 /* EmailAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000073 /* EmailAuthView.swift */; };
+		A10000074 /* AccountSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000074 /* AccountSheet.swift */; };
 		T10000001 /* DayDetailViewStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T20000001 /* DayDetailViewStateTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -162,6 +163,7 @@
 		A20000070 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		A20000072 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		A20000073 /* EmailAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAuthView.swift; sourceTree = "<group>"; };
+		A20000074 /* AccountSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSheet.swift; sourceTree = "<group>"; };
 		A30000001 /* DayPage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF1000001 /* SpaceGrotesk-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Light.ttf"; sourceTree = "<group>"; };
 		AF1000002 /* SpaceGrotesk-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Regular.ttf"; sourceTree = "<group>"; };
@@ -261,6 +263,7 @@
 			children = (
 				A20000072 /* AuthView.swift */,
 				A20000073 /* EmailAuthView.swift */,
+				A20000074 /* AccountSheet.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -642,6 +645,7 @@
 				A10000070 /* AuthService.swift in Sources */,
 				A10000072 /* AuthView.swift in Sources */,
 				A10000073 /* EmailAuthView.swift in Sources */,
+				A10000074 /* AccountSheet.swift in Sources */,
 				F617270BFC704FF5BBB99FD3 /* AppSettings.swift in Sources */,
 				8C3DEB068D610AAB589EA680 /* TimeZonePickerView.swift in Sources */,
 			);
