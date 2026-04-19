@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		SPM00001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = SPM00002 /* Supabase */; };
 		8C3DEB068D610AAB589EA680 /* TimeZonePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FCD3E2EC4D7257BA7A22BD /* TimeZonePickerView.swift */; };
 		A10000001 /* DayPageApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000001 /* DayPageApp.swift */; };
 		A10000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000002 /* RootView.swift */; };
@@ -176,6 +177,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				SPM00001 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -448,6 +450,9 @@
 			dependencies = (
 			);
 			name = DayPage;
+			packageProductDependencies = (
+				SPM00002 /* Supabase */,
+			);
 			productName = DayPage;
 			productReference = A30000001 /* DayPage.app */;
 			productType = "com.apple.product-type.application";
@@ -497,6 +502,9 @@
 				Base,
 			);
 			mainGroup = A60000001;
+			packageReferences = (
+				SPM00003 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			productRefGroup = A50000009 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -634,6 +642,25 @@
 			targetProxy = T76000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		SPM00003 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		SPM00002 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = SPM00003 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AC0000001 /* Debug */ = {
