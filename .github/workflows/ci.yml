@@ -96,8 +96,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: deriveddata-ci-${{ hashFiles('DayPage.xcodeproj/project.pbxproj') }}
+          key: deriveddata-ci-${{ hashFiles('DayPage.xcodeproj/project.pbxproj') }}-${{ runner.os }}
           restore-keys: |
+            deriveddata-ci-${{ hashFiles('DayPage.xcodeproj/project.pbxproj') }}-
             deriveddata-ci-
 
       # GeneratedSecrets.swift 已提交到仓库（包含占位值）
@@ -128,6 +129,5 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_CONTENT_PROTECTION=NO \
-            build 2>&1 | tee build.log | grep -E 'BUILD SUCCEEDED|BUILD FAILED|error:' || true
-          # Fail the step if build failed
+            build 2>&1 | tee build.log
           grep 'BUILD SUCCEEDED' build.log
