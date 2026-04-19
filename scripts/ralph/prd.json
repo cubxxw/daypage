@@ -14,7 +14,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Manual prerequisite: Supabase project must already exist with SUPABASE_URL and SUPABASE_ANON_KEY available. Admin account admin@telepace.cc should be created in Supabase Dashboard manually."
     },
     {
