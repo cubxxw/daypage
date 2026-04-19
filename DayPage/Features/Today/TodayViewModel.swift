@@ -170,6 +170,60 @@ final class TodayViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Delete / Pin Memo
+
+    /// Removes a memo from today's file and refreshes the in-memory list.
+    func deleteMemo(_ memo: Memo) {
+        let remaining = memos.filter { $0.id != memo.id }
+        do {
+            try rewrite(memos: remaining)
+            // Optimistic UI update
+            withAnimation(.easeInOut(duration: 0.25)) {
+                memos = remaining
+            }
+        } catch {
+            submitError = "删除失败：\(error.localizedDescription)"
+        }
+    }
+
+    /// Moves a memo to the top of today's list (newest created-time wins display order).
+    /// Adjusts the memo's `created` timestamp to just before the current newest so it
+    /// appears first without changing the day boundary.
+    func pinMemo(_ memo: Memo) {
+        guard let idx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
+        var pinned = memos[idx]
+        // Set to one second after the current newest memo's time so it sorts first
+        let newestTime = memos.first?.created ?? Date()
+        pinned.created = max(newestTime, pinned.created) + 1
+        var updated = memos
+        updated.remove(at: idx)
+        updated.insert(pinned, at: 0)
+        do {
+            try rewrite(memos: updated)
+            withAnimation(.easeInOut(duration: 0.25)) {
+                memos = updated
+            }
+        } catch {
+            submitError = "置顶失败：\(error.localizedDescription)"
+        }
+    }
+
+    /// Overwrites today's raw storage file with the given ordered memo list.
+    private func rewrite(memos: [Memo]) throws {
+        let url = RawStorage.fileURL(for: date)
+        if memos.isEmpty {
+            // Remove the file entirely if no memos remain
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            return
+        }
+        // Write newest-last so the file is chronological (parser sorts later)
+        let ordered = memos.sorted { $0.created < $1.created }
+        let content = ordered.map { $0.toMarkdown() }.joined(separator: RawStorage.memoSeparator)
+        try RawStorage.atomicWrite(string: content, to: url)
+    }
+
     // MARK: - Load Memos
 
     /// Loads today's memos from the raw storage file and checks compiled status.
