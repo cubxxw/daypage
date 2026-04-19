@@ -210,7 +210,9 @@ struct TodayView: View {
                                     ForEach(Array(viewModel.memos.enumerated()), id: \.element.id) { idx, memo in
                                         TimelineRow(
                                             memo: memo,
-                                            isLast: idx == viewModel.memos.count - 1
+                                            isLast: idx == viewModel.memos.count - 1,
+                                            onDelete: { viewModel.deleteMemo(memo) },
+                                            onPin: { viewModel.pinMemo(memo) }
                                         )
                                         .padding(.leading, 20)
                                         .padding(.trailing, 20)
@@ -717,10 +719,12 @@ private struct LocationDraftRow: View {
 
 // MARK: - TimelineRow
 
-/// Wraps a MemoCardView with a left timeline column (time + connecting line).
+/// Wraps a SwipeableMemoCard with a left timeline column (time + connecting line).
 struct TimelineRow: View {
     let memo: Memo
     let isLast: Bool
+    var onDelete: (() -> Void)? = nil
+    var onPin: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -746,9 +750,9 @@ struct TimelineRow: View {
             }
             .frame(width: 40)
 
-            // Memo card
-            MemoCardView(memo: memo)
-                .frame(maxWidth: .infinity)
+            // Swipeable memo card (WeChat-style actions)
+            SwipeableMemoCard(memo: memo, onDelete: onDelete, onPin: onPin)
+                .frame(maxWidth: CGFloat.infinity)
         }
     }
 }

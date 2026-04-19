@@ -22,7 +22,7 @@ struct RootView: View {
                 .tabItem {
                     Label("Today", systemImage: "square.and.pencil")
                 }
-                .swipeTabGesture(selectedTab: $selectedTab, tabIndex: 0, tabCount: tabCount)
+                // No swipeTabGesture here — Today uses swipe gestures on memo cards
 
             ArchiveView()
                 .tag(1)
