@@ -3,10 +3,15 @@ import CoreLocation
 
 struct TodayView: View {
 
+    @EnvironmentObject private var authService: AuthService
     @StateObject private var viewModel = TodayViewModel()
     @StateObject private var passiveLocation = PassiveLocationService.shared
     @StateObject private var bannerCenter = BannerCenter.shared
     @StateObject private var voiceQueue = VoiceAttachmentQueue.shared
+
+    @State private var showAccountSheet: Bool = false
+    @State private var showSyncBanner: Bool = false
+    @State private var showAuthSheet: Bool = false
 
     /// Feature flag for the Fromm-style InputBarV2 (US-007). Default ON; users
     /// can fall back to the legacy InputBarView via Settings -> Appearance.
@@ -103,6 +108,15 @@ struct TodayView: View {
                                 .foregroundColor(DSColor.onSurface)
                                 .frame(width: 32, height: 32)
                         }
+
+                        // Account avatar — shown when logged in
+                        if authService.session != nil {
+                            Button {
+                                showAccountSheet = true
+                            } label: {
+                                accountAvatar
+                            }
+                        }
                     }
                     .padding(.horizontal, 20)
                     .frame(height: 56)
@@ -128,6 +142,11 @@ struct TodayView: View {
                         } onDismiss: {
                             viewModel.compilationFailedError = nil
                         }
+                    }
+
+                    // MARK: Sync Prompt Banner
+                    if showSyncBanner {
+                        syncBanner
                     }
 
                     // MARK: Location Draft Card
@@ -432,6 +451,66 @@ struct TodayView: View {
                 DayDetailView(dateString: target.dateString)
             }
             .bannerOverlay()
+            .sheet(isPresented: $showAccountSheet) {
+                AccountSheet()
+            }
+            .sheet(isPresented: $showAuthSheet) {
+                AuthView()
+            }
+            .onAppear {
+                evaluateSyncBanner()
+            }
+        }
+    }
+
+    // MARK: - Sync Banner Logic
+
+    private func evaluateSyncBanner() {
+        let saveCount = UserDefaults.standard.integer(forKey: "memoSaveCount")
+        let authSkipped = UserDefaults.standard.bool(forKey: "authSkipped")
+        guard saveCount >= 3, authService.session == nil, authSkipped else { return }
+        let lastShown = UserDefaults.standard.object(forKey: "lastSyncBannerDate") as? Date
+        let sevenDays: TimeInterval = 7 * 24 * 3600
+        if let last = lastShown, Date().timeIntervalSince(last) < sevenDays { return }
+        showSyncBanner = true
+    }
+
+    private var syncBanner: some View {
+        Text("Sync your journal across devices →")
+            .font(.custom("Inter-Regular", size: 13))
+            .foregroundColor(Color(hex: "A0A0A0"))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Color(hex: "1E1E1E"))
+            .gesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        if value.translation.height < -10 {
+                            withAnimation { showSyncBanner = false }
+                            UserDefaults.standard.set(Date(), forKey: "lastSyncBannerDate")
+                        }
+                    }
+            )
+            .onTapGesture {
+                showAuthSheet = true
+            }
+    }
+
+    // MARK: - Account Avatar
+
+    private var accountAvatar: some View {
+        let email = authService.session?.user.email ?? ""
+        let initial = email.first.map { String($0).uppercased() } ?? "?"
+        return ZStack {
+            Circle()
+                .fill(Color(hex: "1E1E1E"))
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Circle().stroke(Color(hex: "2A2A2A"), lineWidth: 1)
+                )
+            Text(initial)
+                .font(.custom("Inter-Medium", size: 13))
+                .foregroundColor(Color(hex: "A0A0A0"))
         }
     }
 

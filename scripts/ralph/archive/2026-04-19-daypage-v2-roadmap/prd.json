@@ -14,7 +14,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": "Manual prerequisite: Supabase project must already exist with SUPABASE_URL and SUPABASE_ANON_KEY available. Admin account admin@telepace.cc should be created in Supabase Dashboard manually."
     },
     {
@@ -28,7 +28,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": "Actual URL/key values must be filled in by the developer from Supabase Dashboard before runtime."
     },
     {
@@ -49,7 +49,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -63,7 +63,7 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": "The actual Apple Sign-In button and credential flow is wired in US-005. This story just ensures the entitlement and framework are in place."
     },
     {
@@ -89,7 +89,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": "noise.png asset: create a simple 200x200 grayscale noise PNG in Assets.xcassets. If unavailable, use a Canvas with random dots as fallback."
     },
     {
@@ -106,7 +106,7 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -126,7 +126,7 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -140,7 +140,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
+      "passes": false,
       "notes": "Supabase redirect URL `daypage://auth/callback` must also be added in Supabase Dashboard under Authentication > URL Configuration."
     },
     {
@@ -155,7 +155,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -171,7 +171,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]
