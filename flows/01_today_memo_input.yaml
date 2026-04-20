@@ -19,8 +19,8 @@ appId: com.daypage.app
     text: "写点什么"
     optional: true
 
-# 等待输入行展开动画完成
-- wait: 500
+# 等待展开动画完成
+- waitForAnimationToEnd
 
 # 点击 TextEditor（通过 accessibilityIdentifier）
 - tapOn:
