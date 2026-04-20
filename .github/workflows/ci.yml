@@ -122,30 +122,30 @@ jobs:
           }
           SWIFT
 
+      - name: Write simulator picker script
+        run: |
+          printf '%s\n' \
+            'import json,sys,re' \
+            'd=json.load(sys.stdin)' \
+            'iphones=[(dev["name"],dev["udid"]) for devs in d["devices"].values() for dev in devs if dev.get("name","").startswith("iPhone") and dev.get("isAvailable",False)]' \
+            'iphones.sort(key=lambda x:[int(c) if c.isdigit() else c for c in re.split(r"(\d+)",x[0])])' \
+            'print(iphones[-1][1] if iphones else "")' \
+            > /tmp/pick_sim.py
+
       - name: Build (simulator, CODE_SIGNING_ALLOWED=NO)
         run: |
           set -o pipefail
-          # Prefer iPhone 17+, fall back to newest available iPhone simulator
-          DEST=$(xcrun simctl list devices available 2>/dev/null \
-            | grep -E 'iPhone 1[7-9]|iPhone [2-9][0-9]' \
-            | grep -v 'unavailable' \
-            | head -1 \
-            | sed 's/^\s*//' \
-            | sed 's/ (.*//' || true)
-          if [ -z "$DEST" ]; then
-            DEST=$(xcrun simctl list devices available 2>/dev/null \
-              | grep -E '^\s+iPhone' \
-              | grep -v 'unavailable' \
-              | tail -1 \
-              | sed 's/^\s*//' \
-              | sed 's/ (.*//' || true)
+          SIM_UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 /tmp/pick_sim.py 2>/dev/null || true)
+          if [ -n "$SIM_UDID" ]; then
+            DEST="platform=iOS Simulator,id=$SIM_UDID"
+          else
+            DEST="platform=iOS Simulator,name=iPhone 16"
           fi
-          if [ -z "$DEST" ]; then DEST="iPhone 16"; fi
           echo "Using simulator: $DEST"
           xcodebuild \
             -scheme DayPage \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=$DEST" \
+            -destination "$DEST" \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_CONTENT_PROTECTION=NO \
             CONFIGURATION_BUILD_DIR=$PWD/build/Products \
@@ -201,31 +201,10 @@ jobs:
 
       - name: Boot iPhone Simulator
         run: |
-          # Prefer highest-numbered iPhone, prefer iPhone 17+
-          SIM_NAME=$(xcrun simctl list devices available 2>/dev/null \
-            | grep -E 'iPhone 1[7-9]|iPhone [2-9][0-9]' \
-            | grep -v 'unavailable' \
-            | head -1 \
-            | sed 's/^\s*//' \
-            | sed 's/ (.*//' || true)
-          if [ -z "$SIM_NAME" ]; then
-            SIM_NAME=$(xcrun simctl list devices available 2>/dev/null \
-              | grep -E '^\s+iPhone' \
-              | grep -v 'unavailable' \
-              | tail -1 \
-              | sed 's/^\s*//' \
-              | sed 's/ (.*//' || true)
-          fi
-          if [ -z "$SIM_NAME" ]; then SIM_NAME="iPhone 16"; fi
-          UDID=$(xcrun simctl list devices available 2>/dev/null \
-            | grep "$SIM_NAME" \
-            | grep -v 'unavailable' \
-            | head -1 \
-            | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
+          UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 /tmp/pick_sim.py 2>/dev/null || true)
           echo "Booting simulator UDID: $UDID"
           xcrun simctl boot "$UDID"
           echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
-          # 等待 Simulator 就绪
           xcrun simctl bootstatus "$UDID" -b
 
       - name: Install app on Simulator
