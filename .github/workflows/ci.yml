@@ -201,7 +201,7 @@ jobs:
 
       - name: Boot iPhone Simulator
         run: |
-          UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 /tmp/pick_sim.py 2>/dev/null || true)
+          UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 -c "import json,sys,re; d=json.load(sys.stdin); iphones=sorted([(dev['name'],dev['udid']) for devs in d['devices'].values() for dev in devs if dev.get('name','').startswith('iPhone') and dev.get('isAvailable',False)], key=lambda x:[int(c) if c.isdigit() else c for c in re.split(r'(\d+)',x[0])]); print(iphones[-1][1] if iphones else '')" 2>/dev/null || true)
           echo "Booting simulator UDID: $UDID"
           xcrun simctl boot "$UDID"
           echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
