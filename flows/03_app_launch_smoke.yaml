@@ -1,12 +1,15 @@
 appId: com.daypage.app
 ---
 # Flow 03: Smoke Test — App 启动不崩溃，基本 UI 可见
-- launchApp
+- launchApp:
+    arguments:
+      hasOnboarded: "true"
+      authSkipped: "true"
 - takeScreenshot: launch
 
-# 等待 App 稳定（Maestro 自动轮询，这里加一个基础断言）
+# 等待 Today Tab 加载（Tab bar 的 Today 标签可见）
 - assertVisible:
-    text: "今天"
+    text: "Today"
     optional: false
 
 - takeScreenshot: stable
