@@ -152,8 +152,17 @@ jobs:
             printf '%s' "$COMMIT_MSG" > "$CHANGELOG_FILE"
           fi
 
-          # 清理 Windows 行尾，去掉末尾空行
+          # 清理 Windows 行尾
           sed -i '' -e 's/\r$//' "$CHANGELOG_FILE" || true
+          # 替换 Markdown checkbox 符号为 ASCII（App Store Connect 不接受 Unicode）
+          sed -i '' \
+            -e 's/\[✓\]/[x]/g' \
+            -e 's/\[✗\]/[ ]/g' \
+            -e 's/✓/[x]/g'    \
+            -e 's/✗/[ ]/g'    \
+            -e 's/✅/[x]/g'   \
+            -e 's/❌/[ ]/g'   \
+            "$CHANGELOG_FILE" || true
           # 限长：TestFlight "What to Test" 上限 4000 字符
           head -c 3800 "$CHANGELOG_FILE" > "$CHANGELOG_FILE.trimmed"
           mv "$CHANGELOG_FILE.trimmed" "$CHANGELOG_FILE"
