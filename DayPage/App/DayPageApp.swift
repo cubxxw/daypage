@@ -63,13 +63,10 @@ struct DayPageApp: App {
             RootView()
                 .environmentObject(authService)
                 .onOpenURL { url in
+                    // Handle both Magic Link callbacks (daypage://...) and OTP deep links.
+                    // Session update is handled by authStateChanges listener — no manual assignment needed.
                     Task {
-                        do {
-                            try await authService.supabase.auth.session(from: url)
-                            authService.session = try? await authService.supabase.auth.session
-                        } catch {
-                            // URL may not be an auth callback — ignore silently
-                        }
+                        try? await authService.supabase.auth.session(from: url)
                     }
                 }
                 .onAppear {
