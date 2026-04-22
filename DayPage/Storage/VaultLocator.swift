@@ -21,3 +21,22 @@ struct LocalVaultLocator: VaultLocator {
 
     var isUsingiCloud: Bool { false }
 }
+
+// MARK: - iCloudVaultLocator
+
+/// iCloud Drive implementation: stores vault under the app's ubiquity container.
+/// Falls back gracefully when iCloud is unavailable (e.g., Simulator without account).
+struct iCloudVaultLocator: VaultLocator {
+    let containerID = "iCloud.com.daypage.app"
+
+    var vaultURL: URL {
+        FileManager.default
+            .url(forUbiquityContainerIdentifier: containerID)?
+            .appendingPathComponent("Documents/vault", isDirectory: true)
+            ?? LocalVaultLocator().vaultURL
+    }
+
+    var isUsingiCloud: Bool {
+        FileManager.default.url(forUbiquityContainerIdentifier: containerID) != nil
+    }
+}

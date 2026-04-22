@@ -6,9 +6,13 @@ enum VaultInitializer {
 
     // MARK: - Vault root
 
-    /// Swappable storage backend. Defaults to LocalVaultLocator; set to
-    /// iCloudVaultLocator at runtime when iCloud is available.
-    static var shared: VaultLocator = LocalVaultLocator()
+    /// Swappable storage backend. Lazily resolved: uses iCloudVaultLocator when
+    /// the ubiquity container is available; falls back to LocalVaultLocator otherwise.
+    /// Can be overridden at runtime (e.g., after the user enables iCloud in Settings).
+    static var shared: VaultLocator = {
+        let icloud = iCloudVaultLocator()
+        return icloud.isUsingiCloud ? icloud : LocalVaultLocator()
+    }()
 
     /// Test-only override. When non-nil, `vaultURL` returns this instead of the
     /// locator-derived URL. Keep `internal` so `@testable import DayPage` tests

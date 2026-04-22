@@ -75,8 +75,9 @@ enum RawStorage {
 
     // MARK: - Atomic write
 
-    /// Writes `string` to `url` atomically by writing to a temp file first,
-    /// then using FileManager.replaceItem to rename, avoiding mid-write corruption.
+    /// Writes `string` to `url` atomically, coordinated via NSFileCoordinator so
+    /// iCloud Drive sees the write as a single coherent operation.
+    /// The temp-file + replaceItemAt pattern runs inside the coordinator block.
     static func atomicWrite(string: String, to url: URL) throws {
         let data = Data(string.utf8)
         let fm = FileManager.default
@@ -87,18 +88,29 @@ enum RawStorage {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
-        // Write to a temp file in the same directory (required for atomic rename)
-        let tempURL = dir.appendingPathComponent(
-            ".\(url.lastPathComponent).tmp.\(UUID().uuidString)"
-        )
-        try data.write(to: tempURL, options: .atomic)
+        var coordinatorError: NSError?
+        var writeError: Error?
 
-        // Move temp → destination
-        if fm.fileExists(atPath: url.path) {
-            _ = try fm.replaceItemAt(url, withItemAt: tempURL)
-        } else {
-            try fm.moveItem(at: tempURL, to: url)
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinatorError) { coordinatedURL in
+            do {
+                let tempURL = dir.appendingPathComponent(
+                    ".\(coordinatedURL.lastPathComponent).tmp.\(UUID().uuidString)"
+                )
+                try data.write(to: tempURL, options: .atomic)
+
+                if fm.fileExists(atPath: coordinatedURL.path) {
+                    _ = try fm.replaceItemAt(coordinatedURL, withItemAt: tempURL)
+                } else {
+                    try fm.moveItem(at: tempURL, to: coordinatedURL)
+                }
+            } catch {
+                writeError = error
+            }
         }
+
+        if let error = coordinatorError { throw error }
+        if let error = writeError { throw error }
     }
 
     // MARK: - Date formatter
