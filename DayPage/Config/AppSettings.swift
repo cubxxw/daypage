@@ -124,7 +124,7 @@ final class AppSettings: ObservableObject {
     /// Reads the attachment policy directly from UserDefaults without requiring
     /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
     nonisolated static func currentAttachmentPolicy() -> AttachmentPolicy {
-        guard let raw = UserDefaults.standard.string(forKey: attachmentPolicyKey),
+        guard let raw = UserDefaults.standard.string(forKey: "attachmentPolicy"),
               let policy = AttachmentPolicy(rawValue: raw) else {
             return .onDemand
         }
@@ -134,7 +134,7 @@ final class AppSettings: ObservableObject {
     /// Reads the vault location directly from UserDefaults without requiring
     /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
     nonisolated static func currentVaultLocation() -> VaultLocation {
-        guard let raw = UserDefaults.standard.string(forKey: vaultLocationKey),
+        guard let raw = UserDefaults.standard.string(forKey: "vaultLocation"),
               let loc = VaultLocation(rawValue: raw) else {
             return .local
         }
