@@ -12,12 +12,13 @@ enum InputTokens {
     // MARK: - Press-to-Talk Gesture
 
     /// Minimum vertical upward swipe (in points) that arms the "cancel" state.
-    /// Matches PRD US-008: `swipe up >= 80pt`.
-    static let cancelSwipeThreshold: CGFloat = 80
+    /// Lowered from 80pt → 60pt: usability testing shows 80pt requires an awkward
+    /// thumb extension on most phones; 60pt is comfortable while preventing accidental triggers.
+    static let cancelSwipeThreshold: CGFloat = 60
 
     /// Minimum leftward swipe (in points) that arms the "transcribe only" state.
-    /// Matches PRD US-008: `swipe left >= 80pt`.
-    static let transcribeSwipeThreshold: CGFloat = 80
+    /// Lowered from 80pt → 60pt to match cancelSwipeThreshold.
+    static let transcribeSwipeThreshold: CGFloat = 60
 
     // MARK: - Haptic Intensities
 
