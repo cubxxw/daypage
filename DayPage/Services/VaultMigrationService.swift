@@ -75,8 +75,14 @@ final class VaultMigrationService: ObservableObject {
         var logEntries: [String] = ["migration started: \(Date().iso8601String)", "total files: \(total)"]
         var copyErrors: [String] = []
 
+        let localVaultPathPrefix = localVault.path.hasSuffix("/") ? localVault.path : localVault.path + "/"
+
         for (index, sourceURL) in filesToCopy.enumerated() {
-            let relativePath = sourceURL.path.replacingOccurrences(of: localVault.path, with: "")
+            // Use prefix-drop instead of replacingOccurrences to prevent path traversal
+            // when localVault.path appears more than once in sourceURL.path.
+            guard sourceURL.path.hasPrefix(localVaultPathPrefix) else { continue }
+            let relativePath = String(sourceURL.path.dropFirst(localVaultPathPrefix.count))
+            guard !relativePath.contains("..") else { continue }
             let destURL = iCloudVault.appendingPathComponent(relativePath)
 
             let destDir = destURL.deletingLastPathComponent()
@@ -177,12 +183,12 @@ final class VaultMigrationService: ObservableObject {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
+        let prefix = directory.path.hasSuffix("/") ? directory.path : directory.path + "/"
         var files: [String] = []
         for case let url as URL in enumerator {
             let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            if !isDir {
-                let relative = url.path.replacingOccurrences(of: directory.path, with: "")
-                // Exclude migration.log from comparison
+            if !isDir, url.path.hasPrefix(prefix) {
+                let relative = String(url.path.dropFirst(prefix.count))
                 if !relative.hasSuffix("migration.log") {
                     files.append(relative)
                 }
@@ -191,10 +197,19 @@ final class VaultMigrationService: ObservableObject {
         return files
     }
 
+    // Stream the file in 256 KB chunks to avoid loading large media files into memory.
     private func sha256(of url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let hash = SHA256.hash(data: data)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        let chunkSize = 256 * 1024
+        while true {
+            let chunk = (try? handle.read(upToCount: chunkSize)) ?? Data()
+            if chunk.isEmpty { break }
+            hasher.update(data: chunk)
+        }
+        let digest = hasher.finalize()
+        return digest.compactMap { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Auto-migration trigger

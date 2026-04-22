@@ -16,14 +16,14 @@ final class VaultMigrationServiceTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
         // Clear previous migration state
-        UserDefaults.standard.removeObject(forKey: "migrationCompletedAt")
-        UserDefaults.standard.removeObject(forKey: "vaultLocation")
+        UserDefaults.standard.removeObject(forKey: AppSettings.migrationCompletedAtKey)
+        UserDefaults.standard.removeObject(forKey: AppSettings.vaultLocationKey)
     }
 
     override func tearDown() {
         try? fm.removeItem(at: tempDir)
-        UserDefaults.standard.removeObject(forKey: "migrationCompletedAt")
-        UserDefaults.standard.removeObject(forKey: "vaultLocation")
+        UserDefaults.standard.removeObject(forKey: AppSettings.migrationCompletedAtKey)
+        UserDefaults.standard.removeObject(forKey: AppSettings.vaultLocationKey)
         super.tearDown()
     }
 

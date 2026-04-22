@@ -53,12 +53,12 @@ final class AppSettings: ObservableObject {
 
     // MARK: - Vault Location
 
-    private let vaultLocationKey = "vaultLocation"
+    static let vaultLocationKey = "vaultLocation"
 
     /// Where the vault is stored. Defaults to .local.
     var vaultLocation: VaultLocation {
         get {
-            guard let raw = UserDefaults.standard.string(forKey: vaultLocationKey),
+            guard let raw = UserDefaults.standard.string(forKey: Self.vaultLocationKey),
                   let loc = VaultLocation(rawValue: raw) else {
                 return .local
             }
@@ -66,18 +66,18 @@ final class AppSettings: ObservableObject {
         }
         set {
             objectWillChange.send()
-            UserDefaults.standard.set(newValue.rawValue, forKey: vaultLocationKey)
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.vaultLocationKey)
         }
     }
 
     // MARK: - Attachment Policy
 
-    private let attachmentPolicyKey = "attachmentPolicy"
+    static let attachmentPolicyKey = "attachmentPolicy"
 
     /// How iCloud attachments are downloaded. Defaults to .onDemand.
     var attachmentPolicy: AttachmentPolicy {
         get {
-            guard let raw = UserDefaults.standard.string(forKey: attachmentPolicyKey),
+            guard let raw = UserDefaults.standard.string(forKey: Self.attachmentPolicyKey),
                   let policy = AttachmentPolicy(rawValue: raw) else {
                 return .onDemand
             }
@@ -85,25 +85,25 @@ final class AppSettings: ObservableObject {
         }
         set {
             objectWillChange.send()
-            UserDefaults.standard.set(newValue.rawValue, forKey: attachmentPolicyKey)
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.attachmentPolicyKey)
         }
     }
 
     // MARK: - Migration Completed At
 
-    private let migrationCompletedAtKey = "migrationCompletedAt"
+    static let migrationCompletedAtKey = "migrationCompletedAt"
 
     /// The date when migration to iCloud completed. Nil if not migrated.
     var migrationCompletedAt: Date? {
         get {
-            UserDefaults.standard.object(forKey: migrationCompletedAtKey) as? Date
+            UserDefaults.standard.object(forKey: Self.migrationCompletedAtKey) as? Date
         }
         set {
             objectWillChange.send()
             if let date = newValue {
-                UserDefaults.standard.set(date, forKey: migrationCompletedAtKey)
+                UserDefaults.standard.set(date, forKey: Self.migrationCompletedAtKey)
             } else {
-                UserDefaults.standard.removeObject(forKey: migrationCompletedAtKey)
+                UserDefaults.standard.removeObject(forKey: Self.migrationCompletedAtKey)
             }
         }
     }
@@ -124,7 +124,7 @@ final class AppSettings: ObservableObject {
     /// Reads the attachment policy directly from UserDefaults without requiring
     /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
     nonisolated static func currentAttachmentPolicy() -> AttachmentPolicy {
-        guard let raw = UserDefaults.standard.string(forKey: "attachmentPolicy"),
+        guard let raw = UserDefaults.standard.string(forKey: attachmentPolicyKey),
               let policy = AttachmentPolicy(rawValue: raw) else {
             return .onDemand
         }
@@ -134,7 +134,7 @@ final class AppSettings: ObservableObject {
     /// Reads the vault location directly from UserDefaults without requiring
     /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
     nonisolated static func currentVaultLocation() -> VaultLocation {
-        guard let raw = UserDefaults.standard.string(forKey: "vaultLocation"),
+        guard let raw = UserDefaults.standard.string(forKey: vaultLocationKey),
               let loc = VaultLocation(rawValue: raw) else {
             return .local
         }
