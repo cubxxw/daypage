@@ -67,6 +67,7 @@
 		A10000061 /* PosterRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000061 /* PosterRenderer.swift */; };
 		A10000062 /* InputBarV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000062 /* InputBarV3.swift */; };
 		A10000063 /* SwipeableMemoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000063 /* SwipeableMemoCard.swift */; };
+		A10000064 /* AttachmentMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000064 /* AttachmentMenuSheet.swift */; };
 		AF0000001 /* SpaceGrotesk-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000001 /* SpaceGrotesk-Light.ttf */; };
 		AF0000002 /* SpaceGrotesk-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000002 /* SpaceGrotesk-Regular.ttf */; };
 		AF0000003 /* SpaceGrotesk-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AF1000003 /* SpaceGrotesk-Medium.ttf */; };
@@ -162,6 +163,7 @@
 		A20000061 /* PosterRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterRenderer.swift; sourceTree = "<group>"; };
 		A20000062 /* InputBarV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarV3.swift; sourceTree = "<group>"; };
 		A20000063 /* SwipeableMemoCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableMemoCard.swift; sourceTree = "<group>"; };
+		A20000064 /* AttachmentMenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentMenuSheet.swift; sourceTree = "<group>"; };
 		A20000070 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		A20000072 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		A20000073 /* EmailAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAuthView.swift; sourceTree = "<group>"; };
@@ -348,6 +350,7 @@
 				A20000051 /* InputBarV2.swift */,
 				A20000062 /* InputBarV3.swift */,
 				A20000052 /* AttachmentMenuPopover.swift */,
+				A20000064 /* AttachmentMenuSheet.swift */,
 				A20000054 /* RecordingOverlayView.swift */,
 				A20000055 /* PressToTalkButton.swift */,
 				A20000063 /* SwipeableMemoCard.swift */,
@@ -643,6 +646,7 @@
 				A10000051 /* InputBarV2.swift in Sources */,
 				A10000062 /* InputBarV3.swift in Sources */,
 				A10000052 /* AttachmentMenuPopover.swift in Sources */,
+				A10000064 /* AttachmentMenuSheet.swift in Sources */,
 				A10000053 /* InputTokens.swift in Sources */,
 				A10000054 /* RecordingOverlayView.swift in Sources */,
 				A10000055 /* PressToTalkButton.swift in Sources */,

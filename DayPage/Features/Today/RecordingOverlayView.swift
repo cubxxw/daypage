@@ -33,6 +33,9 @@ struct RecordingOverlayView: View {
             statusLine
             waveformBar
             timerLine
+            if mode == .recording {
+                gestureHintRow
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
@@ -152,6 +155,39 @@ struct RecordingOverlayView: View {
         case .transcribeArmed: return Color(red: 0.20, green: 0.45, blue: 0.85)
         case .transcribing: return DSColor.onSurfaceVariant
         }
+    }
+
+    // MARK: - Gesture Hint Row
+    //
+    // Shown only in .recording state so users discover the swipe affordances
+    // the first time they hold the button. Two small pills indicating the
+    // cancel (↑) and transcribe (←) zones help users understand what to do
+    // before they commit to a direction.
+
+    @ViewBuilder
+    private var gestureHintRow: some View {
+        HStack(spacing: 12) {
+            Spacer()
+            gestureHintPill(icon: "arrow.up", label: "上滑取消", color: DSColor.error.opacity(0.75))
+            gestureHintPill(icon: "arrow.left", label: "左滑转文字", color: Color(red: 0.20, green: 0.45, blue: 0.85).opacity(0.75))
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func gestureHintPill(icon: String, label: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(color)
+            Text(label)
+                .font(.custom("Inter-Regular", size: 11))
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.10))
+        .clipShape(Capsule())
     }
 
     // MARK: - Helpers

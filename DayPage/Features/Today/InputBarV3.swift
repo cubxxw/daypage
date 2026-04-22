@@ -50,6 +50,7 @@ struct InputBarV3: View {
     @State private var showPhotosPicker: Bool = false
     @State private var pressToTalkPhase: PressToTalkPhase = .idle
     @State private var showHoldToast: Bool = false
+    @State private var showTranscribeFailed: Bool = false
     @State private var userExpandedText: Bool = false
 
     @StateObject private var voiceService = VoiceService.shared
@@ -107,50 +108,10 @@ struct InputBarV3: View {
                 collapsedRow
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: isComposing)
-        .overlay(alignment: .bottomLeading) {
-            if showAttachmentMenu {
-                AttachmentMenuPopover(
-                    onCapturePhoto: {
-                        showAttachmentMenu = false
-                        onCapturePhoto()
-                    },
-                    onPickPhoto: {
-                        showAttachmentMenu = false
-                        showPhotosPicker = true
-                    },
-                    onAddFile: {
-                        showAttachmentMenu = false
-                        onAddFile()
-                    },
-                    onAddLocation: {
-                        showAttachmentMenu = false
-                        guard !isLocating else { return }
-                        onFetchLocation()
-                    },
-                    isLocating: isLocating,
-                    hasPendingLocation: pendingLocation != nil
-                )
-                .padding(.leading, 12)
-                .padding(.bottom, 56)
-                .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
-                .zIndex(1)
-            }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isComposing)
+        .sheet(isPresented: $showAttachmentMenu) {
+            attachmentSheet
         }
-        .background(
-            Group {
-                if showAttachmentMenu {
-                    Color.black.opacity(0.001)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                                showAttachmentMenu = false
-                            }
-                        }
-                }
-            }
-        )
-        .animation(.spring(response: 0.28, dampingFraction: 0.85), value: showAttachmentMenu)
         .onChange(of: photosPickerItem) { newItem in
             guard let item = newItem else { return }
             onAddPhoto(item)
@@ -173,34 +134,114 @@ struct InputBarV3: View {
                     .clipShape(Capsule())
                     .padding(.bottom, 140)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else if showTranscribeFailed {
+                HStack(spacing: 6) {
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("转写失败，请重试")
+                        .font(.custom("Inter-Regular", size: 11))
+                }
+                .foregroundColor(DSColor.onError)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(DSColor.error)
+                .clipShape(Capsule())
+                .padding(.bottom, 140)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showHoldToast)
+        .animation(.easeInOut(duration: 0.2), value: showTranscribeFailed)
         .onChange(of: isFocused) { focused in
+            // Collapse only when the user actively dismisses (taps outside) with
+            // nothing staged. Do NOT collapse after submit — continuous logging
+            // requires the bar to stay open between entries.
             if !focused && text.isEmpty && pendingAttachments.isEmpty && pendingLocation == nil {
-                userExpandedText = false
+                // Delay the collapse check slightly so a submit-then-refocus sequence
+                // (where isFocused momentarily drops to false) doesn't snap shut.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if !isFocused && text.isEmpty && pendingAttachments.isEmpty && pendingLocation == nil {
+                        userExpandedText = false
+                    }
+                }
             }
         }
     }
 
-    // MARK: - Collapsed Row (voice-first default)
+    // MARK: - Attachment Sheet
+
+    @ViewBuilder
+    private var attachmentSheet: some View {
+        let content = AttachmentMenuSheet(
+            onCapturePhoto: {
+                showAttachmentMenu = false
+                onCapturePhoto()
+            },
+            onPickPhoto: {
+                showAttachmentMenu = false
+                showPhotosPicker = true
+            },
+            onAddFile: {
+                showAttachmentMenu = false
+                onAddFile()
+            },
+            onAddLocation: {
+                showAttachmentMenu = false
+                guard !isLocating else { return }
+                onFetchLocation()
+            },
+            isLocating: isLocating,
+            hasPendingLocation: pendingLocation != nil
+        )
+        if #available(iOS 16.4, *) {
+            content
+                .presentationDetents([PresentationDetent.height(260)])
+                .presentationDragIndicator(Visibility.visible)
+                .presentationCornerRadius(20)
+        } else {
+            content
+                .presentationDetents([PresentationDetent.height(260)])
+                .presentationDragIndicator(Visibility.visible)
+        }
+    }
+
+    // MARK: - Collapsed Row (text + voice side-by-side)
+    //
+    // Previously a 80pt centered mic button with a tiny "写点什么" affordance that
+    // failed WCAG AA contrast (2.4:1). Redesigned to a horizontal bar where text
+    // and voice have equal visual weight — new users can find either entry instantly.
+    //
+    // Layout: [mic 44pt] [tappable text pill — fills remaining width]
+    // The text pill is visually identical to the composingRow capsule so the
+    // transition reads as "the same field expanded" rather than a mode swap.
 
     @ViewBuilder
     private var collapsedRow: some View {
-        VStack(spacing: 10) {
-            PressToTalkButton(
-                onPressStart: { handlePressToTalkStart() },
-                onReleaseSend: { handlePressToTalkReleaseSend() },
-                onReleaseCancel: { handlePressToTalkReleaseCancel() },
-                onReleaseTranscribe: { handlePressToTalkReleaseTranscribe() },
-                onPhaseChange: { phase in
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                        pressToTalkPhase = phase
-                    }
-                },
-                size: 80
-            )
+        HStack(alignment: .center, spacing: 10) {
+            // Voice button — 44pt so it satisfies HIG minimum hit target.
+            // Hint labels above the button tell new users the gesture affordances.
+            VStack(spacing: 4) {
+                PressToTalkButton(
+                    onPressStart: { handlePressToTalkStart() },
+                    onReleaseSend: { handlePressToTalkReleaseSend() },
+                    onReleaseCancel: { handlePressToTalkReleaseCancel() },
+                    onReleaseTranscribe: { handlePressToTalkReleaseTranscribe() },
+                    onPhaseChange: { phase in
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                            pressToTalkPhase = phase
+                        }
+                    },
+                    size: 44
+                )
+                Text("按住说话")
+                    .font(.custom("Inter-Regular", size: 10))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
 
+            // Text entry pill — always visible, tapping focuses the real TextEditor
+            // in composingRow. Using a Button with a ZStack so the entire area is
+            // tappable and the placeholder reads at full onSurfaceVariant opacity
+            // (contrast ≥ 4.5:1 against surface #f9f9f9).
             Button {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 userExpandedText = true
@@ -208,20 +249,42 @@ struct InputBarV3: View {
                     isFocused = true
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "character.cursor.ibeam")
-                        .font(.system(size: 11, weight: .regular))
-                    Text("写点什么")
-                        .font(.custom("Inter-Regular", size: 12))
+                ZStack(alignment: .leading) {
+                    Text("记点什么…")
+                        .font(.custom("Inter-Regular", size: 15))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .padding(.horizontal, 14)
                 }
-                .foregroundColor(DSColor.onSurfaceVariant)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(DSColor.surfaceContainerLow)
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("打开文字输入")
+            .accessibilityLabel("打开文字输入，记点什么")
+
+            // Camera shortcut — 1-tap access to capture a photo without needing
+            // to enter composing mode first. Nomads' highest-frequency attachment action.
+            VStack(spacing: 4) {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onCapturePhoto()
+                } label: {
+                    Image(systemName: "camera")
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                        .frame(width: 44, height: 44)
+                        .background(DSColor.surfaceContainerLow)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("拍照")
+                Text("拍照")
+                    .font(.custom("Inter-Regular", size: 10))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 16)
-        .padding(.bottom, 20)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(DSColor.surface)
     }
 
@@ -275,7 +338,7 @@ struct InputBarV3: View {
             if text.isEmpty {
                 Text("写点什么…")
                     .font(.custom("Inter-Regular", size: 15))
-                    .foregroundColor(DSColor.onSurfaceVariant.opacity(0.55))
+                    .foregroundColor(DSColor.onSurfaceVariant)
                     .padding(.horizontal, 14)
                     .allowsHitTesting(false)
             }
@@ -285,14 +348,14 @@ struct InputBarV3: View {
                 .focused($isFocused)
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
-                .frame(minHeight: 22, maxHeight: 80)
+                .frame(minHeight: 22, maxHeight: 96)
                 .padding(.horizontal, 10)
                 .padding(.vertical, -7)
                 .accessibilityIdentifier("memo-input")
         }
         .frame(minHeight: 36)
         .background(DSColor.surfaceContainerLow)
-        .clipShape(Capsule())
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     /// Right-side action button. A single button that morphs between mic
@@ -308,6 +371,12 @@ struct InputBarV3: View {
                 Button {
                     guard !isSubmitting else { return }
                     onSubmit()
+                    // Keep the bar open for continuous logging — refocus after
+                    // the parent clears the text binding (next run loop tick).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        userExpandedText = true
+                        isFocused = true
+                    }
                 } label: {
                     ZStack {
                         if isSubmitting {
@@ -367,6 +436,9 @@ struct InputBarV3: View {
         Task { @MainActor in
             guard let result = await voiceService.stopAndTranscribe() else {
                 pressToTalkPhase = .idle
+                // Surface a recoverable error so the user knows transcription
+                // failed and their audio was NOT silently discarded.
+                flashTranscribeFailedToast()
                 return
             }
             onPressToTalkSend(result)
@@ -383,6 +455,9 @@ struct InputBarV3: View {
         Task { @MainActor in
             guard let result = await voiceService.stopAndTranscribe() else {
                 pressToTalkPhase = .idle
+                // Keep the audio file — it will be surfaced via the failed-toast
+                // so the user can retry rather than losing their content.
+                flashTranscribeFailedToast()
                 return
             }
             if let transcript = result.transcript, !transcript.isEmpty {
@@ -402,6 +477,13 @@ struct InputBarV3: View {
         showHoldToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
             showHoldToast = false
+        }
+    }
+
+    private func flashTranscribeFailedToast() {
+        showTranscribeFailed = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            showTranscribeFailed = false
         }
     }
 
