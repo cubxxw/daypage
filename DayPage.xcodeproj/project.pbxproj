@@ -90,6 +90,8 @@
 		A10000076 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000076 /* KeychainHelper.swift */; };
 		A10000074 /* AccountSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000074 /* AccountSheet.swift */; };
 		T10000001 /* DayDetailViewStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T20000001 /* DayDetailViewStateTests.swift */; };
+		T10000002 /* ConflictMergerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T20000002 /* ConflictMergerTests.swift */; };
+		A10000075 /* ConflictMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000075 /* ConflictMerger.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -188,7 +190,9 @@
 		AF1000011 /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Regular.ttf"; sourceTree = "<group>"; };
 		AF1000012 /* JetBrainsMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Medium.ttf"; sourceTree = "<group>"; };
 		T20000001 /* DayDetailViewStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDetailViewStateTests.swift; sourceTree = "<group>"; };
+		T20000002 /* ConflictMergerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictMergerTests.swift; sourceTree = "<group>"; };
 		T30000001 /* DayPageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DayPageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000075 /* ConflictMerger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConflictMerger.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -306,6 +310,7 @@
 				A20000047 /* OnThisDayScheduler.swift */,
 				A20000049 /* SampleDataSeeder.swift */,
 				A20000064 /* iCloudSyncMonitor.swift */,
+				A20000075 /* ConflictMerger.swift */,
 				A20000070 /* AuthService.swift */,
 				A20000076 /* KeychainHelper.swift */,
 			);
@@ -466,6 +471,7 @@
 			isa = PBXGroup;
 			children = (
 				T20000001 /* DayDetailViewStateTests.swift */,
+				T20000002 /* ConflictMergerTests.swift */,
 			);
 			path = DayPageTests;
 			sourceTree = "<group>";
@@ -660,6 +666,7 @@
 				A10000063 /* SwipeableMemoCard.swift in Sources */,
 				A10000042 /* RelativeTimeFormatter.swift in Sources */,
 				A10000064 /* iCloudSyncMonitor.swift in Sources */,
+				A10000075 /* ConflictMerger.swift in Sources */,
 				A10000070 /* AuthService.swift in Sources */,
 				A10000072 /* AuthView.swift in Sources */,
 				A10000073 /* EmailAuthView.swift in Sources */,
@@ -676,6 +683,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				T10000001 /* DayDetailViewStateTests.swift in Sources */,
+				T10000002 /* ConflictMergerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
