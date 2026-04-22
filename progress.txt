@@ -103,3 +103,21 @@ Previous run (V3 Wave 2) archived at: archive/2026-04-22-daypage-v3-wave2-experi
   - q.disableUpdates() / q.enableUpdates() must bracket result reading to prevent mutations during iteration
   - Last pbxproj ID used: A10000064/A20000064 (next available: A10000065/A20000065)
 ---
+
+## 2026-04-22 - US-006
+- Added iCloudSyncSection to SettingsView in the Data area (inserted before dataSection)
+- Wired @StateObject private var syncMonitor = iCloudSyncMonitor.shared
+- .notConfigured: shows iCloudNotConfiguredCard with ☁️ icon + "开启多设备同步" title + openSettings button
+- .connected(lastSync:): green dot + "已连接" + "iCloud Drive" label + formatted last sync time (今天 HH:mm or M月d日 HH:mm)
+- .syncing(pendingFiles:): ProgressView spinner + "同步中" + "\(n) 个文件待传"
+- .error(message:): red exclamation + "同步错误" + message text
+- attachmentPolicyPicker: Picker between .onDemand and .alwaysLocal; hidden when .notConfigured
+- rollbackButton: destructive button shown when migrationCompletedAt is set and within 30-day window; calls VaultInitializer.shared = LocalVaultLocator() + appSettings.vaultLocation = .local
+- Files changed: DayPage/Features/Settings/SettingsView.swift
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - @StateObject with a singleton class (iCloudSyncMonitor.shared): use @StateObject private var x = MySingleton.shared — SwiftUI will observe @Published changes correctly
+  - switch on an enum with associated values in @ViewBuilder: use case .notConfigured / case .connected(let x) / case .syncing(let n) / case .error(let msg) — compiler handles exhaustiveness
+  - AttachmentPolicy picker binding: use explicit Binding(get:set:) pointing to appSettings.attachmentPolicy so the Picker writes back to UserDefaults via AppSettings setter
+  - Rollback side-effects: set VaultInitializer.shared = LocalVaultLocator() to swap the runtime locator; no need to re-initialize vault directories (they already exist locally)
+---

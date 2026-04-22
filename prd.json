@@ -115,8 +115,8 @@
         "Verify in Simulator using verify-daypage skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added iCloudSyncSection to SettingsView: .notConfigured shows onboarding card with openSettings button; .connected shows green dot + last sync time; .syncing shows spinner + pending count; .error shows red exclamation + message. AttachmentPolicy picker hidden when notConfigured. Rollback button shown within 30-day migration window. Build passed."
     },
     {
       "id": "US-007",
