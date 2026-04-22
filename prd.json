@@ -95,8 +95,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created ConflictMerger.swift with mergeRawMemos (UUID dedup + sort by created), mergeLogLines (timestamp prefix dedup), mergeJSONEntries (idKey dedup). Added iCloud conflict detection via NSFileVersion + NSFileCoordinator write-back + .vaultConflictResolved notification. ConflictMergerTests.swift: 9 XCTest cases all pass. Build and tests succeeded."
     },
     {
       "id": "US-006",

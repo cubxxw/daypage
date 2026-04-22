@@ -9,6 +9,10 @@ Previous run (V3 Wave 2) archived at: archive/2026-04-22-daypage-v3-wave2-experi
 ---
 
 ## Codebase Patterns (carried over from Wave 2)
+- ConflictMerger uses NSFileVersion.unresolvedConflictVersionsOfItem (not NSMetadataQuery) for conflict detection — simpler and works without a running query
+- NSFileVersion conflict resolution: set version.isResolved = true, then call NSFileVersion.removeOtherVersionsOfItem — both steps required
+- ConflictMerger.resolveConflictsIfNeeded(in:) can be called from VaultInitializer or app foreground to sweep for any unresolved conflicts
+- Test IDs in pbxproj: T20000002 (file ref), T10000002 (build file) — next available: T20000003 / T10000003
 - VaultInitializer.vaultURL is the single entry point for all 37 vault file path accesses
 - RawStorage.atomicWrite uses temp-file + FileManager.replaceItemAt pattern for atomic writes
 - Services are @MainActor final class singletons; view models are @MainActor final class: ObservableObject
@@ -64,6 +68,25 @@ Previous run (V3 Wave 2) archived at: archive/2026-04-22-daypage-v3-wave2-experi
   - AppSettings uses objectWillChange.send() before UserDefaults.set() — no @Published needed since properties are computed (read from UserDefaults each time)
   - The pattern: `objectWillChange.send() + UserDefaults.set()` triggers SwiftUI updates for computed properties on ObservableObject
   - VaultLocation and AttachmentPolicy enums are defined at file scope in AppSettings.swift, not nested, for cleaner access in other files
+---
+
+## 2026-04-22 - US-005
+- Created DayPage/Services/ConflictMerger.swift (enum, no singleton — pure functions + static conflict resolution)
+- mergeRawMemos: concatenate → sort by created → deduplicate UUID (keep first occurrence)
+- mergeLogLines: concatenate lines from both strings → deduplicate by first whitespace-delimited token (timestamp key)
+- mergeJSONEntries: decode both JSON arrays → concatenate → deduplicate by idKey field string value
+- resolveConflictsIfNeeded(in:): enumerates vault with .ubiquitousItemHasUnresolvedConflictsKey, calls resolveConflict(at:)
+- resolveConflict(at:): uses NSFileVersion.unresolvedConflictVersionsOfItem, dispatches to resolveMDConflict or resolveJSONConflict, marks versions resolved, posts .vaultConflictResolved notification
+- Created DayPageTests/ConflictMergerTests.swift: 9 XCTest cases
+- Added both files to project.pbxproj (A20000075 / T20000002)
+- Files changed: DayPage/Services/ConflictMerger.swift (new), DayPageTests/ConflictMergerTests.swift (new), DayPage.xcodeproj/project.pbxproj
+- Build: ** BUILD SUCCEEDED **, Tests: ** TEST SUCCEEDED ** (16 total: 9 new + 7 existing)
+- **Learnings for future iterations:**
+  - NSFileVersion.unresolvedConflictVersionsOfItem is simpler than NSMetadataQuery for conflict detection — no query lifecycle needed
+  - version.isResolved = true must be set BEFORE calling NSFileVersion.removeOtherVersionsOfItem
+  - ConflictMerger is a pure enum (no instance state) — all methods static; conflict detection is a separate sweep call
+  - Last pbxproj IDs used: A20000075 (app file ref), A10000075 (app build file), T20000002 (test file ref), T10000002 (test build file)
+  - Next available: A20000076 / A10000076 / T20000003 / T10000003
 ---
 
 ## 2026-04-22 - US-004
