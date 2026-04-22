@@ -1,5 +1,19 @@
 import Foundation
 
+// MARK: - VaultLocation
+
+enum VaultLocation: String {
+    case local = "local"
+    case iCloud = "iCloud"
+}
+
+// MARK: - AttachmentPolicy
+
+enum AttachmentPolicy: String {
+    case onDemand = "onDemand"
+    case alwaysLocal = "alwaysLocal"
+}
+
 // MARK: - AppSettings
 
 /// Persistent user preferences backed by UserDefaults.
@@ -35,6 +49,63 @@ final class AppSettings: ObservableObject {
     func resetToDeviceTimeZone() {
         UserDefaults.standard.removeObject(forKey: timeZoneKey)
         objectWillChange.send()
+    }
+
+    // MARK: - Vault Location
+
+    private let vaultLocationKey = "vaultLocation"
+
+    /// Where the vault is stored. Defaults to .local.
+    var vaultLocation: VaultLocation {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: vaultLocationKey),
+                  let loc = VaultLocation(rawValue: raw) else {
+                return .local
+            }
+            return loc
+        }
+        set {
+            objectWillChange.send()
+            UserDefaults.standard.set(newValue.rawValue, forKey: vaultLocationKey)
+        }
+    }
+
+    // MARK: - Attachment Policy
+
+    private let attachmentPolicyKey = "attachmentPolicy"
+
+    /// How iCloud attachments are downloaded. Defaults to .onDemand.
+    var attachmentPolicy: AttachmentPolicy {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: attachmentPolicyKey),
+                  let policy = AttachmentPolicy(rawValue: raw) else {
+                return .onDemand
+            }
+            return policy
+        }
+        set {
+            objectWillChange.send()
+            UserDefaults.standard.set(newValue.rawValue, forKey: attachmentPolicyKey)
+        }
+    }
+
+    // MARK: - Migration Completed At
+
+    private let migrationCompletedAtKey = "migrationCompletedAt"
+
+    /// The date when migration to iCloud completed. Nil if not migrated.
+    var migrationCompletedAt: Date? {
+        get {
+            UserDefaults.standard.object(forKey: migrationCompletedAtKey) as? Date
+        }
+        set {
+            objectWillChange.send()
+            if let date = newValue {
+                UserDefaults.standard.set(date, forKey: migrationCompletedAtKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: migrationCompletedAtKey)
+            }
+        }
     }
 
     // MARK: - Synchronous accessor (safe from any context)
