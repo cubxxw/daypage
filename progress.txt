@@ -9,6 +9,10 @@ Previous run (V3 Wave 2) archived at: archive/2026-04-22-daypage-v3-wave2-experi
 ---
 
 ## Codebase Patterns (carried over from Wave 2)
+- isAttachmentDownloaded: read .ubiquitousItemDownloadingStatusKey via URL.resourceValues; non-ubiquitous files return true (no iCloud key present)
+- pollDownloadStatus: use Task { for _ in 0..<30 { await Task.sleep(2s); if downloaded { insert to Set; return } } } pattern for polling without timers in SwiftUI views
+- AppSettings nonisolated accessors (e.g., currentTimeZone, currentAttachmentPolicy): pattern for reading UserDefaults from non-MainActor contexts like VaultInitializer static methods
+- PhotoDownloadPlaceholder / AudioDownloadPlaceholder: standalone struct views for iCloud eviction states; keep outside MemoCardView to allow reuse
 - ConflictMerger uses NSFileVersion.unresolvedConflictVersionsOfItem (not NSMetadataQuery) for conflict detection — simpler and works without a running query
 - NSFileVersion conflict resolution: set version.isResolved = true, then call NSFileVersion.removeOtherVersionsOfItem — both steps required
 - ConflictMerger.resolveConflictsIfNeeded(in:) can be called from VaultInitializer or app foreground to sweep for any unresolved conflicts
@@ -120,4 +124,23 @@ Previous run (V3 Wave 2) archived at: archive/2026-04-22-daypage-v3-wave2-experi
   - switch on an enum with associated values in @ViewBuilder: use case .notConfigured / case .connected(let x) / case .syncing(let n) / case .error(let msg) — compiler handles exhaustiveness
   - AttachmentPolicy picker binding: use explicit Binding(get:set:) pointing to appSettings.attachmentPolicy so the Picker writes back to UserDefaults via AppSettings setter
   - Rollback side-effects: set VaultInitializer.shared = LocalVaultLocator() to swap the runtime locator; no need to re-initialize vault directories (they already exist locally)
+---
+
+## 2026-04-22 - US-007
+- Added isAttachmentDownloaded(_:) to MemoCardView: reads .ubiquitousItemDownloadingStatusKey; returns true for local vault (isUsingiCloud == false)
+- Added startDownload(_:): calls FileManager.startDownloadingUbiquitousItem; no-op for local vault or already-downloaded files
+- Added pollDownloadStatus(for:): polls every 2s up to 30 times via async Task; inserts to @State downloadedURLs Set when downloaded, triggering view refresh
+- Photo attachment: replaced firstPhotoThumbnail computed var with loadThumbnail(from:) func; shows PhotoDownloadPlaceholder when !isReady; starts download onAppear
+- Audio attachment: shows AudioDownloadPlaceholder when !isReady; starts download onAppear and onTapGesture
+- Added PhotoDownloadPlaceholder struct: gray RoundedRectangle + ProgressView + label
+- Added AudioDownloadPlaceholder struct: icloud.and.arrow.down icon + placeholder waveform bars + "--:--" duration
+- VaultInitializer.prefetchAttachmentsIfNeeded(): enumerates vault/raw/assets/ with .ubiquitousItemDownloadingStatusKey; calls startDownloadingUbiquitousItem for any non-current items; guarded by isUsingiCloud && attachmentPolicy == .alwaysLocal
+- AppSettings.currentAttachmentPolicy(): nonisolated static accessor reading UserDefaults directly — same pattern as currentTimeZone()
+- Files changed: DayPage/Features/Today/MemoCardView.swift, DayPage/Storage/VaultInitializer.swift, DayPage/Config/AppSettings.swift
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - URL.resourceValues(forKeys:) returns nil keys (not an error) for non-ubiquitous files — guard the key, don't assume error
+  - @State Set<URL> is the cleanest way to track which iCloud URLs have finished downloading without a separate service
+  - pollDownloadStatus must be called after startDownload; poll interval of 2s is adequate for iCloud small files
+  - prefetchAttachmentsIfNeeded is called from initializeIfNeeded (sync context) — keep it synchronous, fire-and-forget per file
 ---

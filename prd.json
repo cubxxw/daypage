@@ -134,8 +134,8 @@
         "Verify in Simulator using verify-daypage skill"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added isAttachmentDownloaded(_:) + startDownload(_:) + pollDownloadStatus(for:) to MemoCardView. Photo shows PhotoDownloadPlaceholder when evicted; audio shows AudioDownloadPlaceholder. Local vault always returns true — no placeholders. VaultInitializer.prefetchAttachmentsIfNeeded() walks vault/raw/assets/ on launch when attachmentPolicy == .alwaysLocal. AppSettings.currentAttachmentPolicy() added as nonisolated accessor. Build passed."
     },
     {
       "id": "US-008",
