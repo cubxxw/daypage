@@ -120,4 +120,14 @@ final class AppSettings: ObservableObject {
         }
         return tz
     }
+
+    /// Reads the attachment policy directly from UserDefaults without requiring
+    /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
+    nonisolated static func currentAttachmentPolicy() -> AttachmentPolicy {
+        guard let raw = UserDefaults.standard.string(forKey: "attachmentPolicy"),
+              let policy = AttachmentPolicy(rawValue: raw) else {
+            return .onDemand
+        }
+        return policy
+    }
 }

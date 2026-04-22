@@ -28,9 +28,32 @@ enum VaultInitializer {
 
     /// Creates all required directories and seed files if they don't already exist.
     /// Safe to call on every launch — operations are idempotent.
+    /// When attachmentPolicy == .alwaysLocal, also triggers download of any
+    /// evicted iCloud attachment files under vault/raw/assets/.
     static func initializeIfNeeded() {
         createDirectories()
         createSeedFiles()
+        prefetchAttachmentsIfNeeded()
+    }
+
+    // MARK: - Attachment prefetch (alwaysLocal policy)
+
+    private static func prefetchAttachmentsIfNeeded() {
+        // Only relevant when vault is iCloud-backed and user wants all attachments local.
+        guard shared.isUsingiCloud else { return }
+        guard AppSettings.currentAttachmentPolicy() == .alwaysLocal else { return }
+        let assetsURL = vaultURL.appendingPathComponent("raw/assets", isDirectory: true)
+        guard let enumerator = FileManager.default.enumerator(
+            at: assetsURL,
+            includingPropertiesForKeys: [.ubiquitousItemDownloadingStatusKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+                  let status = values.ubiquitousItemDownloadingStatus,
+                  status != .current else { continue }
+            try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+        }
     }
 
     // MARK: - Directories
