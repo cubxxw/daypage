@@ -22,3 +22,19 @@ Started: Fri Apr 24 00:47:52 +07 2026
   - Sentry package resolved to 8.58.2 (>= 8.36.0 requirement satisfied)
   - BUILD SUCCEEDED confirmed
 ---
+
+## 2026-04-24 01:10 - US-002
+- Implemented performance monitoring spans for API calls
+- Files changed:
+  - DayPage/Services/CompilationService.swift: added `import Sentry`, wrapped DashScope URLSession call in `SentrySDK.startTransaction(name: "compilation.dashscope", operation: "http.client")` span
+  - DayPage/Services/VoiceService.swift: added `import Sentry`, wrapped Whisper API URLSession call in `SentrySDK.startTransaction(name: "voice.whisper", operation: "http.client")` span
+  - DayPage/Services/WeatherService.swift: added `import Sentry`, wrapped OpenWeatherMap URLSession call in `SentrySDK.startTransaction(name: "weather.fetch", operation: "http.client")` span
+  - DayPage/Services/BackgroundCompilationService.swift: added `import Sentry`, wrapped background task in `SentrySDK.startTransaction(name: "background.compilation", operation: "task")` transaction, added `SentrySDK.flush(timeout: 5)` before task completion
+  - prd.json: marked US-002 passes: true
+- **Learnings for future iterations:**
+  - All Sentry spans are guarded by `Secrets.sentryDSN.isEmpty` check — SDK returns nil-safe no-op when not initialized, but explicit guard follows PRD requirement
+  - `SentrySDK.startTransaction` returns a `Span` (protocol), use `span?.finish()` in defer for success, `span?.finish(status: .internalError)` for failure
+  - BackgroundCompilationService uses `transaction` variable name (not `span`) to avoid confusion with BGAppRefreshTask
+  - SourceKit shows "No such module 'Sentry'" in IDE but xcodebuild BUILD SUCCEEDED — this is expected until Xcode indexes the SPM package
+  - BUILD SUCCEEDED confirmed
+---
