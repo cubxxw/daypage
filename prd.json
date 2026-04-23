@@ -91,7 +91,7 @@
         "Typecheck passes (YAML lint via yamllint or actionlint if available, otherwise skip)"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

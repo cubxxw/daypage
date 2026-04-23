@@ -64,3 +64,17 @@ Started: Fri Apr 24 00:47:52 +07 2026
   - No guard needed for uninitialised SDK — Sentry no-ops gracefully
   - BUILD SUCCEEDED confirmed
 ---
+
+## 2026-04-24 - US-005
+- Implemented GitHub Actions Sentry→Linear 中转 Workflow
+- Files changed:
+  - .github/workflows/sentry-to-linear.yml: created new workflow triggered by repository_dispatch(sentry_issue) with 4 steps: dedup check, priority mapping, label fetch, issue creation
+  - prd.json: marked US-005 passes: true
+- **Learnings for future iterations:**
+  - Linear GraphQL API uses `Authorization: <API_KEY>` header (not Bearer prefix) for authentication
+  - Linear issue dedup: search by title prefix `[Sentry]` + filter description for fingerprint string embedded as HTML comment `<!-- sentry-fingerprint: ... -->`
+  - Linear priority values: 1=Urgent, 2=High, 3=Medium, 4=Low (integers, not strings)
+  - Python3 inline scripts in `run:` steps are reliable for JSON parsing on ubuntu-latest; no extra dependencies needed
+  - YAML multi-line heredocs with `<<'GQL'` / `<<'EOF'` work fine in GitHub Actions bash steps
+  - BUILD SUCCEEDED confirmed (iOS build unaffected by workflow addition)
+---
