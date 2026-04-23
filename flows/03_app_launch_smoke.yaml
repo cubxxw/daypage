@@ -7,10 +7,10 @@ appId: com.daypage.app
       authSkipped: "true"
 - takeScreenshot: launch
 
-# 等待 Today Tab 加载（Tab bar 的 Today 标签可见）
-- assertVisible:
-    text: "Today"
-    optional: false
+# 等待主界面加载（DAYPAGE 品牌文字可见，侧边栏导航已替代 Tab bar）
+- extendedWaitUntil:
+    visible: "DAYPAGE"
+    timeout: 10000
 
 - takeScreenshot: stable
 

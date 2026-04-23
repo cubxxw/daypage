@@ -1,22 +1,42 @@
 appId: com.daypage.app
 ---
-# Flow 02: Tab 导航 — 验证三个 Tab 可以正常切换
+# Flow 02: Sidebar 导航 — 验证通过侧边栏可以切换 Today / Archive
 - launchApp:
     arguments:
       hasOnboarded: "true"
       authSkipped: "true"
 - takeScreenshot: launch
 
-# 验证默认在 Today Tab
-- assertVisible: "Today"
-- takeScreenshot: today_tab
+# 等待 Today View 加载（DAYPAGE 可见）
+- extendedWaitUntil:
+    visible: "DAYPAGE"
+    timeout: 10000
+- takeScreenshot: today_view
 
-# 切换到 Archive Tab
+# 打开侧边栏（通过 accessibilityIdentifier 定位汉堡按钮）
+- tapOn:
+    id: "sidebar-menu-button"
+- waitForAnimationToEnd
+- takeScreenshot: sidebar_open
+
+# 在侧边栏点击 Archive
 - tapOn: "Archive"
-- takeScreenshot: archive_tab
-- assertVisible: "Archive"
+- waitForAnimationToEnd
+- takeScreenshot: archive_view
 
-# 切换回 Today Tab
+# 验证 Archive View 已显示
+- assertVisible: "ARCHIVE"
+
+# 重新打开侧边栏
+- tapOn:
+    id: "sidebar-menu-button"
+- waitForAnimationToEnd
+- takeScreenshot: sidebar_open_again
+
+# 返回 Today View
 - tapOn: "Today"
+- waitForAnimationToEnd
 - takeScreenshot: back_to_today
-- assertVisible: "Today"
+
+# 验证回到 Today View
+- assertVisible: "DAYPAGE"
