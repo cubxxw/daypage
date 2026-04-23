@@ -17,9 +17,47 @@ struct MemoCardView: View {
 
     @State private var isExpanded: Bool = false
     @State private var showLocationSheet: Bool = false
+    /// Tracks which attachment URLs have finished downloading from iCloud.
+    @State private var downloadedURLs: Set<URL> = []
 
     // Maximum lines when collapsed
     private let previewLineLimit = 4
+
+    // MARK: - iCloud Attachment Helpers
+
+    /// Returns true when the file at `url` is locally available (not evicted to iCloud).
+    /// For non-ubiquitous (local-vault) files this always returns true.
+    private func isAttachmentDownloaded(_ url: URL) -> Bool {
+        guard VaultInitializer.shared.isUsingiCloud else { return true }
+        guard let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+              let status = values.ubiquitousItemDownloadingStatus else {
+            // Not a ubiquitous item — treat as locally available.
+            return true
+        }
+        return status == .current
+    }
+
+    /// Requests iCloud to download the file at `url` if it is not already local.
+    /// No-op for local-vault files or files that are already downloaded.
+    private func startDownload(_ url: URL) {
+        guard VaultInitializer.shared.isUsingiCloud else { return }
+        guard !isAttachmentDownloaded(url) else { return }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+    }
+
+    /// Polls the download status and marks the URL as downloaded once iCloud delivers it.
+    private func pollDownloadStatus(for url: URL) {
+        guard !downloadedURLs.contains(url) else { return }
+        Task {
+            for _ in 0..<30 {
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 s
+                if isAttachmentDownloaded(url) {
+                    await MainActor.run { downloadedURLs.insert(url) }
+                    return
+                }
+            }
+        }
+    }
 
     var body: some View {
         // Location memos get their own dedicated card layout
@@ -111,36 +149,66 @@ struct MemoCardView: View {
             // Voice player row (for voice memos with audio attachments)
             if memo.type == .voice || (memo.type == .mixed && memo.attachments.contains(where: { $0.kind == "audio" })) {
                 if let att = memo.attachments.first(where: { $0.kind == "audio" }) {
-                    VoiceMemoPlayerRow(
-                        fileURL: VaultInitializer.vaultURL.appendingPathComponent(att.file),
-                        duration: att.duration ?? 0,
-                        transcript: att.transcript
-                    )
-                    .padding(.top, 6)
+                    let audioURL = VaultInitializer.vaultURL.appendingPathComponent(att.file)
+                    let isReady = isAttachmentDownloaded(audioURL) || downloadedURLs.contains(audioURL)
+                    if isReady {
+                        VoiceMemoPlayerRow(
+                            fileURL: audioURL,
+                            duration: att.duration ?? 0,
+                            transcript: att.transcript
+                        )
+                        .padding(.top, 6)
+                    } else {
+                        // iCloud evicted — show waveform placeholder with download icon
+                        AudioDownloadPlaceholder()
+                            .padding(.top, 6)
+                            .onAppear {
+                                startDownload(audioURL)
+                                pollDownloadStatus(for: audioURL)
+                            }
+                            .onTapGesture {
+                                startDownload(audioURL)
+                                pollDownloadStatus(for: audioURL)
+                            }
+                    }
                 }
             }
 
             // Photo thumbnail row (for photo and mixed memos with photo attachments)
-            if let photoThumb = firstPhotoThumbnail {
-                Image(uiImage: photoThumb)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 160)
-                    .clipped()
-                    .padding(.top, 6)
+            if memo.type == .photo || (memo.type == .mixed && memo.attachments.contains(where: { $0.kind == "photo" })) {
+                if let att = memo.attachments.first(where: { $0.kind == "photo" }) {
+                    let photoURL = VaultInitializer.vaultURL.appendingPathComponent(att.file)
+                    let isReady = isAttachmentDownloaded(photoURL) || downloadedURLs.contains(photoURL)
+                    if isReady, let photoThumb = loadThumbnail(from: photoURL) {
+                        Image(uiImage: photoThumb)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                            .clipped()
+                            .padding(.top, 6)
 
-                // EXIF metadata bar below photo
-                if let exifText = photoExifText {
-                    Text(exifText)
-                        .monoLabelStyle(size: 10)
-                        .foregroundColor(DSColor.onSurfaceVariant)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, DSSpacing.cardInner)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(DSColor.surfaceContainer)
+                        // EXIF metadata bar below photo
+                        if let exifText = photoExifText {
+                            Text(exifText)
+                                .monoLabelStyle(size: 10)
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .padding(.horizontal, DSSpacing.cardInner)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(DSColor.surfaceContainer)
+                        }
+                    } else if !isReady {
+                        // iCloud evicted — show gray placeholder with spinner
+                        PhotoDownloadPlaceholder()
+                            .padding(.top, 6)
+                            .onAppear {
+                                startDownload(photoURL)
+                                pollDownloadStatus(for: photoURL)
+                            }
+                    }
                 }
             }
 
@@ -280,13 +348,9 @@ struct MemoCardView: View {
         return "\(filename)"
     }
 
-    /// Loads a thumbnail for the first photo attachment (if any).
-    private var firstPhotoThumbnail: UIImage? {
-        guard memo.type == .photo || memo.type == .mixed else { return nil }
-        guard let att = memo.attachments.first(where: { $0.kind == "photo" }) else { return nil }
-        let fileURL = VaultInitializer.vaultURL.appendingPathComponent(att.file)
+    /// Loads a thumbnail from `fileURL`. Returns nil if the file is not locally available.
+    private func loadThumbnail(from fileURL: URL) -> UIImage? {
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        // Use CGImageSource thumbnail for efficiency
         let opts: [CFString: Any] = [
             kCGImageSourceShouldCacheImmediately: false,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -750,5 +814,64 @@ struct CompilePromptCard: View {
         .cornerRadius(DSSpacing.radiusCard)
         .surfaceElevatedShadow()
         .animation(.easeInOut(duration: 0.2), value: isCompiling)
+    }
+}
+
+// MARK: - PhotoDownloadPlaceholder
+
+/// Gray placeholder shown when a photo attachment is evicted to iCloud and not yet downloaded.
+struct PhotoDownloadPlaceholder: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 0)
+                .fill(DSColor.surfaceContainerHigh)
+                .frame(maxWidth: .infinity)
+                .frame(height: 160)
+
+            VStack(spacing: 8) {
+                ProgressView()
+                    .tint(DSColor.onSurfaceVariant)
+                Text("正在从 iCloud 下载…")
+                    .monoLabelStyle(size: 10)
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+// MARK: - AudioDownloadPlaceholder
+
+/// Waveform placeholder shown when an audio attachment is evicted to iCloud and not yet downloaded.
+struct AudioDownloadPlaceholder: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            // Download icon in place of play button
+            ZStack {
+                Rectangle()
+                    .fill(DSColor.surfaceContainerHigh)
+                    .frame(width: 40, height: 40)
+                Image(systemName: "icloud.and.arrow.down")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
+
+            // Placeholder waveform bars
+            HStack(spacing: 2) {
+                ForEach(0..<30, id: \.self) { i in
+                    let h = CGFloat(4 + (i % 6) * 4)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(DSColor.outlineVariant)
+                        .frame(width: 3, height: h)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text("--:--")
+                .monoLabelStyle(size: 10)
+                .foregroundColor(DSColor.onSurfaceVariant)
+                .frame(width: 36, alignment: .trailing)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }

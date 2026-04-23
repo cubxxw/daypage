@@ -1,5 +1,19 @@
 import Foundation
 
+// MARK: - VaultLocation
+
+enum VaultLocation: String {
+    case local = "local"
+    case iCloud = "iCloud"
+}
+
+// MARK: - AttachmentPolicy
+
+enum AttachmentPolicy: String {
+    case onDemand = "onDemand"
+    case alwaysLocal = "alwaysLocal"
+}
+
 // MARK: - AppSettings
 
 /// Persistent user preferences backed by UserDefaults.
@@ -37,6 +51,63 @@ final class AppSettings: ObservableObject {
         objectWillChange.send()
     }
 
+    // MARK: - Vault Location
+
+    static let vaultLocationKey = "vaultLocation"
+
+    /// Where the vault is stored. Defaults to .local.
+    var vaultLocation: VaultLocation {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: Self.vaultLocationKey),
+                  let loc = VaultLocation(rawValue: raw) else {
+                return .local
+            }
+            return loc
+        }
+        set {
+            objectWillChange.send()
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.vaultLocationKey)
+        }
+    }
+
+    // MARK: - Attachment Policy
+
+    static let attachmentPolicyKey = "attachmentPolicy"
+
+    /// How iCloud attachments are downloaded. Defaults to .onDemand.
+    var attachmentPolicy: AttachmentPolicy {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: Self.attachmentPolicyKey),
+                  let policy = AttachmentPolicy(rawValue: raw) else {
+                return .onDemand
+            }
+            return policy
+        }
+        set {
+            objectWillChange.send()
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.attachmentPolicyKey)
+        }
+    }
+
+    // MARK: - Migration Completed At
+
+    static let migrationCompletedAtKey = "migrationCompletedAt"
+
+    /// The date when migration to iCloud completed. Nil if not migrated.
+    var migrationCompletedAt: Date? {
+        get {
+            UserDefaults.standard.object(forKey: Self.migrationCompletedAtKey) as? Date
+        }
+        set {
+            objectWillChange.send()
+            if let date = newValue {
+                UserDefaults.standard.set(date, forKey: Self.migrationCompletedAtKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.migrationCompletedAtKey)
+            }
+        }
+    }
+
     // MARK: - Synchronous accessor (safe from any context)
 
     /// Reads the preferred time zone directly from UserDefaults without
@@ -48,5 +119,25 @@ final class AppSettings: ObservableObject {
             return TimeZone.current
         }
         return tz
+    }
+
+    /// Reads the attachment policy directly from UserDefaults without requiring
+    /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
+    nonisolated static func currentAttachmentPolicy() -> AttachmentPolicy {
+        guard let raw = UserDefaults.standard.string(forKey: "attachmentPolicy"),
+              let policy = AttachmentPolicy(rawValue: raw) else {
+            return .onDemand
+        }
+        return policy
+    }
+
+    /// Reads the vault location directly from UserDefaults without requiring
+    /// a @MainActor context. Use from VaultInitializer or other non-isolated code.
+    nonisolated static func currentVaultLocation() -> VaultLocation {
+        guard let raw = UserDefaults.standard.string(forKey: "vaultLocation"),
+              let loc = VaultLocation(rawValue: raw) else {
+            return .local
+        }
+        return loc
     }
 }

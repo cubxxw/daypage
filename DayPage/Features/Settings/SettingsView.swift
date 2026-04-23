@@ -30,6 +30,9 @@ struct SettingsView: View {
     @State private var timeZoneSearchText: String = ""
     @State private var showTimeZonePicker = false
 
+    // iCloud sync monitor
+    @StateObject private var syncMonitor = iCloudSyncMonitor.shared
+
     // Input bar variant (US-007). Default ON; toggle surfaces legacy fallback.
     @AppStorage("useInputBarV2") private var useInputBarV2: Bool = true
     @AppStorage("usePressToTalk") private var usePressToTalk: Bool = true
@@ -47,6 +50,7 @@ struct SettingsView: View {
                 permissionsSection
                 appearanceSection
                 timeZoneSection
+                iCloudSyncSection
                 dataSection
                 aboutSection
             }
@@ -302,6 +306,142 @@ struct SettingsView: View {
                 BackgroundCompilationService.shared.scheduleIfNeeded()
             }
         )
+    }
+
+    // MARK: - iCloud Sync Section
+
+    private var iCloudSyncSection: some View {
+        Section {
+            iCloudStatusRow
+            attachmentPolicyPicker
+            rollbackButton
+        } header: {
+            Text("iCloud 同步")
+        }
+    }
+
+    @ViewBuilder
+    private var iCloudStatusRow: some View {
+        switch syncMonitor.status {
+        case .notConfigured:
+            iCloudNotConfiguredCard
+
+        case .connected(let lastSync):
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 8, height: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("已连接").font(.body).fontWeight(.medium)
+                    Text("iCloud Drive").font(.caption).foregroundColor(DSColor.onSurfaceVariant)
+                }
+                Spacer()
+                if let date = lastSync {
+                    Text(lastSyncLabel(date))
+                        .font(.caption)
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                }
+            }
+
+        case .syncing(let pendingFiles):
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("同步中").font(.body).fontWeight(.medium)
+                    Text("\(pendingFiles) 个文件待传")
+                        .font(.caption)
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                }
+            }
+
+        case .error(let message):
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.red)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("同步错误").font(.body).fontWeight(.medium).foregroundColor(.red)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .lineLimit(2)
+                }
+            }
+        }
+    }
+
+    private var iCloudNotConfiguredCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("☁️")
+                    .font(.title2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("开启多设备同步")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                    Text("在 iPhone 与 iPad 之间同步你的日记")
+                        .font(.caption)
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                }
+            }
+            Button(action: openSettings) {
+                Label("前往 iOS 设置开启 iCloud Drive", systemImage: "arrow.up.right.square")
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var attachmentPolicyPicker: some View {
+        if case .notConfigured = syncMonitor.status {
+            EmptyView()
+        } else {
+            Picker(selection: Binding(
+                get: { appSettings.attachmentPolicy },
+                set: { appSettings.attachmentPolicy = $0 }
+            )) {
+                Text("按需下载（节省空间）").tag(AttachmentPolicy.onDemand)
+                Text("始终保留本地副本").tag(AttachmentPolicy.alwaysLocal)
+            } label: {
+                Label("附件下载策略", systemImage: "square.and.arrow.down")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rollbackButton: some View {
+        if let migratedAt = appSettings.migrationCompletedAt,
+           Date().timeIntervalSince(migratedAt) < 30 * 24 * 3600 {
+            Button(role: .destructive, action: rollbackToLocal) {
+                Label("切换回本地存储", systemImage: "arrow.counterclockwise")
+            }
+        }
+    }
+
+    private func rollbackToLocal() {
+        appSettings.vaultLocation = .local
+        VaultInitializer.shared = LocalVaultLocator()
+        bannerCenter.show(AppBannerModel(
+            kind: .info,
+            title: "已切换回本地存储",
+            autoDismiss: true
+        ))
+    }
+
+    private func lastSyncLabel(_ date: Date) -> String {
+        let cal = Calendar.current
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        if cal.isDateInToday(date) {
+            formatter.dateFormat = "今天 HH:mm"
+        } else {
+            formatter.dateFormat = "M月d日 HH:mm"
+        }
+        return formatter.string(from: date)
     }
 
     // MARK: - Data Section
