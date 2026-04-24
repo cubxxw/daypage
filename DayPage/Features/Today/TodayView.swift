@@ -22,7 +22,7 @@ struct TodayView: View {
     /// Input bar variant selector (Issue #76). "v3" is the voice-first default;
     /// "v2" falls back to the Fromm-style bar; "v1" to the legacy InputBarView.
     /// Takes precedence over `useInputBarV2` when set to a non-default value.
-    @AppStorage("inputBarVariant") private var inputBarVariant: String = "v3"
+    @AppStorage("inputBarVariant") private var inputBarVariant: String = "v4"
 
     /// The draft text in the input bar.
     @State private var draftText: String = ""
@@ -292,7 +292,9 @@ struct TodayView: View {
                     // legacy `useInputBarV2` flag here, otherwise selecting V2 can
                     // incorrectly fall through to V1 on installs carrying an old
                     // stored boolean.
-                    if inputBarVariant == "v3" {
+                    if inputBarVariant == "v4" {
+                        inputBarV4
+                    } else if inputBarVariant == "v3" {
                         inputBarV3
                     } else if inputBarVariant == "v2" {
                         InputBarV2(
@@ -532,6 +534,49 @@ struct TodayView: View {
     @ViewBuilder
     private var inputBarV3: some View {
         InputBarV3(
+            text: $draftText,
+            isSubmitting: viewModel.isSubmitting,
+            isLocating: viewModel.isLocating,
+            pendingLocation: viewModel.pendingLocation,
+            locationAuthStatus: LocationService.shared.authorizationStatus,
+            isProcessingPhoto: viewModel.isProcessingPhoto,
+            pendingAttachments: viewModel.pendingAttachments,
+            onFetchLocation: { viewModel.fetchLocation() },
+            onClearLocation: { viewModel.clearPendingLocation() },
+            onAddPhoto: { item in viewModel.addPhotoAttachment(item: item) },
+            onCapturePhoto: { viewModel.startCameraCapture() },
+            onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
+            onStartVoiceRecording: { viewModel.startVoiceRecording() },
+            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
+            onPressToTalkSend: { result in
+                viewModel.addVoiceAttachment(result: result)
+                let body = draftText
+                draftText = ""
+                viewModel.submitCombinedMemo(body: body)
+            },
+            onPressToTalkTranscribe: { transcript in
+                if draftText.isEmpty {
+                    draftText = transcript
+                } else {
+                    draftText += (draftText.hasSuffix(" ") ? "" : " ") + transcript
+                }
+            },
+            onAddFile: { viewModel.startFilePicker() },
+            onSubmit: {
+                let body = draftText
+                draftText = ""
+                viewModel.submitCombinedMemo(body: body)
+            }
+        )
+    }
+
+    // MARK: - InputBarV4 (variant D: Silent Press-to-Talk)
+    //
+    // Extracted to avoid "expression too complex" errors in body.
+
+    @ViewBuilder
+    private var inputBarV4: some View {
+        InputBarV4(
             text: $draftText,
             isSubmitting: viewModel.isSubmitting,
             isLocating: viewModel.isLocating,
