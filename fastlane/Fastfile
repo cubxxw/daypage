@@ -78,6 +78,7 @@ platform :ios do
       app_identifier: "com.daypage.app"
     )
 
+    profile_name = ENV["sigh_com.daypage.app_appstore_profile-name"] || "match AppStore com.daypage.app"
     build_app(
       scheme:           "DayPage",
       project:          "DayPage.xcodeproj",
@@ -90,7 +91,7 @@ platform :ios do
         method:               "app-store",
         signingStyle:         "manual",
         teamID:               ENV["DEVELOPMENT_TEAM"],
-        provisioningProfiles: { "com.daypage.app" => "match AppStore com.daypage.app" }
+        provisioningProfiles: { "com.daypage.app" => profile_name }
       }
     )
 
@@ -128,6 +129,7 @@ platform :ios do
       app_identifier: "com.daypage.app"
     )
 
+    profile_name = ENV["sigh_com.daypage.app_appstore_profile-name"] || "match AppStore com.daypage.app"
     build_app(
       scheme:           "DayPage",
       project:          "DayPage.xcodeproj",
@@ -140,7 +142,7 @@ platform :ios do
         method:               "app-store",
         signingStyle:         "manual",
         teamID:               ENV["DEVELOPMENT_TEAM"],
-        provisioningProfiles: { "com.daypage.app" => "match AppStore com.daypage.app" }
+        provisioningProfiles: { "com.daypage.app" => profile_name }
       }
     )
 
