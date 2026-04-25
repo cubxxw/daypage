@@ -68,6 +68,7 @@
 		A10000079 /* iCloudSyncMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000079 /* iCloudSyncMonitor.swift */; };
 		A10000080 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000080 /* AppNavigationModel.swift */; };
 		A10000081 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000081 /* SidebarView.swift */; };
+		A10000082 /* InputBarV4.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000082 /* InputBarV4.swift */; };
 		A10000060 /* DailySharePosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000060 /* DailySharePosterView.swift */; };
 		A10000061 /* PosterRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000061 /* PosterRenderer.swift */; };
 		A10000062 /* InputBarV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000062 /* InputBarV3.swift */; };
@@ -172,6 +173,7 @@
 		A20000060 /* DailySharePosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailySharePosterView.swift; sourceTree = "<group>"; };
 		A20000061 /* PosterRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterRenderer.swift; sourceTree = "<group>"; };
 		A20000062 /* InputBarV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarV3.swift; sourceTree = "<group>"; };
+		A20000082 /* InputBarV4.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarV4.swift; sourceTree = "<group>"; };
 		A20000063 /* SwipeableMemoCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableMemoCard.swift; sourceTree = "<group>"; };
 		A20000064 /* AttachmentMenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentMenuSheet.swift; sourceTree = "<group>"; };
 		A20000079 /* iCloudSyncMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudSyncMonitor.swift; sourceTree = "<group>"; };
@@ -373,6 +375,7 @@
 				A20000050 /* CompileFooterButton.swift */,
 				A20000051 /* InputBarV2.swift */,
 				A20000062 /* InputBarV3.swift */,
+				A20000082 /* InputBarV4.swift */,
 				A20000052 /* AttachmentMenuPopover.swift */,
 				A20000064 /* AttachmentMenuSheet.swift */,
 				A20000054 /* RecordingOverlayView.swift */,
@@ -673,6 +676,7 @@
 				A10000050 /* CompileFooterButton.swift in Sources */,
 				A10000051 /* InputBarV2.swift in Sources */,
 				A10000062 /* InputBarV3.swift in Sources */,
+				A10000082 /* InputBarV4.swift in Sources */,
 				A10000052 /* AttachmentMenuPopover.swift in Sources */,
 				A10000064 /* AttachmentMenuSheet.swift in Sources */,
 				A10000053 /* InputTokens.swift in Sources */,
