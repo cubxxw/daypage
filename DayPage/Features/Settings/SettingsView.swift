@@ -72,21 +72,21 @@ struct SettingsView: View {
         Section("API Keys") {
             apiKeyRow(
                 name: "DashScope",
-                key: Secrets.dashScopeApiKey,
+                key: Secrets.resolvedDashScopeApiKey,
                 isTesting: dashScopeTesting,
                 result: dashScopeResult,
                 onTest: { Task { await testDashScope() } }
             )
             apiKeyRow(
                 name: "OpenAI Whisper",
-                key: Secrets.openAIWhisperApiKey,
+                key: Secrets.resolvedOpenAIWhisperApiKey,
                 isTesting: whisperTesting,
                 result: whisperResult,
                 onTest: { Task { await testWhisper() } }
             )
             apiKeyRow(
                 name: "OpenWeatherMap",
-                key: Secrets.openWeatherApiKey,
+                key: Secrets.resolvedOpenWeatherApiKey,
                 isTesting: weatherTesting,
                 result: weatherResult,
                 onTest: { Task { await testWeather() } }
@@ -511,7 +511,7 @@ struct SettingsView: View {
         dashScopeResult = nil
         defer { dashScopeTesting = false }
 
-        let key = Secrets.dashScopeApiKey
+        let key = Secrets.resolvedDashScopeApiKey
         guard !key.isEmpty else { return }
 
         // Mirror CompilationService.callDashScope URL resolution so test hits the same endpoint
@@ -554,7 +554,7 @@ struct SettingsView: View {
         whisperResult = nil
         defer { whisperTesting = false }
 
-        let key = Secrets.openAIWhisperApiKey
+        let key = Secrets.resolvedOpenAIWhisperApiKey
         guard !key.isEmpty else { return }
 
         var req = URLRequest(url: URL(string: "https://api.openai.com/v1/models")!)
@@ -579,7 +579,7 @@ struct SettingsView: View {
         weatherResult = nil
         defer { weatherTesting = false }
 
-        let key = Secrets.openWeatherApiKey
+        let key = Secrets.resolvedOpenWeatherApiKey
         guard !key.isEmpty else { return }
         let urlStr = "https://api.openweathermap.org/data/2.5/weather?lat=0&lon=0&appid=\(key)"
         guard let url = URL(string: urlStr) else { return }
