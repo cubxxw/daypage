@@ -38,6 +38,13 @@ struct SettingsView: View {
     @AppStorage("usePressToTalk") private var usePressToTalk: Bool = true
     @AppStorage("inputBarVariant") private var inputBarVariant: String = "v4"
 
+    // API key editing sheet
+    @State private var editingKeyName: String = ""
+    @State private var editingKeyUD: String = ""        // UserDefaults key name
+    @State private var editingKeyValue: String = ""
+    @State private var showApiKeyEditor = false
+    @State private var keyRefreshToken: UUID = UUID()   // bump to force apiKeysSection redraw
+
     // Data section state
     @State private var vaultSizeLabel: String = "计算中…"
     @State private var showExportAlert = false
@@ -63,15 +70,79 @@ struct SettingsView: View {
             }
             .onAppear { computeVaultSize() }
             .bannerOverlay()
+            .sheet(isPresented: $showApiKeyEditor) {
+                apiKeyEditorSheet
+            }
         }
+    }
+
+    // MARK: - API Key Editor Sheet
+
+    private var apiKeyEditorSheet: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Text("填入 \(editingKeyName) 的 API Key")
+                    .font(.headline)
+                    .padding(.top, 8)
+
+                SecureField("sk-... 或直接粘贴", text: $editingKeyValue)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+
+                HStack {
+                    Button("粘贴") {
+                        if let s = UIPasteboard.general.string { editingKeyValue = s }
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+
+                    Button("清除") {
+                        editingKeyValue = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
+                .padding(.horizontal)
+
+                Spacer()
+            }
+            .navigationTitle("配置 API Key")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { showApiKeyEditor = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        let trimmed = editingKeyValue.trimmingCharacters(in: .whitespaces)
+                        if trimmed.isEmpty {
+                            UserDefaults.standard.removeObject(forKey: editingKeyUD)
+                        } else {
+                            UserDefaults.standard.set(trimmed, forKey: editingKeyUD)
+                        }
+                        keyRefreshToken = UUID()
+                        showApiKeyEditor = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - API Keys Section
 
     private var apiKeysSection: some View {
         Section("API Keys") {
+            let _ = keyRefreshToken  // read token so SwiftUI re-evaluates when key is saved
             apiKeyRow(
                 name: "DashScope",
+                udKey: "runtimeDashScopeKey",
                 key: Secrets.resolvedDashScopeApiKey,
                 isTesting: dashScopeTesting,
                 result: dashScopeResult,
@@ -79,6 +150,7 @@ struct SettingsView: View {
             )
             apiKeyRow(
                 name: "OpenAI Whisper",
+                udKey: "runtimeOpenAIKey",
                 key: Secrets.resolvedOpenAIWhisperApiKey,
                 isTesting: whisperTesting,
                 result: whisperResult,
@@ -86,6 +158,7 @@ struct SettingsView: View {
             )
             apiKeyRow(
                 name: "OpenWeatherMap",
+                udKey: "runtimeOpenWeatherKey",
                 key: Secrets.resolvedOpenWeatherApiKey,
                 isTesting: weatherTesting,
                 result: weatherResult,
@@ -97,6 +170,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func apiKeyRow(
         name: String,
+        udKey: String,
         key: String,
         isTesting: Bool,
         result: APITestResult?,
@@ -118,6 +192,19 @@ struct SettingsView: View {
                     }
                 }
                 Spacer()
+                // Edit button — always visible
+                Button {
+                    editingKeyName = name
+                    editingKeyUD = udKey
+                    editingKeyValue = UserDefaults.standard.string(forKey: udKey) ?? ""
+                    showApiKeyEditor = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
                 if key.isEmpty {
                     Text("未配置")
                         .font(.caption)
