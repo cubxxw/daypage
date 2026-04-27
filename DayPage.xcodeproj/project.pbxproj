@@ -290,6 +290,7 @@
 				A50000016 /* Shared */,
 				A50000017 /* Onboarding */,
 				A50000021 /* Auth */,
+				A50000022 /* Feedback */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -303,6 +304,15 @@
 				A20000074 /* AccountSheet.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		A50000022 /* Feedback */ = {
+			isa = PBXGroup;
+			children = (
+				FB1000002 /* FeedbackViewModel.swift */,
+				FB1000003 /* FeedbackView.swift */,
+			);
+			path = Feedback;
 			sourceTree = "<group>";
 		};
 		A50000005 /* Models */ = {
@@ -336,6 +346,7 @@
 				A20000078 /* VaultMigrationService.swift */,
 				A20000070 /* AuthService.swift */,
 				A20000076 /* KeychainHelper.swift */,
+				FB1000001 /* FeedbackService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
