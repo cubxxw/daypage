@@ -19,8 +19,6 @@ final class iCloudSyncMonitor: ObservableObject {
     private init() {}
 
     @Published var status: SyncStatus = .notConfigured
-    @Published var pendingUploadCount: Int = 0
-    @Published var pendingDownloadCount: Int = 0
 
     private var query: NSMetadataQuery?
     private var vaultPathPrefix: String?
@@ -94,9 +92,6 @@ final class iCloudSyncMonitor: ObservableObject {
             if isUploading { uploadCount += 1 }
             if isDownloading { downloadCount += 1 }
         }
-
-        pendingUploadCount = uploadCount
-        pendingDownloadCount = downloadCount
 
         let total = uploadCount + downloadCount
         if total > 0 {
