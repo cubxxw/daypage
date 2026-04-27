@@ -15,12 +15,6 @@ struct TodayView: View {
     @State private var showSyncBanner: Bool = false
     @State private var showAuthSheet: Bool = false
 
-    /// Fromm 风格 InputBarV2 的功能开关（US-007）。默认开启；用户可通过「设置 → 外观」回退到旧版 InputBarView。
-    @AppStorage("useInputBarV2") private var useInputBarV2: Bool = true
-
-    /// 输入栏样式选择器（Issue #76）。"v3" 为语音优先默认；"v2" 回退到 Fromm 风格；"v1" 回退到旧版 InputBarView。当设为非默认值时优先于 `useInputBarV2`。
-    @AppStorage("inputBarVariant") private var inputBarVariant: String = "v4"
-
     /// 输入栏中的草稿文本。
     @State private var draftText: String = ""
 
@@ -203,17 +197,11 @@ struct TodayView: View {
 
                                 // Memo cards (reverse-chronological)
                                 if viewModel.memos.isEmpty && !viewModel.isLoading {
-                                    if inputBarVariant == "v3" {
-                                        // Capture v2 design note 01: a blank
-                                        // page is the product, not a problem
-                                        // to solve. The dock below already
-                                        // carries every cue the user needs.
-                                        Color.clear.frame(height: 1)
-                                    } else {
-                                        TodayEmptyStateView { suggestion in
-                                            draftText = suggestion
-                                        }
-                                    }
+                                    // Capture v2 design note 01: a blank page
+                                    // is the product, not a problem to solve.
+                                    // The dock below carries every cue the
+                                    // user needs.
+                                    Color.clear.frame(height: 1)
                                 } else {
                                     ForEach(Array(viewModel.memos.enumerated()), id: \.element.id) { idx, memo in
                                         TimelineRow(
@@ -272,79 +260,12 @@ struct TodayView: View {
                         onTap: { viewModel.compile() }
                     )
 
-                    // MARK: Input Bar — `inputBarVariant` is now the single source
-                    // of truth for V3 / V2 / V1 selection. Do not branch on the
-                    // legacy `useInputBarV2` flag here, otherwise selecting V2 can
-                    // incorrectly fall through to V1 on installs carrying an old
-                    // stored boolean.
-                    if inputBarVariant == "v4" {
-                        inputBarV4
-                    } else if inputBarVariant == "v3" {
-                        inputBarV3
-                    } else if inputBarVariant == "v2" {
-                        InputBarV2(
-                            text: $draftText,
-                            isSubmitting: viewModel.isSubmitting,
-                            isLocating: viewModel.isLocating,
-                            pendingLocation: viewModel.pendingLocation,
-                            locationAuthStatus: LocationService.shared.authorizationStatus,
-                            isProcessingPhoto: viewModel.isProcessingPhoto,
-                            pendingAttachments: viewModel.pendingAttachments,
-                            onFetchLocation: { viewModel.fetchLocation() },
-                            onClearLocation: { viewModel.clearPendingLocation() },
-                            onAddPhoto: { item in viewModel.addPhotoAttachment(item: item) },
-                            onCapturePhoto: { viewModel.startCameraCapture() },
-                            onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
-                            onStartVoiceRecording: { viewModel.startVoiceRecording() },
-                            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
-                            onPressToTalkSend: { result in
-                                // Stage the recording, then submit immediately —
-                                // press-to-talk release-in-place is a send gesture.
-                                viewModel.addVoiceAttachment(result: result)
-                                let body = draftText
-                                draftText = ""
-                                viewModel.submitCombinedMemo(body: body)
-                            },
-                            onPressToTalkTranscribe: { transcript in
-                                // Fill the draft field but do NOT submit — user
-                                // should review/edit before sending.
-                                if draftText.isEmpty {
-                                    draftText = transcript
-                                } else {
-                                    draftText += (draftText.hasSuffix(" ") ? "" : " ") + transcript
-                                }
-                            },
-                            onAddFile: { viewModel.startFilePicker() },
-                            onSubmit: {
-                                let body = draftText
-                                draftText = ""
-                                viewModel.submitCombinedMemo(body: body)
-                            }
-                        )
-                    } else {
-                        InputBarView(
-                            text: $draftText,
-                            isSubmitting: viewModel.isSubmitting,
-                            isLocating: viewModel.isLocating,
-                            pendingLocation: viewModel.pendingLocation,
-                            locationAuthStatus: LocationService.shared.authorizationStatus,
-                            isProcessingPhoto: viewModel.isProcessingPhoto,
-                            pendingAttachments: viewModel.pendingAttachments,
-                            onFetchLocation: { viewModel.fetchLocation() },
-                            onClearLocation: { viewModel.clearPendingLocation() },
-                            onAddPhoto: { item in viewModel.addPhotoAttachment(item: item) },
-                            onCapturePhoto: { viewModel.startCameraCapture() },
-                            onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
-                            onStartVoiceRecording: { viewModel.startVoiceRecording() },
-                            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
-                            onAddFile: { viewModel.startFilePicker() },
-                            onSubmit: {
-                                let body = draftText
-                                draftText = ""
-                                viewModel.submitCombinedMemo(body: body)
-                            }
-                        )
-                    }
+                    // MARK: Input Bar — single canonical surface (V4).
+                    // V1/V2/V3 were removed in the Capture v2 cleanup; the
+                    // variant switch was a feature-flag carcass keeping four
+                    // parallel implementations alive. Now the input bar is
+                    // just the input bar.
+                    inputBarV4
                 }
                 // Submit error toast
                 .overlay(alignment: .top) {
@@ -507,52 +428,6 @@ struct TodayView: View {
                 .font(.custom("Inter-Medium", size: 13))
                 .foregroundColor(Color(hex: "A0A0A0"))
         }
-    }
-
-    // MARK: - Input Bar V3 (voice-first) call-site
-    //
-    // Extracted to its own property because SwiftUI's result builder chokes on
-    // a >20-argument initializer nested inside an already-large `body` — the
-    // type-checker hits its budget and emits "unable to type-check this
-    // expression in reasonable time".
-
-    @ViewBuilder
-    private var inputBarV3: some View {
-        InputBarV3(
-            text: $draftText,
-            isSubmitting: viewModel.isSubmitting,
-            isLocating: viewModel.isLocating,
-            pendingLocation: viewModel.pendingLocation,
-            locationAuthStatus: LocationService.shared.authorizationStatus,
-            isProcessingPhoto: viewModel.isProcessingPhoto,
-            pendingAttachments: viewModel.pendingAttachments,
-            onFetchLocation: { viewModel.fetchLocation() },
-            onClearLocation: { viewModel.clearPendingLocation() },
-            onAddPhoto: { item in viewModel.addPhotoAttachment(item: item) },
-            onCapturePhoto: { viewModel.startCameraCapture() },
-            onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
-            onStartVoiceRecording: { viewModel.startVoiceRecording() },
-            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
-            onPressToTalkSend: { result in
-                viewModel.addVoiceAttachment(result: result)
-                let body = draftText
-                draftText = ""
-                viewModel.submitCombinedMemo(body: body)
-            },
-            onPressToTalkTranscribe: { transcript in
-                if draftText.isEmpty {
-                    draftText = transcript
-                } else {
-                    draftText += (draftText.hasSuffix(" ") ? "" : " ") + transcript
-                }
-            },
-            onAddFile: { viewModel.startFilePicker() },
-            onSubmit: {
-                let body = draftText
-                draftText = ""
-                viewModel.submitCombinedMemo(body: body)
-            }
-        )
     }
 
     // MARK: - InputBarV4 (variant D: Silent Press-to-Talk)
