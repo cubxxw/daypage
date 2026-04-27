@@ -280,6 +280,22 @@ struct InputBarV4: View {
                 .focused($isFocused)
                 .lineLimit(1...5)
                 .tint(DSColor.onBackgroundPrimary)
+
+            // Mic-back button — lets user exit composing and return to voice UI
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    userExpandedText = false
+                }
+                isFocused = false
+            } label: {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DSColor.onBackgroundMuted)
+                    .frame(width: 28, height: 28)
+                    .background(DSColor.surfaceSunken, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("切换到语音输入")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
