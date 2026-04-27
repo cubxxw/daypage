@@ -29,14 +29,17 @@ struct LocalVaultLocator: VaultLocator {
 struct iCloudVaultLocator: VaultLocator {
     let containerID = "iCloud.com.daypage.app"
 
+    private static let _ubiquityContainer: URL? = {
+        FileManager.default.url(forUbiquityContainerIdentifier: "iCloud.com.daypage.app")
+    }()
+
     var vaultURL: URL {
-        FileManager.default
-            .url(forUbiquityContainerIdentifier: containerID)?
+        Self._ubiquityContainer?
             .appendingPathComponent("Documents/vault", isDirectory: true)
             ?? LocalVaultLocator().vaultURL
     }
 
     var isUsingiCloud: Bool {
-        FileManager.default.url(forUbiquityContainerIdentifier: containerID) != nil
+        Self._ubiquityContainer != nil
     }
 }
