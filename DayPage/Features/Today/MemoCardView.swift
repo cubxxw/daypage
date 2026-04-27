@@ -19,6 +19,8 @@ struct MemoCardView: View {
     @State private var showLocationSheet: Bool = false
     /// Tracks which attachment URLs have finished downloading from iCloud.
     @State private var downloadedURLs: Set<URL> = []
+    @State private var thumbnail: UIImage?
+    @State private var pollingURLs: Set<URL> = []
 
     // Maximum lines when collapsed
     private let previewLineLimit = 4
@@ -47,15 +49,20 @@ struct MemoCardView: View {
 
     /// Polls the download status and marks the URL as downloaded once iCloud delivers it.
     private func pollDownloadStatus(for url: URL) {
-        guard !downloadedURLs.contains(url) else { return }
+        guard !downloadedURLs.contains(url), !pollingURLs.contains(url) else { return }
+        pollingURLs.insert(url)
         Task {
             for _ in 0..<30 {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 s
                 if isAttachmentDownloaded(url) {
-                    await MainActor.run { downloadedURLs.insert(url) }
+                    await MainActor.run {
+                        downloadedURLs.insert(url)
+                        pollingURLs.remove(url)
+                    }
                     return
                 }
             }
+            await MainActor.run { pollingURLs.remove(url) }
         }
     }
 
@@ -166,6 +173,9 @@ struct MemoCardView: View {
                                 startDownload(audioURL)
                                 pollDownloadStatus(for: audioURL)
                             }
+                            .onDisappear {
+                                pollingURLs.remove(audioURL)
+                            }
                             .onTapGesture {
                                 startDownload(audioURL)
                                 pollDownloadStatus(for: audioURL)
@@ -179,27 +189,13 @@ struct MemoCardView: View {
                 if let att = memo.attachments.first(where: { $0.kind == "photo" }) {
                     let photoURL = VaultInitializer.vaultURL.appendingPathComponent(att.file)
                     let isReady = isAttachmentDownloaded(photoURL) || downloadedURLs.contains(photoURL)
-                    if isReady, let photoThumb = loadThumbnail(from: photoURL) {
-                        Image(uiImage: photoThumb)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 160)
-                            .clipped()
-                            .padding(.top, 6)
-
-                        // EXIF metadata bar below photo
-                        if let exifText = photoExifText {
-                            Text(exifText)
-                                .monoLabelStyle(size: 10)
-                                .foregroundColor(DSColor.onSurfaceVariant)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .padding(.horizontal, DSSpacing.cardInner)
-                                .padding(.vertical, 6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(DSColor.surfaceContainer)
-                        }
+                    if isReady {
+                        PhotoThumbnailView(
+                            fileURL: photoURL,
+                            thumbnail: $thumbnail,
+                            exifText: photoExifText
+                        )
+                        .padding(.top, 6)
                     } else if !isReady {
                         // iCloud evicted — show gray placeholder with spinner
                         PhotoDownloadPlaceholder()
@@ -207,6 +203,9 @@ struct MemoCardView: View {
                             .onAppear {
                                 startDownload(photoURL)
                                 pollDownloadStatus(for: photoURL)
+                            }
+                            .onDisappear {
+                                pollingURLs.remove(photoURL)
                             }
                     }
                 }
@@ -836,6 +835,65 @@ struct PhotoDownloadPlaceholder: View {
                     .foregroundColor(DSColor.onSurfaceVariant)
             }
         }
+    }
+}
+
+// MARK: - PhotoThumbnailView
+
+struct PhotoThumbnailView: View {
+    let fileURL: URL
+    @Binding var thumbnail: UIImage?
+    let exifText: String?
+
+    var body: some View {
+        Group {
+            if let thumb = thumbnail {
+                Image(uiImage: thumb)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+                    .clipped()
+            } else {
+                Rectangle()
+                    .fill(DSColor.surfaceContainerHigh)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 160)
+            }
+        }
+        .task(id: fileURL) {
+            thumbnail = nil
+            thumbnail = await loadThumbnailAsync(from: fileURL)
+        }
+        .overlay(alignment: .bottom) {
+            if let exifText = exifText {
+                Text(exifText)
+                    .monoLabelStyle(size: 10)
+                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, DSSpacing.cardInner)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(DSColor.surfaceContainer)
+            }
+        }
+    }
+
+    @MainActor
+    private func loadThumbnailAsync(from fileURL: URL) async -> UIImage? {
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        let opts: [CFString: Any] = [
+            kCGImageSourceShouldCacheImmediately: false,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
+            kCGImageSourceThumbnailMaxPixelSize: 600
+        ]
+        if let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
+            return UIImage(cgImage: cgThumb)
+        }
+        return UIImage(data: data)
     }
 }
 
