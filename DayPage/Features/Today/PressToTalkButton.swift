@@ -9,6 +9,10 @@ import UIKit
 //     • Tap → emit onTap, parent switches to "recording bar" mode
 //             (PressToTalkButton is no longer visible while recording bar is shown)
 //
+//   Short press (< 0.35s, then release):
+//     • User pressed briefly then lifted — treat as accidental tap, show
+//       a ring + "再按住一下" hint while pressed, "按住说话" toast on release.
+//
 //   Long press (>= 0.35s hold):
 //     WeChat-style press-to-talk flow (original behaviour, unchanged):
 //     • Press-down              → start recording + light haptic
@@ -27,6 +31,9 @@ import UIKit
 /// RecordingOverlayView with an appropriate transition.
 enum PressToTalkPhase: Equatable {
     case idle
+    /// User is pressing but hasn't crossed the long press threshold yet (0-0.35s).
+    /// Parent should show a brief ring + "再按住一下" hint.
+    case preRecording
     case recording
     case cancelArmed
     case transcribeArmed
@@ -61,6 +68,10 @@ struct PressToTalkButton: View {
     /// Reports phase transitions upward so parent can update the overlay state.
     var onPhaseChange: (PressToTalkPhase) -> Void
 
+    /// Called when a simple tap (press < 0.35s then release without long-pressing) is detected.
+    /// Parent can show a "按住说话" toast.
+    var onTapShortRelease: () -> Void = {}
+
     /// Diameter of the circular button and its hit target.
     var size: CGFloat = 40
 
@@ -77,28 +88,43 @@ struct PressToTalkButton: View {
     /// the gesture is treated as a tap → persistent recording bar.
     private let longPressThreshold: TimeInterval = 0.35
 
+    /// Duration of the pulsing ring animation cycle (one full scale-up + fade-out).
+    private let ringAnimationDuration: TimeInterval = 0.8
+
     // MARK: State
 
     @GestureState private var isPressing: Bool = false
     @State private var currentPhase: PressToTalkPhase = .idle
     @State private var lastTranslation: CGSize = .zero
     @State private var pressStartTime: Date? = nil
+    @State private var ringScale: CGFloat = 1.0
+    @State private var ringOpacity: Double = 0.0
 
     // MARK: Body
 
     var body: some View {
-        Image(systemName: "mic.fill")
-            .font(.system(size: size * 0.45, weight: .regular))
-            .foregroundColor(iconColor)
-            .frame(width: size, height: size)
-            .background(backgroundColor)
-            .clipShape(Circle())
-            .scaleEffect(currentPhase == .idle ? 1.0 : 1.08)
-            .animation(.easeOut(duration: 0.12), value: currentPhase)
-            .contentShape(Circle())
-            .accessibilityLabel("点击说话")
-            .accessibilityHint("单击开始录音；长按说话松手发送")
-            .highPriorityGesture(dragGesture)
+        ZStack {
+            // Pulsing ring — visible only during preRecording phase
+            if currentPhase == .preRecording {
+                Circle()
+                    .stroke(DSColor.primary.opacity(ringOpacity), lineWidth: 2)
+                    .frame(width: size * ringScale, height: size * ringScale)
+                    .allowsHitTesting(false)
+            }
+
+            Image(systemName: "mic.fill")
+                .font(.system(size: size * 0.45, weight: .regular))
+                .foregroundColor(iconColor)
+                .frame(width: size, height: size)
+                .background(backgroundColor)
+                .clipShape(Circle())
+                .scaleEffect(currentPhase == .idle ? 1.0 : 1.08)
+                .animation(.easeOut(duration: 0.12), value: currentPhase)
+                .contentShape(Circle())
+                .accessibilityLabel("点击说话")
+                .accessibilityHint("单击开始录音；长按说话松手发送")
+                .highPriorityGesture(dragGesture)
+        }
     }
 
     // MARK: - Gesture
@@ -111,20 +137,24 @@ struct PressToTalkButton: View {
             .onChanged { value in
                 if currentPhase == .idle {
                     pressStartTime = Date()
-                    // Don't start recording yet — wait to see if this becomes a long press
+                    // Enter preRecording phase immediately — show ring + hint
+                    currentPhase = .preRecording
+                    onPhaseChange(.preRecording)
+                    startRingPulse()
                 }
 
                 // Once we've held past the threshold, commit to press-to-talk mode
-                if currentPhase == .idle,
+                if currentPhase == .preRecording,
                    let start = pressStartTime,
                    Date().timeIntervalSince(start) >= longPressThreshold {
                     emitHaptic(InputTokens.pressDownHaptic)
+                    stopRingPulse()
                     onPressStart()
                     currentPhase = .recording
                     onPhaseChange(.recording)
                 }
 
-                guard currentPhase != .idle else { return }
+                guard currentPhase != .idle && currentPhase != .preRecording else { return }
 
                 lastTranslation = value.translation
                 let newPhase = derivePhase(from: value.translation)
@@ -147,15 +177,16 @@ struct PressToTalkButton: View {
                     pressStartTime = nil
                 }
 
-                // Short tap — delegate to onTap for persistent recording bar
+                // Short tap — never crossed threshold, still in preRecording phase
                 if let start = pressStartTime,
                    Date().timeIntervalSince(start) < longPressThreshold,
-                   currentPhase == .idle {
+                   currentPhase == .preRecording {
+                    stopRingPulse()
                     emitHaptic(InputTokens.pressDownHaptic)
                     currentPhase = .idle
                     onPhaseChange(.idle)
                     lastTranslation = .zero
-                    onTap()
+                    onTapShortRelease()
                     return
                 }
 
@@ -182,6 +213,24 @@ struct PressToTalkButton: View {
                 onPhaseChange(.idle)
                 lastTranslation = .zero
             }
+    }
+
+    // MARK: - Ring Animation
+
+    private func startRingPulse() {
+        ringScale = 1.0
+        ringOpacity = 0.5
+        withAnimation(
+            .easeInOut(duration: ringAnimationDuration).repeatForever(autoreverses: false)
+        ) {
+            ringScale = 1.35
+            ringOpacity = 0.0
+        }
+    }
+
+    private func stopRingPulse() {
+        ringScale = 1.0
+        ringOpacity = 0.0
     }
 
     // MARK: - Helpers
@@ -214,6 +263,7 @@ struct PressToTalkButton: View {
 
     private var iconColor: Color {
         switch currentPhase {
+        case .preRecording: return DSColor.primary
         case .cancelArmed: return DSColor.error
         case .transcribeArmed: return Color(red: 0.12, green: 0.30, blue: 0.65)
         case .recording: return DSColor.onPrimary
@@ -223,6 +273,7 @@ struct PressToTalkButton: View {
 
     private var backgroundColor: Color {
         switch currentPhase {
+        case .preRecording: return DSColor.primaryContainer
         case .cancelArmed: return DSColor.errorContainer
         case .transcribeArmed: return Color(red: 0.85, green: 0.92, blue: 1.0)
         case .recording, .transcribing: return DSColor.primary

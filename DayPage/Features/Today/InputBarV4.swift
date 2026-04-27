@@ -54,6 +54,8 @@ struct InputBarV4: View {
     /// meaningless one-frame recording while gracefully nudging the user
     /// toward the hold gesture.
     @State private var showTooShortToast: Bool = false
+    /// True while a "按住说话" hint is visible after a tap on the mic.
+    @State private var showHoldToast: Bool = false
 
     @StateObject private var voiceService = VoiceService.shared
 
@@ -81,11 +83,11 @@ struct InputBarV4: View {
 
     private var overlayMode: RecordingOverlayMode? {
         switch pressToTalkPhase {
-        case .idle:           return nil
-        case .recording:      return .recording
-        case .cancelArmed:    return .cancelArmed
-        case .transcribeArmed: return .transcribeArmed
-        case .transcribing:   return .transcribing
+        case .idle, .preRecording: return nil
+        case .recording:           return .recording
+        case .cancelArmed:         return .cancelArmed
+        case .transcribeArmed:     return .transcribeArmed
+        case .transcribing:        return .transcribing
         }
     }
 
@@ -145,9 +147,26 @@ struct InputBarV4: View {
                 .padding(.top, -34)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .accessibilityLabel("录音太短，请按住麦克风继续说")
+            } else if showHoldToast {
+                HStack(spacing: 6) {
+                    Image(systemName: "hand.point.up.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("按住说话")
+                        .font(.custom("Inter-Regular", size: 11))
+                }
+                .foregroundColor(DSColor.onSurface)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(DSColor.surfaceContainerHigh)
+                .clipShape(Capsule())
+                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+                .padding(.top, -34)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .accessibilityLabel("点按即可录音，按住松手发送")
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showTooShortToast)
+        .animation(.easeInOut(duration: 0.2), value: showHoldToast)
         .sheet(isPresented: $showAttachmentMenu) {
             AttachmentMenuPopover(
                 onCapturePhoto: { showAttachmentMenu = false; onCapturePhoto() },
@@ -197,6 +216,14 @@ struct InputBarV4: View {
                         .foregroundStyle(DSColor.onBackgroundSubtle)
 
                     Spacer(minLength: 0)
+
+                    // Hint label that appears when user starts pressing (< 0.35s)
+                    if pressToTalkPhase == .preRecording {
+                        Text("再按住一下")
+                            .font(.custom("SpaceGrotesk-Medium", size: 12))
+                            .foregroundStyle(DSColor.primary)
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
@@ -205,6 +232,7 @@ struct InputBarV4: View {
                 .overlay(Capsule().strokeBorder(DSColor.outlineVariant.opacity(0.5), lineWidth: 0.5))
             }
             .buttonStyle(.plain)
+            .animation(.easeInOut(duration: 0.15), value: pressToTalkPhase)
 
             PressToTalkButton(
                 onTap: {},
@@ -213,6 +241,7 @@ struct InputBarV4: View {
                 onReleaseCancel: handlePressToTalkReleaseCancel,
                 onReleaseTranscribe: handlePressToTalkReleaseTranscribe,
                 onPhaseChange: { pressToTalkPhase = $0 },
+                onTapShortRelease: flashHoldToast,
                 size: 48,
                 idleBackgroundColor: DSColor.onBackgroundPrimary,
                 idleIconColor: .white
@@ -363,6 +392,13 @@ struct InputBarV4: View {
         showTooShortToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
             showTooShortToast = false
+        }
+    }
+
+    private func flashHoldToast() {
+        showHoldToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            showHoldToast = false
         }
     }
 
