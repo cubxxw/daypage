@@ -138,7 +138,7 @@ private struct WeeklyRecapDayCard: View {
     }
 
     private var accessibilityLabel: String {
-        let summaryText = (entry.summary?.isEmpty == false) ? entry.summary! : "已编译"
+        let summaryText = entry.summary.flatMap { $0.isEmpty ? nil : $0 } ?? "已编译"
         return "\(entry.dateString)，\(summaryText)"
     }
 }
