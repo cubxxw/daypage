@@ -342,6 +342,12 @@ struct InputBarV4: View {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
             voiceService.cancelRecording()
             flashTooShortToast()
+            // Critical: the transcribe branch in PressToTalkButton.onEnded
+            // early-returns past the unconditional `.idle` reset that the
+            // send/cancel paths fall through to. Without this line the
+            // RecordingOverlayView stays mounted in `.transcribing` until
+            // the user kicks off a new gesture.
+            pressToTalkPhase = .idle
             return
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
