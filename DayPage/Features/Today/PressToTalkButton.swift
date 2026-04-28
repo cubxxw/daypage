@@ -6,12 +6,10 @@ import UIKit
 // Dual-mode microphone button:
 //
 //   Short tap (< 0.35s hold):
-//     • Tap → emit onTap, parent switches to "recording bar" mode
-//             (PressToTalkButton is no longer visible while recording bar is shown)
-//
-//   Short press (< 0.35s, then release):
-//     • User pressed briefly then lifted — treat as accidental tap, show
-//       a ring + "再按住一下" hint while pressed, "按住说话" toast on release.
+//     • Press-and-release inside the threshold fires `onTapShortRelease`.
+//       The parent decides what that means (e.g. open a continuous-recording
+//       sheet); this view emits no haptic for the short-tap path so callers
+//       own the feedback story.
 //
 //   Long press (>= 0.35s hold):
 //     WeChat-style press-to-talk flow (original behaviour, unchanged):
@@ -45,10 +43,6 @@ enum PressToTalkPhase: Equatable {
 struct PressToTalkButton: View {
 
     // MARK: Inputs
-
-    /// Called on short tap (< longPressThreshold). Parent should switch to
-    /// the persistent recording bar mode.
-    var onTap: () -> Void = {}
 
     /// Called on long-press-down (>= longPressThreshold). Parent should start
     /// VoiceService.startRecording() for the press-to-talk flow.
@@ -121,8 +115,6 @@ struct PressToTalkButton: View {
                 .scaleEffect(currentPhase == .idle ? 1.0 : 1.08)
                 .animation(.easeOut(duration: 0.12), value: currentPhase)
                 .contentShape(Circle())
-                .accessibilityLabel("点击说话")
-                .accessibilityHint("单击开始录音；长按说话松手发送")
                 .highPriorityGesture(dragGesture)
         }
     }
@@ -177,12 +169,14 @@ struct PressToTalkButton: View {
                     pressStartTime = nil
                 }
 
-                // Short tap — never crossed threshold, still in preRecording phase
+                // Short tap — never crossed threshold, still in preRecording phase.
+                // Haptic is intentionally not emitted here: the short-tap callback
+                // owns its own feedback (e.g. opening a sheet) and a duplicate
+                // light impact at this layer would double-buzz on every tap.
                 if let start = pressStartTime,
                    Date().timeIntervalSince(start) < longPressThreshold,
                    currentPhase == .preRecording {
                     stopRingPulse()
-                    emitHaptic(InputTokens.pressDownHaptic)
                     currentPhase = .idle
                     onPhaseChange(.idle)
                     lastTranslation = .zero

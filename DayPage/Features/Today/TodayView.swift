@@ -462,7 +462,6 @@ struct TodayView: View {
             onCapturePhoto: { viewModel.startCameraCapture() },
             onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
             onStartVoiceRecording: { viewModel.startVoiceRecording() },
-            onVoiceComplete: { result in viewModel.addVoiceAttachment(result: result) },
             onPressToTalkSend: { result in
                 viewModel.addVoiceAttachment(result: result)
                 let body = draftText

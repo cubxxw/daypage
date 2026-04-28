@@ -45,7 +45,6 @@ struct InputBarV4: View {
     var onCapturePhoto: () -> Void
     var onRemoveAttachment: (String) -> Void
     var onStartVoiceRecording: () -> Void
-    var onVoiceComplete: (VoiceRecordingResult) -> Void
     var onPressToTalkSend: (VoiceRecordingResult) -> Void
     var onPressToTalkTranscribe: (String) -> Void
     var onAddFile: () -> Void
@@ -223,7 +222,6 @@ struct InputBarV4: View {
             // to talk for a while, control pause/save myself"; a hold is for
             // "I want to dictate one quick thought and let go to send".
             PressToTalkButton(
-                onTap: handleMicTap,
                 onPressStart: handlePressToTalkStart,
                 onReleaseSend: handlePressToTalkReleaseSend,
                 onReleaseCancel: handlePressToTalkReleaseCancel,
@@ -237,7 +235,8 @@ struct InputBarV4: View {
             .frame(width: 56, height: 56)
             .shadow(color: DSColor.accentAmber.opacity(0.32), radius: 14, x: 0, y: 8)
             .shadow(color: DSColor.accentAmber.opacity(0.18), radius: 4, x: 0, y: 2)
-            .accessibilityLabel("按住说话")
+            .accessibilityLabel("麦克风")
+            .accessibilityHint("单击进入录音页；长按说话松手发送")
 
             // RIGHT — Pen (expand text composer)
             dockSideButton(
@@ -288,7 +287,7 @@ struct InputBarV4: View {
     private var dockHintLabel: some View {
         let raw: String
         switch pressToTalkPhase {
-        case .idle:            raw = "点击录音 · 长按发送"
+        case .idle:            raw = "点击进入录音 · 长按发送"
         case .preRecording:    raw = "再按住一下"
         case .recording:       raw = "上滑取消 · 左滑转文字 · 松开发送"
         case .cancelArmed:     raw = "松开取消"
