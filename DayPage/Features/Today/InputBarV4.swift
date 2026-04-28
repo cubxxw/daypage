@@ -45,7 +45,6 @@ struct InputBarV4: View {
     var onCapturePhoto: () -> Void
     var onRemoveAttachment: (String) -> Void
     var onStartVoiceRecording: () -> Void
-    var onVoiceComplete: (VoiceRecordingResult) -> Void
     var onPressToTalkSend: (VoiceRecordingResult) -> Void
     var onPressToTalkTranscribe: (String) -> Void
     var onAddFile: () -> Void
@@ -62,8 +61,6 @@ struct InputBarV4: View {
     /// meaningless one-frame recording while gracefully nudging the user
     /// toward the hold gesture.
     @State private var showTooShortToast: Bool = false
-    /// True while a "按住说话" hint is visible after a tap on the mic.
-    @State private var showHoldToast: Bool = false
 
     @StateObject private var voiceService = VoiceService.shared
 
@@ -167,26 +164,9 @@ struct InputBarV4: View {
                 .padding(.top, -34)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .accessibilityLabel("录音太短，请按住麦克风继续说")
-            } else if showHoldToast {
-                HStack(spacing: 6) {
-                    Image(systemName: "hand.point.up.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("按住说话")
-                        .font(.custom("Inter-Regular", size: 11))
-                }
-                .foregroundColor(DSColor.onSurface)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(DSColor.surfaceContainerHigh)
-                .clipShape(Capsule())
-                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
-                .padding(.top, -34)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                .accessibilityLabel("点按即可录音，按住松手发送")
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showTooShortToast)
-        .animation(.easeInOut(duration: 0.2), value: showHoldToast)
         .sheet(isPresented: $showAttachmentMenu) {
             AttachmentMenuPopover(
                 onCapturePhoto: { showAttachmentMenu = false; onCapturePhoto() },
@@ -233,14 +213,21 @@ struct InputBarV4: View {
             }
 
             // CENTER — Mic-hero (amber, slightly larger, the only filled CTA)
+            //
+            // Tap (< 0.35s)  → enter Flomo-style continuous recording sheet
+            //                  (VoiceRecordingView, half-screen, pause/resume/save).
+            // Long-press     → WeChat-style press-to-talk, release to send.
+            //
+            // The two paths are intentionally distinct: a tap is for "I want
+            // to talk for a while, control pause/save myself"; a hold is for
+            // "I want to dictate one quick thought and let go to send".
             PressToTalkButton(
-                onTap: {},
                 onPressStart: handlePressToTalkStart,
                 onReleaseSend: handlePressToTalkReleaseSend,
                 onReleaseCancel: handlePressToTalkReleaseCancel,
                 onReleaseTranscribe: handlePressToTalkReleaseTranscribe,
                 onPhaseChange: { pressToTalkPhase = $0 },
-                onTapShortRelease: flashHoldToast,
+                onTapShortRelease: handleMicTap,
                 size: 56,
                 idleBackgroundColor: DSColor.accentAmber,
                 idleIconColor: .white
@@ -248,7 +235,8 @@ struct InputBarV4: View {
             .frame(width: 56, height: 56)
             .shadow(color: DSColor.accentAmber.opacity(0.32), radius: 14, x: 0, y: 8)
             .shadow(color: DSColor.accentAmber.opacity(0.18), radius: 4, x: 0, y: 2)
-            .accessibilityLabel("按住说话")
+            .accessibilityLabel("麦克风")
+            .accessibilityHint("单击进入录音页；长按说话松手发送")
 
             // RIGHT — Pen (expand text composer)
             dockSideButton(
@@ -299,7 +287,7 @@ struct InputBarV4: View {
     private var dockHintLabel: some View {
         let raw: String
         switch pressToTalkPhase {
-        case .idle:            raw = "点击录音 · 长按发送"
+        case .idle:            raw = "点击进入录音 · 长按发送"
         case .preRecording:    raw = "再按住一下"
         case .recording:       raw = "上滑取消 · 左滑转文字 · 松开发送"
         case .cancelArmed:     raw = "松开取消"
@@ -421,6 +409,15 @@ struct InputBarV4: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { userExpandedText = false }
     }
 
+    /// Single tap on the mic — open the persistent (Flomo-style) recording
+    /// sheet. The user controls pause / resume / save / discard from inside
+    /// VoiceRecordingView; we don't start VoiceService here, the sheet does
+    /// it itself in `.onAppear`.
+    private func handleMicTap() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onStartVoiceRecording()
+    }
+
     private func handlePressToTalkStart() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task { await voiceService.startRecording() }
@@ -477,13 +474,6 @@ struct InputBarV4: View {
         showTooShortToast = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
             showTooShortToast = false
-        }
-    }
-
-    private func flashHoldToast() {
-        showHoldToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            showHoldToast = false
         }
     }
 

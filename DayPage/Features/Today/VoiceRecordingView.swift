@@ -67,6 +67,12 @@ struct VoiceRecordingView: View {
         .frame(maxWidth: .infinity)
         .background(DSColor.surface)
         .onAppear {
+            // Guard against re-entry: a fast double-tap on the mic-hero, or a
+            // previously-stuck session from a press-to-talk gesture, can land
+            // us here while VoiceService is still active. Starting again would
+            // tear down the live AVAudioRecorder mid-frame and orphan its file.
+            // Only kick off a new recording when the service is genuinely idle.
+            guard voiceService.state == .idle else { return }
             Task {
                 await voiceService.startRecording()
             }
