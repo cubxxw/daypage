@@ -17,7 +17,4 @@ extension Secrets {
     static var resolvedGitHubToken: String {
         KeychainHelper.get(forKey: "githubToken") ?? ""
     }
-    static var kubotGitHubToken: String {
-        Secrets.kubotGitHubToken
-    }
 }
