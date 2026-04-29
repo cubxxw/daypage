@@ -61,8 +61,11 @@ struct InputBarV4: View {
     /// meaningless one-frame recording while gracefully nudging the user
     /// toward the hold gesture.
     @State private var showTooShortToast: Bool = false
-    /// True while the mic-tap mode hint ("按住发送 · 单击录音") is visible.
+    @State private var tooShortToastTask: Task<Void, Never>?
+    /// True while the mic-tap affordance hint is visible ("单击打开录音页 · 长按发送语音").
+    /// Shown on every short tap so users discover both interaction modes.
     @State private var showMicHintToast: Bool = false
+    @State private var micHintToastTask: Task<Void, Never>?
     /// True while composing-mode mic is actively recording for transcription.
     @State private var isComposingTranscribe: Bool = false
 
@@ -161,11 +164,12 @@ struct InputBarV4: View {
                 .padding(.top, -34)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .accessibilityLabel("录音太短，请按住麦克风继续说")
+                .accessibilityHidden(!showTooShortToast)
             } else if showMicHintToast {
                 HStack(spacing: 6) {
                     Image(systemName: "hand.tap")
                         .font(.system(size: 11, weight: .semibold))
-                    Text("按住发送 · 单击录音")
+                    Text("单击打开录音页 · 长按发送语音")
                         .font(.custom("Inter-Regular", size: 11))
                 }
                 .foregroundColor(DSColor.onSurface)
@@ -177,10 +181,10 @@ struct InputBarV4: View {
                 .padding(.top, -34)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .accessibilityLabel("单击打开录音页，长按发送语音")
+                .accessibilityHidden(!showMicHintToast)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: showTooShortToast)
-        .animation(.easeInOut(duration: 0.2), value: showMicHintToast)
+        .animation(.easeInOut(duration: 0.2), value: showTooShortToast || showMicHintToast)
         .sheet(isPresented: $showAttachmentMenu) {
             AttachmentMenuPopover(
                 onCapturePhoto: { showAttachmentMenu = false; onCapturePhoto() },
@@ -301,7 +305,7 @@ struct InputBarV4: View {
     private var dockHintLabel: some View {
         let raw: String
         switch pressToTalkPhase {
-        case .idle:            raw = "点击进入录音 · 长按发送"
+        case .idle:            raw = "单击打开录音页 · 长按发送语音"
         case .preRecording:    raw = "再按住一下"
         case .recording:       raw = "上滑取消 · 左滑转文字 · 松开发送"
         case .cancelArmed:     raw = "松开取消"
@@ -480,6 +484,7 @@ struct InputBarV4: View {
     /// sheet. The user controls pause / resume / save / discard from inside
     /// VoiceRecordingView; we don't start VoiceService here, the sheet does
     /// it itself in `.onAppear`.
+    /// Also flashes a hint toast so users discover that long-press sends directly.
     private func handleMicTap() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         flashMicHintToast()
@@ -539,15 +544,29 @@ struct InputBarV4: View {
     }
 
     private func flashTooShortToast() {
+        // Fix 2: clear competing toast before showing this one
+        micHintToastTask?.cancel()
+        showMicHintToast = false
+        // Fix 1: cancellable Task prevents stacked timers on rapid triggers
+        tooShortToastTask?.cancel()
         showTooShortToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+        tooShortToastTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
             showTooShortToast = false
         }
     }
 
     private func flashMicHintToast() {
+        // Fix 2: clear competing toast before showing this one
+        tooShortToastTask?.cancel()
+        showTooShortToast = false
+        // Fix 1: cancellable Task prevents stacked timers on rapid taps
+        micHintToastTask?.cancel()
         showMicHintToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+        micHintToastTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            guard !Task.isCancelled else { return }
             showMicHintToast = false
         }
     }
