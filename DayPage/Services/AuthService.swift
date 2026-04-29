@@ -469,7 +469,14 @@ extension AuthService: ASAuthorizationControllerPresentationContextProviding {
 
     nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
-        return windowScene?.windows.first(where: { $0.isKeyWindow }) ?? UIWindow()
+        guard let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+            ?? scenes.compactMap({ $0 as? UIWindowScene }).first
+        else {
+            // Should never happen: Apple Sign In is only triggered from a foreground scene.
+            return UIWindow()
+        }
+        return windowScene.windows.first(where: { $0.isKeyWindow })
+            ?? windowScene.windows.first
+            ?? UIWindow(windowScene: windowScene)
     }
 }
