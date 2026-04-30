@@ -7,7 +7,8 @@ import MapKit
 // MARK: - MemoCardView
 
 /// Displays a single Memo as a card in the Today timeline.
-/// Shows time + content preview with expand/collapse for long text.
+/// Shows time + full content; cards grow to fit the memo so long voice
+/// transcriptions and long text are never clipped.
 struct MemoCardView: View {
 
     let memo: Memo
@@ -15,15 +16,11 @@ struct MemoCardView: View {
     /// Optional callback invoked when the user confirms deletion of this memo.
     var onDelete: (() -> Void)? = nil
 
-    @State private var isExpanded: Bool = false
     @State private var showLocationSheet: Bool = false
     /// Tracks which attachment URLs have finished downloading from iCloud.
     @State private var downloadedURLs: Set<URL> = []
     @State private var thumbnail: UIImage?
     @State private var pollingURLs: Set<URL> = []
-
-    // Maximum lines when collapsed
-    private let previewLineLimit = 4
 
     // MARK: - iCloud Attachment Helpers
 
@@ -243,43 +240,33 @@ struct MemoCardView: View {
                 Text(bodyText)
                     .bodySMStyle()
                     .foregroundColor(DSColor.onSurface)
-                    .lineLimit(isExpanded ? nil : previewLineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
                     .padding(.horizontal, DSSpacing.cardInner)
                     .padding(.top, 6)
             }
 
-            // Bottom row: location label + expand toggle
-            HStack(alignment: .center, spacing: 8) {
-                if let locationName = memo.location?.name, !locationName.isEmpty {
-                    HStack(spacing: 3) {
-                        Image(systemName: "mappin")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(DSColor.onSurfaceVariant)
-                        Text(locationName)
-                            .monoLabelStyle(size: 9)
-                            .foregroundColor(DSColor.onSurfaceVariant)
-                    }
+            // Bottom row: location label
+            if let locationName = memo.location?.name, !locationName.isEmpty {
+                HStack(spacing: 3) {
+                    Image(systemName: "mappin")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                    Text(locationName)
+                        .monoLabelStyle(size: 9)
+                        .foregroundColor(DSColor.onSurfaceVariant)
+                    Spacer(minLength: 0)
                 }
-
-                Spacer()
-
-                // Expand/collapse button for long content
-                if needsExpansionButton {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            isExpanded.toggle()
-                        }
-                    }) {
-                        Text(isExpanded ? "收起" : "展开")
-                            .monoLabelStyle(size: 9)
-                            .foregroundColor(DSColor.onSurfaceVariant)
-                    }
-                    .buttonStyle(.plain)
-                }
+                .padding(.horizontal, DSSpacing.cardInner)
+                .padding(.top, 6)
+                .padding(.bottom, DSSpacing.cardInner)
+            } else {
+                // Match the location branch's 6pt top + cardInner bottom rhythm
+                // so cards with and without a location label share the same
+                // bottom whitespace.
+                Spacer().frame(height: DSSpacing.cardInner + 6)
             }
-            .padding(.horizontal, DSSpacing.cardInner)
-            .padding(.top, 6)
-            .padding(.bottom, DSSpacing.cardInner)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DSColor.surfaceContainer)
@@ -373,17 +360,6 @@ struct MemoCardView: View {
         }
     }
 
-    /// Whether the body is long enough to need an expand button.
-    private var needsExpansionButton: Bool {
-        let body = memo.body.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return false }
-        // Suppress for voice memos where body is a legacy duplicate of transcript.
-        let isDuplicate = memo.type == .voice &&
-            memo.attachments.contains(where: { $0.transcript == body })
-        guard !isDuplicate else { return false }
-        let lineCount = body.components(separatedBy: "\n").count
-        return lineCount > previewLineLimit || body.count > 200
-    }
 }
 
 // MARK: - LocationPreviewSheet
@@ -605,12 +581,16 @@ struct VoiceMemoPlayerRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            // Transcript preview (if available) or queued placeholder
+            // Full transcript (if available) or queued placeholder.
+            // No line limit — long transcriptions must remain fully readable
+            // (see issue #203).
             if let t = transcript, !t.isEmpty {
                 Text(t)
                     .bodySMStyle()
                     .foregroundColor(DSColor.onSurfaceVariant)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 6)
             } else if transcript == nil && VoiceAttachmentQueue.shared.pendingCount > 0 {
