@@ -65,6 +65,8 @@
 	<string>DayPage 需要访问相机，以便拍摄照片并附加到 memo 中。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>DayPage 需要访问麦克风，以便录制语音 memo 并自动转写为文字。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>DayPage 需要使用语音识别，以便在反馈表单中将您的语音输入转写为文字。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>DayPage 需要访问相册，以便将照片附加到 memo 并保留原始 EXIF 数据。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
