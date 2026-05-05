@@ -374,14 +374,14 @@ struct InputBarV4: View {
                     onCapturePhoto()
                 }
 
-                // Photo library (multi-select)
-                ZStack {
-                    toolbarIconButton(systemImage: "photo.on.rectangle", accessibilityLabel: "相册") {}
-                    PhotosPicker(selection: $photosPickerItems, matching: .images, photoLibrary: .shared()) {
-                        Color.clear.frame(width: 44, height: 44)
-                    }
-                    .opacity(0.01)
+                // Photo library (multi-select) — the icon IS the picker's label,
+                // not a separate button stacked behind a transparent picker.
+                // The previous ZStack + opacity(0.01) overlay broke hit-testing
+                // on iOS 26.x and left the picker unreachable (#219).
+                PhotosPicker(selection: $photosPickerItems, matching: .images, photoLibrary: .shared()) {
+                    toolbarIconButtonContent(systemImage: "photo.on.rectangle")
                 }
+                .accessibilityLabel("相册")
 
                 // Location
                 toolbarIconButton(
@@ -410,13 +410,23 @@ struct InputBarV4: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .light))
-                .foregroundStyle(tint)
-                .frame(width: 44, height: 44)
+            toolbarIconButtonContent(systemImage: systemImage, tint: tint)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    /// Bare icon glyph used as the visual label for both `toolbarIconButton`
+    /// (Button-wrapped) and `PhotosPicker` (its own tappable surface).
+    @ViewBuilder
+    private func toolbarIconButtonContent(
+        systemImage: String,
+        tint: Color = DSColor.onBackgroundMuted
+    ) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 20, weight: .light))
+            .foregroundStyle(tint)
+            .frame(width: 44, height: 44)
     }
 
     private func handleComposingMicTap() {
