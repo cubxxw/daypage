@@ -494,7 +494,11 @@ struct TodayView: View {
             pendingAttachments: viewModel.pendingAttachments,
             onFetchLocation: { viewModel.fetchLocation() },
             onClearLocation: { viewModel.clearPendingLocation() },
-            onAddPhoto: { items in viewModel.addPhotosAndSubmit(items: items) },
+            onAddPhoto: { items in
+                for item in items {
+                    viewModel.addPhotoAttachment(item: item)
+                }
+            },
             onCapturePhoto: { viewModel.startCameraCapture() },
             onRemoveAttachment: { id in viewModel.removePendingAttachment(id: id) },
             onStartVoiceRecording: { viewModel.startVoiceRecording() },
