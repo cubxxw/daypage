@@ -136,7 +136,10 @@ enum ConflictMerger {
             let info = ConflictResolutionInfo(date: Date(), mergedMemoCount: conflictVersions.count, sourceDevice: device)
             NotificationCenter.default.post(name: .vaultConflictResolved, object: info)
         } catch {
-            DayPageLogger.shared.error("[ConflictMerger] Failed to resolve conflict at \(primaryURL.lastPathComponent): \(error)")
+            DayPageLogger.log(
+                level: "ERROR",
+                message: "[ConflictMerger] Failed to resolve conflict at \(primaryURL.lastPathComponent): \(error)"
+            )
             if !Secrets.sentryDSN.isEmpty { SentrySDK.capture(error: error) }
             NotificationCenter.default.post(name: .vaultConflictFailed, object: primaryURL)
         }
@@ -157,7 +160,7 @@ enum ConflictMerger {
                     original = mergeRawMemos(original: original, conflict: conflictMemos)
                 }
             }
-            let merged = original.map { $0.toMarkdown() }.joined(separator: "\n\n---\n\n")
+            let merged = original.map { $0.toMarkdown() }.joined(separator: RawStorage.memoSeparator)
             try writeMerged(data: Data(merged.utf8), to: primaryURL)
         } else {
             // 日志/wiki 文件：按行时间戳前缀去重。
@@ -198,6 +201,6 @@ enum ConflictMerger {
 
     private static func parseMemos(from data: Data) -> [Memo] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
-        return text.components(separatedBy: "\n\n---\n\n").compactMap { Memo.fromMarkdown($0) }
+        return RawStorage.parse(fileContent: text)
     }
 }
