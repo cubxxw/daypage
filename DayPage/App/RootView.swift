@@ -41,16 +41,26 @@ struct RootView: View {
                             showAuthSheet = false
                         })
                     }
-                    .onChange(of: authService.session?.user.id) { newUserID in
-                        // Sign-in success → dismiss; sign-out → present.
-                        // Keyed on user.id (UUID, Equatable) instead of `Session`
-                        // itself, which isn't guaranteed Equatable across Supabase
-                        // SDK versions.
-                        if newUserID != nil {
+                    .onChange(of: authService.session != nil) { hasSession in
+                        // Watch the stable boolean rather than session?.user.id.
+                        // During Supabase's internal signedIn transition the listener
+                        // can emit a transient nil session, causing user.id to flash
+                        // nil→UUID→nil→UUID and toggle showAuthSheet twice (RC1).
+                        // `session != nil` is monotonically stable per sign-in event.
+                        if hasSession {
                             showAuthSheet = false
                         } else {
                             showAuthSheet = !authSkipped
                         }
+                    }
+                    .onAppear {
+                        // The @State initializer captures session synchronously at
+                        // view construction time. If AuthService's async listener
+                        // hasn't delivered the restored session yet, showAuthSheet
+                        // starts as true even for already-signed-in users. Re-check
+                        // once the view appears by which time the listener has
+                        // typically fired (RC3 — lazy re-check path).
+                        if authService.session != nil { showAuthSheet = false }
                     }
                     .onChange(of: authSkipped) { skipped in
                         if skipped { showAuthSheet = false }

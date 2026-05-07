@@ -229,10 +229,16 @@ final class AuthService: NSObject, ObservableObject {
                 KeychainHelper.set(email, forKey: Self.appleEmailKey)
             }
 
-            session = try await supabase.auth.signInWithIdToken(
+            // Do NOT assign to self.session here. The authStateChanges listener
+            // is the single source of truth for session state; assigning directly
+            // would create a second write path that races with the listener's
+            // nil→session→nil flash during Supabase's internal state transition (RC1).
+            // Clear isLoading before the listener's session update triggers SwiftUI
+            // diffing so the ProgressView overlay is already gone when onChange fires (RC3).
+            isLoading = false
+            _ = try await supabase.auth.signInWithIdToken(
                 credentials: .init(provider: .apple, idToken: identityToken)
             )
-            isLoading = false
         } catch let asError as ASAuthorizationError where asError.code == .canceled {
             isLoading = false
         } catch {
