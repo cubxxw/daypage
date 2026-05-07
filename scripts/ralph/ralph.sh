@@ -44,7 +44,8 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 import json, sys
 with open('$PRD_FILE') as f:
     prd = json.load(f)
-incomplete = [s for s in prd['stories'] if not s['passes']]
+items = prd.get('stories', prd.get('userStories', []))
+incomplete = [s for s in items if not s['passes']]
 if not incomplete:
     print('ALL_DONE')
     sys.exit(0)
@@ -59,9 +60,18 @@ print(json.dumps(story))
   fi
 
   STORY_ID=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-  STORY_NAME=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['name'])")
+  STORY_NAME=$(echo "$STORY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name', d.get('title','')))")
   STORY_DESC=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['description'])")
-  STORY_ACCEPT=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['acceptance'])")
+  # acceptanceCriteria is an array — join with newlines for the prompt
+  STORY_ACCEPT=$(echo "$STORY" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+ac = d.get('acceptance', d.get('acceptanceCriteria', []))
+if isinstance(ac, list):
+    print('\n'.join(f'- {a}' for a in ac))
+else:
+    print(ac)
+")
 
   echo "📌 Story #$STORY_ID: $STORY_NAME"
   echo "   Acceptance: $STORY_ACCEPT"
@@ -117,7 +127,7 @@ Acceptance: $STORY_ACCEPT"
 import json
 with open('$PRD_FILE') as f:
     prd = json.load(f)
-for s in prd['stories']:
+for s in prd.get('stories', prd.get('userStories', [])):
     if s['id'] == '$STORY_ID':
         s['passes'] = True
         break
@@ -147,7 +157,7 @@ REMAINING=$(python3 -c "
 import json
 with open('$PRD_FILE') as f:
     prd = json.load(f)
-remaining = [s['name'] for s in prd['stories'] if not s['passes']]
+remaining = [s.get('name', s.get('title', '?')) for s in prd.get('stories', prd.get('userStories', [])) if not s['passes']]
 if remaining:
     print('Remaining: ' + ', '.join(remaining))
 else:
