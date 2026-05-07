@@ -225,7 +225,8 @@ struct MemoCardView: View {
             let isBodyDuplicate = memo.type == .voice &&
                 memo.attachments.contains(where: { $0.transcript == bodyTrimmed && !bodyTrimmed.isEmpty })
             if !bodyTrimmed.isEmpty && !isBodyDuplicate {
-                Text(bodyTrimmed)
+                // Render-only polish: CJK/Latin spacing; does not modify vault file.
+                Text(CJKTextPolish.polish(bodyTrimmed))
                     .font(DSType.serifBody16)
                     .foregroundColor(DSColor.inkPrimary)
                     .lineSpacing(6)
@@ -516,7 +517,8 @@ struct VoiceMemoPlayerRow: View {
                         .font(DSFonts.serif(size: 20, weight: .medium))
                         .foregroundColor(DSColor.amberAccent)
                         .offset(y: -2)
-                    Text(t)
+                    // Render-only polish: CJK/Latin spacing; does not modify vault file.
+                    Text(CJKTextPolish.polish(t))
                         .font(DSType.serifQuote)
                         .foregroundColor(DSColor.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)

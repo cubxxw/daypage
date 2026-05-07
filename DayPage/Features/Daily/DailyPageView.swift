@@ -337,7 +337,8 @@ struct DailyPageView: View {
                     Rectangle()
                         .fill(DSColor.primary)
                         .frame(width: 2)
-                    Text(model.summary)
+                    // Render-only polish: CJK/Latin spacing; does not modify vault file.
+                    Text(CJKTextPolish.polish(model.summary))
                         .font(DSType.serifBody18)
                         .foregroundColor(DSColor.onSurface)
                         .lineSpacing(6)
@@ -401,8 +402,8 @@ struct DailyPageView: View {
                     .frame(height: 1)
             }
 
-            // Body text with wikilink rendering
-            wikifiedText(section.body)
+            // Render-only polish: CJK/Latin spacing applied before wikilink rendering; does not modify vault file.
+            wikifiedText(CJKTextPolish.polish(section.body))
         }
     }
 
