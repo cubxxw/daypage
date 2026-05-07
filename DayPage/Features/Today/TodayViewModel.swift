@@ -124,6 +124,7 @@ final class TodayViewModel: ObservableObject {
         self.date = date
         observeCompilationFailure()
         observeOnThisDay()
+        observeConflictResolution()
     }
 
     private func observeCompilationFailure() {
@@ -164,6 +165,20 @@ final class TodayViewModel: ObservableObject {
         ) { [weak self] notification in
             Task { @MainActor [weak self] in
                 self?.onThisDayEntry = notification.object as? OnThisDayEntry
+            }
+        }
+    }
+
+    /// Reloads memos whenever iCloud conflict resolution rewrites today's raw file.
+    /// Without this observer the UI shows stale in-memory memos after a merge.
+    private func observeConflictResolution() {
+        NotificationCenter.default.addObserver(
+            forName: .vaultConflictResolved,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.load()
             }
         }
     }
@@ -682,7 +697,7 @@ final class TodayViewModel: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = AppSettings.currentTimeZone()
         let dateStr = formatter.string(from: date)
         return VaultInitializer.vaultURL
             .appendingPathComponent("wiki")
