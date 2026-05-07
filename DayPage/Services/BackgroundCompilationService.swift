@@ -47,8 +47,12 @@ final class BackgroundCompilationService {
                 task.setTaskCompleted(success: false)
                 return
             }
-            Task { @MainActor [weak self] in
-                await self?.handleBackgroundTask(refreshTask)
+            // Capture self strongly: it is already confirmed non-nil by the guard above.
+            // A weak re-capture here would silently drop handleBackgroundTask if self is
+            // deallocated between the guard and the Task body, leaving task unsignaled.
+            let strongSelf = self
+            Task { @MainActor in
+                await strongSelf.handleBackgroundTask(refreshTask)
             }
         }
     }
@@ -138,24 +142,29 @@ final class BackgroundCompilationService {
             return
         }
 
-        Task {
-            let transaction = Secrets.sentryDSN.isEmpty ? nil
-                : SentrySDK.startTransaction(name: "background.compilation", operation: "task")
-            NotificationCenter.default.post(name: .compilationDidStart, object: nil)
-            defer { NotificationCenter.default.post(name: .compilationDidEnd, object: nil) }
-            do {
-                try await compileWithRetry(for: yesterday, trigger: "auto")
-                transaction?.finish()
-                if !Secrets.sentryDSN.isEmpty { SentrySDK.flush(timeout: 5) }
-                sendSuccessNotification(for: yesterday)
-                task.setTaskCompleted(success: true)
-            } catch {
-                DayPageLogger.shared.error("[BGCompile] Background compile failed after retries: \(error.localizedDescription)")
-                transaction?.finish(status: .internalError)
-                if !Secrets.sentryDSN.isEmpty { SentrySDK.flush(timeout: 5) }
-                sendFailureNotification()
-                task.setTaskCompleted(success: false)
-            }
+        // Run the compilation directly in this async context.
+        // Previously a bare Task{} was used here, causing handleBackgroundTask to return
+        // before compilation finished — the system considered the BGAppRefreshTask done
+        // immediately, potentially killing the process mid-compile.
+        var taskSucceeded = false
+        defer { task.setTaskCompleted(success: taskSucceeded) }
+
+        let transaction = Secrets.sentryDSN.isEmpty ? nil
+            : SentrySDK.startTransaction(name: "background.compilation", operation: "task")
+        NotificationCenter.default.post(name: .compilationDidStart, object: nil)
+        defer { NotificationCenter.default.post(name: .compilationDidEnd, object: nil) }
+        do {
+            try await compileWithRetry(for: yesterday, trigger: "auto")
+            transaction?.finish()
+            if !Secrets.sentryDSN.isEmpty { SentrySDK.flush(timeout: 5) }
+            sendSuccessNotification(for: yesterday)
+            taskSucceeded = true
+        } catch {
+            DayPageLogger.shared.error("[BGCompile] Background compile failed after retries: \(error.localizedDescription)")
+            transaction?.finish(status: .internalError)
+            if !Secrets.sentryDSN.isEmpty { SentrySDK.flush(timeout: 5) }
+            sendFailureNotification()
+            // taskSucceeded remains false — defer will call setTaskCompleted(success: false)
         }
     }
 

@@ -212,17 +212,25 @@ final class CompilationService {
         hotContent: String,
         memoCount: Int
     ) -> String {
-        """
+        let maxRawChars = 28_000
+        let truncatedRaw = rawContent.count > maxRawChars
+            ? "...[earlier memos truncated]\n" + String(rawContent.suffix(maxRawChars))
+            : rawContent
+        return """
         You are DayPage's AI compilation engine. Compile today's raw memos into a structured Daily Page and identify entities (places, people, themes) for the wiki.
 
         ## Date
         \(dateString)
 
         ## Short-term memory context (hot.md)
+        <hot_cache>
         \(hotContent.isEmpty ? "(no hot cache yet)" : hotContent)
+        </hot_cache>
 
         ## Today's raw memos (\(memoCount) entries)
-        \(rawContent.isEmpty ? "(no memos today)" : rawContent)
+        <user_memos>
+        \(truncatedRaw.isEmpty ? "(no memos today)" : truncatedRaw)
+        </user_memos>
 
         ## Output Requirements
 

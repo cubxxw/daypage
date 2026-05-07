@@ -156,13 +156,14 @@ enum ConflictMerger {
             var original = parseMemos(from: originalData)
             let beforeCount = original.count
             for version in conflictVersions {
-                if let conflictData = try? Data(contentsOf: version.url) {
+                do {
+                    let conflictData = try Data(contentsOf: version.url)
                     let conflictMemos = parseMemos(from: conflictData)
                     original = mergeRawMemos(original: original, conflict: conflictMemos)
-                } else {
+                } catch {
                     DayPageLogger.log(
                         level: "WARN",
-                        message: "[ConflictMerger] Could not read conflict version for \(primaryURL.lastPathComponent) — version skipped, memos in that version may be lost"
+                        message: "[ConflictMerger] Could not read conflict version for \(primaryURL.lastPathComponent): \(error) — version skipped, memos in that version may be lost"
                     )
                 }
             }
@@ -184,9 +185,14 @@ enum ConflictMerger {
             // 日志/wiki 文件：按行时间戳前缀去重。
             var merged = String(data: originalData, encoding: .utf8) ?? ""
             for version in conflictVersions {
-                if let conflictData = try? Data(contentsOf: version.url),
-                   let conflictText = String(data: conflictData, encoding: .utf8) {
-                    merged = mergeLogLines(original: merged, conflict: conflictText)
+                do {
+                    let conflictData = try Data(contentsOf: version.url)
+                    if let conflictText = String(data: conflictData, encoding: .utf8) {
+                        merged = mergeLogLines(original: merged, conflict: conflictText)
+                    }
+                } catch {
+                    DayPageLogger.log(level: "WARN",
+                                     message: "[ConflictMerger] Skipping unreadable log conflict version \(version.url.lastPathComponent): \(error)")
                 }
             }
             try writeMerged(data: Data(merged.utf8), to: primaryURL)
@@ -196,8 +202,12 @@ enum ConflictMerger {
     private static func resolveJSONConflict(primaryURL: URL, conflictVersions: [NSFileVersion]) throws {
         var original = try Data(contentsOf: primaryURL)
         for version in conflictVersions {
-            if let conflictData = try? Data(contentsOf: version.url) {
+            do {
+                let conflictData = try Data(contentsOf: version.url)
                 original = mergeJSONEntries(original: original, conflict: conflictData, idKey: "id")
+            } catch {
+                DayPageLogger.log(level: "WARN",
+                                 message: "[ConflictMerger] Skipping unreadable JSON conflict version \(version.url.lastPathComponent): \(error)")
             }
         }
         try writeMerged(data: original, to: primaryURL)

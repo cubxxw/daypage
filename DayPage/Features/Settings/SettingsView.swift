@@ -48,6 +48,10 @@ struct SettingsView: View {
     @State private var showExportAlert = false
     @State private var exportResult: String? = nil
 
+    // Confirmation dialogs for destructive operations
+    @State private var showCleanupConfirm = false
+    @State private var showClearSampleConfirm = false
+
     var body: some View {
         NavigationStack {
             List {
@@ -558,8 +562,18 @@ struct SettingsView: View {
            Date().timeIntervalSince(migratedAt) >= 30 * 24 * 3600,
            appSettings.vaultLocation == .iCloud,
            FileManager.default.fileExists(atPath: LocalVaultLocator().vaultURL.path) {
-            Button(role: .destructive, action: cleanupLocalBackup) {
+            Button(role: .destructive, action: { showCleanupConfirm = true }) {
                 Label("清理本地备份", systemImage: "trash")
+            }
+            .confirmationDialog(
+                "确认清理本地备份？",
+                isPresented: $showCleanupConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("清理备份", role: .destructive, action: cleanupLocalBackup)
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("本地备份将被永久删除，此操作无法撤销。")
             }
         }
     }
@@ -606,19 +620,30 @@ struct SettingsView: View {
             }
 
             Button(action: exportAll) {
-                Label("导出全部 Markdown", systemImage: "square.and.arrow.up")
+                Label("前往 Archive 页面导出", systemImage: "archivebox")
             }
+            .foregroundColor(DSColor.onSurfaceVariant)
 
             if SampleDataSeeder.hasSeededSamples {
-                Button(role: .destructive) {
-                    SampleDataSeeder.clearSampleData()
-                    bannerCenter.show(AppBannerModel(
-                        kind: .success,
-                        title: "示例数据已清除",
-                        autoDismiss: true
-                    ))
-                } label: {
+                Button(role: .destructive, action: { showClearSampleConfirm = true }) {
                     Label("清除示例数据", systemImage: "trash")
+                }
+                .confirmationDialog(
+                    "确认清除示例数据？",
+                    isPresented: $showClearSampleConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("清除", role: .destructive) {
+                        SampleDataSeeder.clearSampleData()
+                        bannerCenter.show(AppBannerModel(
+                            kind: .success,
+                            title: "示例数据已清除",
+                            autoDismiss: true
+                        ))
+                    }
+                    Button("取消", role: .cancel) {}
+                } message: {
+                    Text("所有示例数据将被永久删除，此操作无法撤销。")
                 }
             }
 
@@ -813,8 +838,8 @@ struct SettingsView: View {
     }
 
     private func exportAll() {
-        // Trigger export via ArchiveViewModel pattern (reuse existing logic)
-        exportResult = "Markdown 已导出至 Vault 根目录"
+        // Export is not implemented here; direct the user to the Archive tab.
+        exportResult = "请前往 Archive 页面使用导出功能"
         bannerCenter.show(.init(kind: .info, title: "导出功能在 Archive 页面可用"))
     }
 

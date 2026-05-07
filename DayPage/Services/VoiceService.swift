@@ -177,7 +177,9 @@ final class VoiceService: NSObject, ObservableObject {
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
-            // 非致命错误：记录日志并继续
+            // Non-fatal: deactivating the session may fail if another active session
+            // is still running. Log a warning so we can track frequency in production.
+            DayPageLogger.shared.warn("VoiceService: setActive(false) failed: \(error)")
         }
 
         state = .processing

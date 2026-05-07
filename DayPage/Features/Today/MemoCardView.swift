@@ -23,6 +23,7 @@ struct MemoCardView: View {
     @State private var showLocationSheet: Bool = false
     @State private var thumbnail: UIImage?
     @State private var downloadStates: [URL: AttachmentDownloadState] = [:]
+    @State private var downloadTask: Task<Void, Never>? = nil
 
     // MARK: - iCloud helpers
 
@@ -49,9 +50,10 @@ struct MemoCardView: View {
 
     private func pollDownloadStatus(for url: URL) {
         guard downloadStates[url] == .downloading else { return }
-        Task {
+        downloadTask = Task {
             for _ in 0..<30 {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if Task.isCancelled { return }
                 if isAttachmentDownloaded(url) {
                     await MainActor.run { downloadStates[url] = .current }
                     return
@@ -68,11 +70,14 @@ struct MemoCardView: View {
     }
 
     var body: some View {
-        if memo.type == .location {
-            locationCard
-        } else {
-            standardCard
+        Group {
+            if memo.type == .location {
+                locationCard
+            } else {
+                standardCard
+            }
         }
+        .onDisappear { downloadTask?.cancel() }
     }
 
     // MARK: - Location Card
@@ -771,6 +776,12 @@ struct PhotoDownloadPlaceholder: View {
     }
 }
 
+// MARK: - Thumbnail Cache
+
+// Process-level cache for decoded photo thumbnails.
+// NSCache automatically evicts entries under memory pressure.
+private let thumbnailCache = NSCache<NSURL, UIImage>()
+
 struct PhotoThumbnailView: View {
     let fileURL: URL
     @Binding var thumbnail: UIImage?
@@ -817,7 +828,11 @@ struct PhotoThumbnailView: View {
     }
 
     private func loadThumbnailAsync(from url: URL) async -> UIImage? {
-        await Task.detached(priority: .userInitiated) {
+        // Check process-level cache first to avoid redundant disk reads.
+        let cacheKey = url as NSURL
+        if let cached = thumbnailCache.object(forKey: cacheKey) { return cached }
+
+        return await Task.detached(priority: .userInitiated) {
             guard let data = try? Data(contentsOf: url) else { return nil }
             let opts: [CFString: Any] = [
                 kCGImageSourceShouldCacheImmediately: false,
@@ -825,11 +840,17 @@ struct PhotoThumbnailView: View {
                 kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
                 kCGImageSourceThumbnailMaxPixelSize: 600
             ]
+            let image: UIImage?
             if let source = CGImageSourceCreateWithData(data as CFData, nil),
                let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
-                return UIImage(cgImage: cgThumb)
+                image = UIImage(cgImage: cgThumb)
+            } else {
+                image = UIImage(data: data)
             }
-            return UIImage(data: data)
+            if let image {
+                thumbnailCache.setObject(image, forKey: cacheKey)
+            }
+            return image
         }.value
     }
 }

@@ -92,6 +92,10 @@ struct DailyPageView: View {
                         Text(dateString)
                             .monoLabelStyle(size: 11)
                             .foregroundColor(DSColor.onSurfaceVariant)
+                        Button("关闭") { dismiss() }
+                            .monoLabelStyle(size: 12)
+                            .foregroundColor(DSColor.primary)
+                            .padding(.top, 8)
                     }
                 }
             }
@@ -105,7 +109,7 @@ struct DailyPageView: View {
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("DAYPAGE_PROTOCOL")
+                    Text(dailyPageMonthDay(dateString))
                         .headlineMDStyle()
                         .foregroundColor(DSColor.onSurface)
                 }

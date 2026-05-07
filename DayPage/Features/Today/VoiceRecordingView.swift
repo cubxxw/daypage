@@ -79,9 +79,13 @@ struct VoiceRecordingView: View {
         }
         .onChange(of: voiceService.state) { newState in
             if case .failed(let msg) = newState {
-                // Propagate failure so TodayView can show a toast then dismiss
-                // We cancel here so the overlay gets dismissed via onCancel path
-                _ = msg
+                // Show the error message in the app-wide banner before dismissing.
+                BannerCenter.shared.show(AppBannerModel(
+                    kind: .error,
+                    title: "录音失败",
+                    subtitle: msg,
+                    autoDismiss: true
+                ))
                 onCancel()
             }
         }

@@ -272,16 +272,27 @@ struct EntityPageView: View {
     // MARK: - Load
 
     private func loadEntity() {
+        // Capture value types before leaving the MainActor.
         let url = VaultInitializer.vaultURL
             .appendingPathComponent("wiki")
             .appendingPathComponent(entityType)
             .appendingPathComponent("\(entitySlug).md")
+        let slug = entitySlug
 
-        let content: String
-        do { content = try String(contentsOf: url, encoding: .utf8) }
-        catch { notFound = true; return }
+        // Move blocking file I/O off the main thread so the UI stays responsive.
+        Task.detached(priority: .userInitiated) {
+            let rawContent: String?
+            do { rawContent = try String(contentsOf: url, encoding: .utf8) }
+            catch { rawContent = nil }
 
-        model = EntityPageParser.parse(content: content, slug: entitySlug)
+            if let rawContent {
+                // EntityPageParser is a pure function — safe to call on a background thread.
+                let parsed = EntityPageParser.parse(content: rawContent, slug: slug)
+                await MainActor.run { self.model = parsed }
+            } else {
+                await MainActor.run { self.notFound = true }
+            }
+        }
     }
 }
 

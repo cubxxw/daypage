@@ -85,14 +85,17 @@ struct RootView: View {
             ZStack {
                 TodayView()
                     .opacity(nav.selectedTab == .today ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.18), value: nav.selectedTab)
                     .allowsHitTesting(nav.selectedTab == .today && !nav.isSidebarOpen)
 
                 ArchiveView()
                     .opacity(nav.selectedTab == .archive ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.18), value: nav.selectedTab)
                     .allowsHitTesting(nav.selectedTab == .archive && !nav.isSidebarOpen)
 
                 GraphView()
                     .opacity(nav.selectedTab == .graph ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.18), value: nav.selectedTab)
                     .allowsHitTesting(nav.selectedTab == .graph && !nav.isSidebarOpen)
             }
 

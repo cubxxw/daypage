@@ -47,6 +47,13 @@ struct SwipeableMemoCard: View {
         return max(-panelW, min(panelW, settled + dragDelta))
     }
 
+    // MARK: - Accessibility label derived from memo body content
+    private var accessibilityMemoLabel: String {
+        let prefix = memo.body.prefix(50)
+        let trimmed = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "备忘录" : "备忘录：\(trimmed)"
+    }
+
     var body: some View {
         ZStack(alignment: .center) {
             // Background action panels
@@ -65,6 +72,15 @@ struct SwipeableMemoCard: View {
                 .onTapGesture { if revealedSide != nil { snapClose() } }
         }
         .clipped()
+        // MARK: VoiceOver support — expose swipe actions as named accessibility actions
+        // so users who rely on VoiceOver can invoke Delete / Pin without gestures.
+        .accessibilityLabel(accessibilityMemoLabel)
+        .accessibilityAction(named: "删除") {
+            onDelete?()
+        }
+        .accessibilityAction(named: memo.pinnedAt != nil ? "取消置顶" : "置顶") {
+            onPin?()
+        }
     }
 
     // MARK: - Panels

@@ -115,6 +115,11 @@ final class LocationService: NSObject, ObservableObject {
 
     /// 发起单次位置请求并等待第一个结果。
     private func fetchCLLocation() async throws -> CLLocation {
+        // Guard against overlapping calls: if a continuation is already in-flight,
+        // resuming it would be silently dropped and the caller would hang forever.
+        guard locationContinuation == nil else {
+            throw LocationError.timeout
+        }
         return try await withCheckedThrowingContinuation { continuation in
             locationContinuation = continuation
             manager.requestLocation()

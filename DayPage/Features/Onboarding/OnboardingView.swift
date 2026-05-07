@@ -316,7 +316,7 @@ private struct ApiKeysPage: View {
                 .foregroundColor(DSColor.onBackgroundMuted)
 
             HStack {
-                TextField(placeholder, text: text)
+                SecureField(placeholder, text: text)
                     .bodyText()
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)

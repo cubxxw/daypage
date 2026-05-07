@@ -245,7 +245,7 @@ struct YAMLParser {
     // MARK: Scalar
 
     /// 返回顶级键的非引号值，如果不存在则返回 nil。
-    mutating func scalar(_ key: String) -> String? {
+    func scalar(_ key: String) -> String? {
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard !trimmed.hasPrefix(" "), !trimmed.hasPrefix("-") else { continue }
@@ -259,7 +259,7 @@ struct YAMLParser {
     // MARK: Nested mapping (2-space indented block)
 
     /// 返回顶级映射键的 [String: String] 字典，如果不存在则返回 nil。
-    mutating func mapping(_ key: String) -> [String: String]? {
+    func mapping(_ key: String) -> [String: String]? {
         var inBlock = false
         var result: [String: String] = [:]
 
@@ -291,7 +291,7 @@ struct YAMLParser {
 
     /// 返回顶级序列键的 [[String: String]] 数组，如果不存在则返回 nil。
     /// 每个序列项以 "  - key: value" 开头。
-    mutating func sequenceOfMappings(_ key: String) -> [[String: String]]? {
+    func sequenceOfMappings(_ key: String) -> [[String: String]]? {
         var inBlock = false
         var items: [[String: String]] = []
         var current: [String: String] = [:]

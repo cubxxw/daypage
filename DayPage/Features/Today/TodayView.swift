@@ -11,6 +11,8 @@ struct TodayView: View {
     @StateObject private var voiceQueue = VoiceAttachmentQueue.shared
     @StateObject private var migrationService = VaultMigrationService.shared
 
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var showAccountSheet: Bool = false
     @State private var showSyncBanner: Bool = false
     @State private var showAuthSheet: Bool = false
@@ -288,6 +290,19 @@ struct TodayView: View {
             }
             .onChange(of: voiceQueue.pendingCount) { count in
                 updateVoiceQueueBanner(count: count)
+            }
+            // Reload when app returns from background to correct the active date (midnight crossover).
+            .onChange(of: scenePhase) { phase in
+                if phase == .active {
+                    viewModel.load()
+                }
+            }
+            // Bridge the ViewModel settings flag to the View-local sheet binding.
+            .onChange(of: viewModel.shouldShowSettings) { show in
+                if show {
+                    showSettings = true
+                    viewModel.shouldShowSettings = false
+                }
             }
             // Daily Page full-screen sheet
             .fullScreenCover(isPresented: $showDailyPage) {

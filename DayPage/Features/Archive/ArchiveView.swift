@@ -98,6 +98,10 @@ final class ArchiveViewModel: ObservableObject {
     @Published var dayStats: [String: DayStats] = [:]  // keyed by "yyyy-MM-dd"
     @Published var isLoading: Bool = false
 
+    // Task handle used to cancel a stale loadMonth request when the user
+    // navigates to a different month before the previous load finishes.
+    private var loadMonthTask: Task<Void, Never>?
+
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
@@ -151,72 +155,131 @@ final class ArchiveViewModel: ObservableObject {
     }
 
     func loadMonth() {
+        // Cancel any in-flight load so that a stale result from a prior month
+        // cannot overwrite the data for the month the user just navigated to.
+        loadMonthTask?.cancel()
         isLoading = true
-        var result: [String: DayStats] = [:]
+
+        // Capture value-type state before leaving the MainActor.
+        let year = currentYear
+        let month = currentMonth
         let rawDir = VaultInitializer.vaultURL.appendingPathComponent("raw")
         let dailyDir = VaultInitializer.vaultURL.appendingPathComponent("wiki/daily")
 
-        let daysInMonth = numberOfDays(year: currentYear, month: currentMonth)
+        loadMonthTask = Task.detached(priority: .userInitiated) {
+            // Pure helpers inlined here to avoid calling @MainActor instance methods
+            // from a non-isolated context.
+            func daysInMonth(year: Int, month: Int) -> Int {
+                var comps = DateComponents()
+                comps.year = year
+                comps.month = month
+                guard let date = Calendar.current.date(from: comps),
+                      let range = Calendar.current.range(of: .day, in: .month, for: date)
+                else { return 30 }
+                return range.count
+            }
 
-        for day in 1...daysInMonth {
-            var comps = DateComponents()
-            comps.year = currentYear
-            comps.month = currentMonth
-            comps.day = day
-            guard let date = Calendar.current.date(from: comps) else { continue }
-            let dateStr = dateFormatter.string(from: date)
+            func countMemoBlocks(in content: String) -> Int {
+                content.components(separatedBy: "\n\n---\n\n").count
+            }
 
-            let rawURL = rawDir.appendingPathComponent("\(dateStr).md")
-            let dailyURL = dailyDir.appendingPathComponent("\(dateStr).md")
-
-            var memoCount = 0
-            var photoCount = 0
-            var voiceSeconds = 0
-            var uniqueLocations = Set<String>()
-
-            if let content = (try? String(contentsOf: rawURL, encoding: .utf8)) {
-                let memos: [Memo]?
-                do { memos = try RawStorage.read(for: date) }
-                catch { memos = nil; DayPageLogger.shared.error("ArchiveView: read memos: \(error)") }
-                memoCount = memos?.count ?? countMemoBlocks(in: content)
-                for memo in (memos ?? []) {
-                    if memo.type == .photo || memo.type == .mixed {
-                        photoCount += memo.attachments.filter { $0.kind == "photo" }.count
+            func extractSummary(from content: String) -> String? {
+                for line in content.components(separatedBy: "\n") {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("summary:") {
+                        let value = String(trimmed.dropFirst("summary:".count))
+                            .trimmingCharacters(in: .whitespaces)
+                            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                        return value.isEmpty ? nil : value
                     }
-                    if memo.type == .voice || memo.type == .mixed {
-                        for att in memo.attachments where att.kind == "audio" {
-                            if let dur = att.duration {
-                                voiceSeconds += Int(dur)
+                }
+                return nil
+            }
+
+            // DateFormatter is not Sendable; create a local instance for this task.
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd"
+            fmt.locale = Locale(identifier: "en_US_POSIX")
+            fmt.timeZone = TimeZone.current
+
+            var result: [String: DayStats] = [:]
+            let totalDays = daysInMonth(year: year, month: month)
+
+            for day in 1...totalDays {
+                // Early exit: if the task was cancelled mid-loop, reset isLoading
+                // so the UI never stays stuck on a spinner after navigation.
+                guard !Task.isCancelled else {
+                    await MainActor.run { self.isLoading = false }
+                    return
+                }
+                var comps = DateComponents()
+                comps.year = year
+                comps.month = month
+                comps.day = day
+                guard let date = Calendar.current.date(from: comps) else { continue }
+                let dateStr = fmt.string(from: date)
+
+                let rawURL = rawDir.appendingPathComponent("\(dateStr).md")
+                let dailyURL = dailyDir.appendingPathComponent("\(dateStr).md")
+
+                var memoCount = 0
+                var photoCount = 0
+                var voiceSeconds = 0
+                var uniqueLocations = Set<String>()
+
+                if let content = (try? String(contentsOf: rawURL, encoding: .utf8)) {
+                    let memos: [Memo]?
+                    do { memos = try RawStorage.read(for: date) }
+                    catch { memos = nil }
+                    memoCount = memos?.count ?? countMemoBlocks(in: content)
+                    for memo in (memos ?? []) {
+                        if memo.type == .photo || memo.type == .mixed {
+                            photoCount += memo.attachments.filter { $0.kind == "photo" }.count
+                        }
+                        if memo.type == .voice || memo.type == .mixed {
+                            for att in memo.attachments where att.kind == "audio" {
+                                if let dur = att.duration {
+                                    voiceSeconds += Int(dur)
+                                }
                             }
                         }
-                    }
-                    if let loc = memo.location, let name = loc.name, !name.isEmpty {
-                        uniqueLocations.insert(name)
+                        if let loc = memo.location, let name = loc.name, !name.isEmpty {
+                            uniqueLocations.insert(name)
+                        }
                     }
                 }
-            }
 
-            let isDailyCompiled = FileManager.default.fileExists(atPath: dailyURL.path)
-            var dailySummary: String? = nil
-            if isDailyCompiled {
-                if let content = (try? String(contentsOf: dailyURL, encoding: .utf8)) {
-                    dailySummary = extractSummary(from: content)
+                let isDailyCompiled = FileManager.default.fileExists(atPath: dailyURL.path)
+                var dailySummary: String? = nil
+                if isDailyCompiled {
+                    if let content = (try? String(contentsOf: dailyURL, encoding: .utf8)) {
+                        dailySummary = extractSummary(from: content)
+                    }
                 }
+
+                result[dateStr] = DayStats(
+                    dateString: dateStr,
+                    memoCount: memoCount,
+                    photoCount: photoCount,
+                    voiceSeconds: voiceSeconds,
+                    uniqueLocations: uniqueLocations.count,
+                    isDailyPageCompiled: isDailyCompiled,
+                    dailySummary: dailySummary
+                )
             }
 
-            result[dateStr] = DayStats(
-                dateString: dateStr,
-                memoCount: memoCount,
-                photoCount: photoCount,
-                voiceSeconds: voiceSeconds,
-                uniqueLocations: uniqueLocations.count,
-                isDailyPageCompiled: isDailyCompiled,
-                dailySummary: dailySummary
-            )
+            // If this task was cancelled while the loop was running, discard results
+            // and ensure isLoading is reset so the UI never stays on a spinner.
+            guard !Task.isCancelled else {
+                await MainActor.run { self.isLoading = false }
+                return
+            }
+
+            await MainActor.run {
+                self.dayStats = result
+                self.isLoading = false
+            }
         }
-
-        dayStats = result
-        isLoading = false
     }
 
     // MARK: Monthly Aggregates
@@ -1151,6 +1214,7 @@ private struct ArtifactGeometricView: View {
                 )
             }
         }
+        .accessibilityHidden(true)
     }
 }
 

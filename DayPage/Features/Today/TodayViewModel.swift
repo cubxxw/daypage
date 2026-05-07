@@ -109,14 +109,34 @@ final class TodayViewModel: ObservableObject {
     /// Whether the camera capture sheet is presented.
     @Published var isShowingCamera: Bool = false
 
+    /// Whether the document picker sheet is presented.
+    @Published var isShowingDocumentPicker: Bool = false
+
+    /// On This Day entry to show at the top of Today (nil if dismissed or no history).
+    @Published var onThisDayEntry: OnThisDayEntry? = nil
+
+    /// Controls presentation of the Settings sheet from banner actions.
+    @Published var shouldShowSettings: Bool = false
+
     // MARK: Private
 
-    private let date: Date
+    private var date: Date
     private let locationService = LocationService.shared
     private let weatherService = WeatherService.shared
     private let photoService = PhotoService.shared
     private let voiceService = VoiceService.shared
     private let compilationService = CompilationService.shared
+
+    // MARK: Private Task Handles
+
+    /// Cancellable handles for long-lived async operations; cancelled in deinit.
+    private var loadTask: Task<Void, Never>?
+    private var photoTask: Task<Void, Never>?
+    private var cameraPhotoTask: Task<Void, Never>?
+    private var submitTask: Task<Void, Never>?
+    private var submitMemoTask: Task<Void, Never>?
+    private var locationTask: Task<Void, Never>?
+    private var compilationTask: Task<Void, Never>?
 
     // MARK: Init
 
@@ -125,6 +145,16 @@ final class TodayViewModel: ObservableObject {
         observeCompilationFailure()
         observeOnThisDay()
         observeConflictResolution()
+    }
+
+    deinit {
+        loadTask?.cancel()
+        photoTask?.cancel()
+        cameraPhotoTask?.cancel()
+        submitTask?.cancel()
+        submitMemoTask?.cancel()
+        locationTask?.cancel()
+        compilationTask?.cancel()
     }
 
     private func observeCompilationFailure() {
@@ -256,34 +286,82 @@ final class TodayViewModel: ObservableObject {
     // MARK: - Load Memos
 
     /// Loads today's memos from the raw storage file and checks compiled status.
+    /// Signature is intentionally synchronous so call sites (TodayView.onAppear) need
+    /// no changes. Disk I/O is offloaded to a background task to avoid blocking the
+    /// main thread on cold launch.
     func load() {
+        // Refresh to today in case the app has been backgrounded overnight.
+        date = Date()
         isLoading = true
         errorMessage = nil
 
-        do {
-            let loaded = try RawStorage.read(for: date)
-            // Newest first
-            memos = loaded.sorted { lhs, rhs in
-            if lhs.pinnedAt != nil && rhs.pinnedAt == nil { return true }
-            if lhs.pinnedAt == nil && rhs.pinnedAt != nil { return false }
-            if let lp = lhs.pinnedAt, let rp = rhs.pinnedAt { return lp > rp }
-            return lhs.created > rhs.created
-        }
-        } catch {
-            errorMessage = "加载失败：\(error.localizedDescription)"
-            memos = []
-        }
+        // Capture value types before leaving the MainActor.
+        let capturedDate = date
+        let dailyURL = dailyPageURL(for: capturedDate)
 
-        checkDailyPage()
-        weeklyRecap = WeeklyRecapService.shared.entries()
-        isLoading = false
-        checkOnThisDay()
+        loadTask?.cancel()
+        loadTask = Task.detached(priority: .userInitiated) {
+            // Inline helper — DateFormatter is not Sendable, so do not capture self.
+            func extractSummaryOffMain(from content: String) -> String? {
+                for line in content.components(separatedBy: "\n") {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("summary:") {
+                        let value = String(trimmed.dropFirst("summary:".count))
+                            .trimmingCharacters(in: .whitespaces)
+                            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                        return value.isEmpty ? nil : value
+                    }
+                }
+                return nil
+            }
 
-        // Auto-compile on load when today has uncompiled memos. The compile
-        // button was removed in #213 — the user expects today's diary to be
-        // ready whenever they open the app, no manual trigger required.
-        if !isDailyPageCompiled && !memos.isEmpty && !isCompiling {
-            Task { compile() }
+            // --- Off-main disk I/O ---
+            let loadResult: Result<[Memo], Error>
+            do {
+                let loaded = try RawStorage.read(for: capturedDate)
+                loadResult = .success(loaded)
+            } catch {
+                loadResult = .failure(error)
+            }
+
+            let dailyExists = FileManager.default.fileExists(atPath: dailyURL.path)
+            var dailySummary: String? = nil
+            if dailyExists {
+                if let content = try? String(contentsOf: dailyURL, encoding: .utf8) {
+                    dailySummary = extractSummaryOffMain(from: content)
+                }
+            }
+
+            // --- Back on MainActor: update published state ---
+            await MainActor.run {
+                switch loadResult {
+                case .success(let loaded):
+                    // Newest first; pinned memos float to the top
+                    self.memos = loaded.sorted { lhs, rhs in
+                        if lhs.pinnedAt != nil && rhs.pinnedAt == nil { return true }
+                        if lhs.pinnedAt == nil && rhs.pinnedAt != nil { return false }
+                        if let lp = lhs.pinnedAt, let rp = rhs.pinnedAt { return lp > rp }
+                        return lhs.created > rhs.created
+                    }
+                    self.errorMessage = nil
+                case .failure(let error):
+                    self.errorMessage = "加载失败：\(error.localizedDescription)"
+                    self.memos = []
+                }
+
+                self.isDailyPageCompiled = dailyExists
+                self.dailyPageSummary = dailyExists ? dailySummary : nil
+                self.weeklyRecap = WeeklyRecapService.shared.entries()
+                self.isLoading = false
+                self.checkOnThisDay()
+
+                // Auto-compile on load when today has uncompiled memos. The compile
+                // button was removed in #213 — the user expects today's diary to be
+                // ready whenever they open the app, no manual trigger required.
+                if !self.isDailyPageCompiled && !self.memos.isEmpty && !self.isCompiling {
+                    self.compile()
+                }
+            }
         }
     }
 
@@ -310,7 +388,7 @@ final class TodayViewModel: ObservableObject {
         isProcessingPhoto = true
         submitError = nil
 
-        Task {
+        photoTask = Task {
             defer { isProcessingPhoto = false }
 
             guard let result = await photoService.processPickerItem(item) else {
@@ -357,11 +435,6 @@ final class TodayViewModel: ObservableObject {
         isShowingCamera = true
     }
 
-    /// Whether the document picker sheet is presented.
-    @Published var isShowingDocumentPicker: Bool = false
-
-    /// On This Day entry to show at the top of Today (nil if dismissed or no history).
-    @Published var onThisDayEntry: OnThisDayEntry? = nil
 
     /// Opens the document picker sheet.
     func startFilePicker() {
@@ -407,7 +480,7 @@ final class TodayViewModel: ObservableObject {
     func addCameraPhoto(_ image: UIImage) {
         guard let data = image.jpegData(compressionQuality: 0.9) else { return }
         isProcessingPhoto = true
-        Task {
+        cameraPhotoTask = Task {
             defer { isProcessingPhoto = false }
             guard let result = photoService.processImageData(data) else {
                 submitError = "照片处理失败，请重试"
@@ -421,7 +494,7 @@ final class TodayViewModel: ObservableObject {
     func addCameraPhotoAndSubmit(_ image: UIImage) {
         guard let data = image.jpegData(compressionQuality: 0.9) else { return }
         isProcessingPhoto = true
-        Task {
+        cameraPhotoTask = Task {
             defer { isProcessingPhoto = false }
             guard let result = photoService.processImageData(data) else {
                 submitError = "照片处理失败，请重试"
@@ -436,7 +509,7 @@ final class TodayViewModel: ObservableObject {
     func addPhotosAndSubmit(items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
         isProcessingPhoto = true
-        Task {
+        submitTask = Task {
             defer { isProcessingPhoto = false }
             var processed = false
             for item in items {
@@ -472,7 +545,7 @@ final class TodayViewModel: ObservableObject {
         let loc = pendingLocation
         let snapshotAttachments = attachments
 
-        Task {
+        submitMemoTask = Task {
             defer { isSubmitting = false }
 
             let weatherString = await weatherService.currentWeather(at: loc)
@@ -560,7 +633,7 @@ final class TodayViewModel: ObservableObject {
         isLocating = true
         submitError = nil
 
-        Task {
+        locationTask = Task {
             defer { isLocating = false }
             do {
                 let loc = try await locationService.currentLocation(timeout: 3)
@@ -588,8 +661,6 @@ final class TodayViewModel: ObservableObject {
 
     // MARK: - Compile Trigger
 
-    private var compilationTask: Task<Void, Never>?
-
     /// Triggers manual AI compilation for today's memos.
     /// During compilation, the only on-screen indicator is `CompilePromptCard`'s compiling state
     /// (US-004). BannerCenter is reserved for terminal outcomes — success / offline / error.
@@ -598,6 +669,7 @@ final class TodayViewModel: ObservableObject {
         isCompiling = true
         submitError = nil
 
+        compilationTask?.cancel()
         compilationTask = Task {
             defer {
                 isCompiling = false
@@ -629,14 +701,18 @@ final class TodayViewModel: ObservableObject {
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .error,
                     title: "DeepSeek API Key 未配置",
-                    primaryAction: BannerAction(label: "前往设置") { }
+                    primaryAction: BannerAction(label: "前往设置") { [weak self] in
+                        self?.shouldShowSettings = true
+                    }
                 ))
             } catch CompilationError.apiError(let code, _) where code == 401 {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .error,
                     title: "API Key 无效或已过期",
-                    primaryAction: BannerAction(label: "前往设置") { }
+                    primaryAction: BannerAction(label: "前往设置") { [weak self] in
+                        self?.shouldShowSettings = true
+                    }
                 ))
             } catch CompilationError.parseError {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
@@ -647,12 +723,11 @@ final class TodayViewModel: ObservableObject {
                 ))
             } catch {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
-                let self_ = self
                 BannerCenter.shared.show(AppBannerModel(
                     kind: .error,
                     title: "编译失败：网络不稳定",
-                    primaryAction: BannerAction(label: "立即重试") {
-                        self_.compile()
+                    primaryAction: BannerAction(label: "立即重试") { [weak self] in
+                        self?.compile()
                     },
                     secondaryAction: BannerAction(label: "稍后自动重试") {
                         BannerCenter.shared.dismiss()

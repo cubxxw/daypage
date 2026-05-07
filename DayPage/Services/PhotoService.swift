@@ -83,7 +83,9 @@ final class PhotoService {
                 try FileManager.default.moveItem(at: tmpURL, to: fileURL)
             }
         } catch {
-            do { try FileManager.default.removeItem(at: tmpURL) } catch { }
+            do { try FileManager.default.removeItem(at: tmpURL) } catch let cleanupError {
+                DayPageLogger.shared.warn("PhotoService: tmp file cleanup failed: \(cleanupError)")
+            }
             return nil
         }
 
