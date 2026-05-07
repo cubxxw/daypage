@@ -246,33 +246,16 @@ struct DailyPageView: View {
         .padding(.bottom, 32)
     }
 
-    // MARK: - Digest Content
+    // MARK: - Digest Content (v4 hero layout)
 
     @ViewBuilder
     private func digestContent(model: DailyPageModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Date header
-            headerSection(model: model)
-                .padding(.horizontal, 20)
+            // v4 hero card — glass hi-tone surface
+            v4HeroCard(model: model)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
                 .padding(.bottom, 24)
-
-            // Hero banner (16:7 asset) — full-bleed, no horizontal padding
-            HeroBannerView(coverAssetPath: model.coverAssetPath)
-                .padding(.bottom, 32)
-
-            // Narrative sections
-            ForEach(model.sections, id: \.title) { section in
-                narrativeSection(section)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
-            }
-
-            // Locations Today
-            if !model.locations.isEmpty {
-                locationsSection(model: model)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
-            }
 
             // AI Follow-up Threads
             if !model.followUpQuestions.isEmpty {
@@ -281,6 +264,79 @@ struct DailyPageView: View {
                     .padding(.bottom, 40)
             }
         }
+    }
+
+    // MARK: - v4 Hero Card
+
+    private func v4HeroCard(model: DailyPageModel) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Status row: amber dot + "COMPILED N SIGNALS" chip
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(DSColor.amberAccent)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: DSColor.amberGlow, radius: 6, x: 0, y: 0)
+
+                Text("COMPILED \(model.entriesCount) SIGNALS")
+                    .font(DSType.mono10)
+                    .foregroundColor(DSColor.inkMuted)
+                    .tracking(0.8)
+
+                Spacer()
+            }
+            .padding(.bottom, 16)
+
+            // Title: serif date heading
+            Text(dailyPageMonthDay(model.dateString))
+                .font(DSType.serifDisplay32)
+                .foregroundColor(DSColor.inkPrimary)
+                .tracking(-0.6)
+                .lineSpacing(2)
+                .padding(.bottom, 22)
+
+            // Narrative sections with hairline dividers
+            if !model.sections.isEmpty {
+                // First section (no top divider)
+                narrativeParagraph(model.sections[0].body)
+                    .padding(.bottom, 8)
+
+                // Remaining sections with dividers
+                ForEach(model.sections.dropFirst(), id: \.title) { section in
+                    hairlineDivider
+                        .padding(.vertical, 22)
+                    narrativeParagraph(section.body)
+                        .padding(.bottom, 8)
+                }
+
+                // Divider before threads/mentions if they exist
+                if !model.locations.isEmpty {
+                    hairlineDivider
+                        .padding(.vertical, 22)
+                    locationsSection(model: model)
+                }
+            } else if !model.summary.isEmpty {
+                // Fallback: render summary as single paragraph
+                narrativeParagraph(model.summary)
+            }
+        }
+        .padding(28)
+        .liquidGlassCard(cornerRadius: 24, tone: .hi)
+    }
+
+    private var hairlineDivider: some View {
+        Rectangle()
+            .fill(DSColor.glassRimD)
+            .frame(maxWidth: .infinity)
+            .frame(height: 0.5)
+    }
+
+    private func narrativeParagraph(_ body: String) -> some View {
+        // Render-only polish: CJK/Latin spacing; does not modify vault file.
+        Text(CJKTextPolish.polish(body))
+            .font(DSType.serifBody16)
+            .foregroundColor(DSColor.inkPrimary)
+            .lineSpacing(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Timeline Content

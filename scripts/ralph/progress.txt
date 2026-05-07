@@ -65,3 +65,23 @@ Started: Thu May  7 12:02:39 UTC 2026
 
 [2026-05-07T12:00:00Z] Story #US-021: Create GlassTabBar component (collapsed pill + expanded menu) — PASSED
 [2026-05-07T12:01:00Z] Story #US-022: Mount GlassTabBar in RootView and trim Sidebar primary nav — PASSED
+
+## 2026-05-07 - US-023
+- Restyled DailyPageView hero card to v4 Liquid Glass layout
+- Created new v4HeroCard() method replacing old digestContent header
+- Status row: 8x8 amber circle with amberGlow shadow + "COMPILED N SIGNALS" mono chip
+- Title: serifDisplay32, tracking -0.6, lineSpacing 2
+- Narrative paragraphs: serifBody16, lineSpacing 8, CJKTextPolish applied
+- Hairline dividers (0.5pt, glassRimD color) between sections, 22pt vertical margin
+- Hero wrapped in .liquidGlassCard(cornerRadius: 24, tone: .hi) with padding 28
+- Stub data note: if compilation output lacks sections, falls back to summary paragraph
+- Files changed:
+  - DayPage/Features/Daily/DailyPageView.swift: replaced digestContent + added v4HeroCard, hairlineDivider, narrativeParagraph
+  - prd.json: US-023 passes=true
+- **Learnings for future iterations:**
+  - DailyPageView uses both new v4 tokens (DSColor.ink*, DSColor.amber*) and old Material tokens (DSColor.primary, DSColor.onSurface etc.) — both coexist in Colors.swift
+  - Old tokens still compile but should be migrated in follow-up work
+  - The model.sections[] come from DailyPageParser parsing ## SECTION_NAME markdown headers
+---
+
+[2026-05-07T12:02:00Z] Story #US-023: Restyle DailyPageView hero card to v4 layout — PASSED
