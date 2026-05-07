@@ -133,3 +133,16 @@ Started: Thu May  7 12:02:39 UTC 2026
 ---
 
 [2026-05-07T12:05:00Z] Story #US-026: Update RecordingOverlayView with dual-pulse halo — PASSED
+
+## 2026-05-07 - US-027
+- Created DayPage/Features/Onboarding/WelcomeScreen.swift
+- Layout: centered DayOrbView(signalCount: 0, size: 156) fades in over 800ms
+- Bilingual serif 32pt + body 18pt italic subtitle lines
+- amberDeep filled Capsule pill "开始 · Begin" button with Motion.rise dismiss
+- Begin: Haptics.commit() + UserDefaults set "hasSeenWelcome" = true + hasSeenWelcome = true
+- Mounted in RootView as fullScreenCover(!hasSeenWelcome) inside the hasOnboarded branch
+- Added WelcomeScreen.swift to Xcode project (PBXBuildFile, PBXFileReference, Onboarding group, Sources)
+- Files changed: DayPage/Features/Onboarding/WelcomeScreen.swift, DayPage/App/RootView.swift, DayPage.xcodeproj/project.pbxproj, prd.json
+---
+
+[2026-05-07T12:06:00Z] Story #US-027: Create first-run WelcomeScreen — PASSED

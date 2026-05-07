@@ -6,6 +6,7 @@ struct RootView: View {
     @StateObject private var bannerCenter = BannerCenter.shared
     @ObservedObject private var appSettings = AppSettings.shared
     @State private var hasOnboarded: Bool = UserDefaults.standard.bool(forKey: AppSettings.Keys.hasOnboarded)
+    @State private var hasSeenWelcome: Bool = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
     @State private var authSkipped: Bool = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
     // Drives the auth fullScreenCover. Kept as @State (not a derived computed property)
     // so SwiftUI reliably dismisses the cover when `authService.session` flips to non-nil
@@ -64,6 +65,12 @@ struct RootView: View {
                     }
                     .onChange(of: authSkipped) { skipped in
                         if skipped { showAuthSheet = false }
+                    }
+                    .fullScreenCover(isPresented: Binding(
+                        get: { !hasSeenWelcome },
+                        set: { if !$0 { hasSeenWelcome = true } }
+                    )) {
+                        WelcomeScreen(hasSeenWelcome: $hasSeenWelcome)
                     }
             } else {
                 OnboardingView(hasOnboarded: $hasOnboarded)
