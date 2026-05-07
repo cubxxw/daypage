@@ -87,7 +87,7 @@ struct SwipeableMemoCard: View {
 
     private var pinPanel: some View {
         Button(action: {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptics.tapConfirm()
             snapClose()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { onPin?() }
         }) {
@@ -110,7 +110,7 @@ struct SwipeableMemoCard: View {
 
     private var deletePanel: some View {
         Button(action: {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            Haptics.warn()
             snapClose()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { onDelete?() }
         }) {
