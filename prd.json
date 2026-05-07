@@ -1,7 +1,7 @@
 {
   "project": "DayPage",
   "branchName": "ralph/v4-liquid-glass",
-  "description": "DayPage v4 Liquid Glass — visual system migration (Source Serif 4 + Source Han Serif cascading fonts, glass surface recipe, Day Orb hero, Glass TabBar, v4 Daily Page) + raw memo tappable into MemoDetailView + experience polish (motion tokens, empty states, glass error banner, CJK punctuation polish, haptics, first-run welcome). Source: tasks/prd-daypage-v4-liquid-glass.md · Linked GitHub Issues: EPIC #245 / #243 #244 #246 #247 #248",
+  "description": "DayPage v4 Liquid Glass \u2014 visual system migration (Source Serif 4 + Source Han Serif cascading fonts, glass surface recipe, Day Orb hero, Glass TabBar, v4 Daily Page) + raw memo tappable into MemoDetailView + experience polish (motion tokens, empty states, glass error banner, CJK punctuation polish, haptics, first-run welcome). Source: tasks/prd-daypage-v4-liquid-glass.md \u00b7 Linked GitHub Issues: EPIC #245 / #243 #244 #246 #247 #248",
   "userStories": [
     {
       "id": "US-001",
@@ -17,7 +17,7 @@
         "iPhone 17 simulator build succeeds"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -126,7 +126,7 @@
     {
       "id": "US-008",
       "title": "Add CJKTextPolish.swift with hair-space + double-punctuation rules",
-      "description": "As a developer, I need a pure render-layer string polish function that fixes CJK-Latin spacing, doubled punctuation, and emoji line height — without modifying persisted vault content.",
+      "description": "As a developer, I need a pure render-layer string polish function that fixes CJK-Latin spacing, doubled punctuation, and emoji line height \u2014 without modifying persisted vault content.",
       "acceptanceCriteria": [
         "Create DayPage/Models/CJKTextPolish.swift with static func polish(_ raw: String) -> String",
         "Insert U+200A (hair space) between adjacent CJK and Latin characters when neither side is punctuation",
@@ -144,12 +144,12 @@
     {
       "id": "US-009",
       "title": "Apply CJKTextPolish at memo render sites",
-      "description": "As a P-Nomad user, I want my mixed-language memos to render with proper CJK-Latin spacing in Today, Memo Detail, and Daily Page — without touching the underlying file.",
+      "description": "As a P-Nomad user, I want my mixed-language memos to render with proper CJK-Latin spacing in Today, Memo Detail, and Daily Page \u2014 without touching the underlying file.",
       "acceptanceCriteria": [
         "Apply CJKTextPolish.polish() to memo body Text in MemoCardView.swift:228 (the body text branch)",
         "Apply to voice transcript Text and photo caption Text in MemoCardView.swift",
         "Apply to all serif body Text rendering in DailyPageView.swift",
-        "Do NOT modify RawStorage / Memo persistence — vault/raw/YYYY-MM-DD.md must remain user original input",
+        "Do NOT modify RawStorage / Memo persistence \u2014 vault/raw/YYYY-MM-DD.md must remain user original input",
         "Add a code comment at each call site noting it is render-only polish",
         "Typecheck passes",
         "iPhone 17 build with sample mixed-language memo renders polished",
@@ -162,7 +162,7 @@
     {
       "id": "US-010",
       "title": "Create EmptyStateView component with bilingual copy",
-      "description": "As a user encountering an empty surface, I want a warm human-written line plus a clear next action — not a blank screen with a generic No-data label.",
+      "description": "As a user encountering an empty surface, I want a warm human-written line plus a clear next action \u2014 not a blank screen with a generic No-data label.",
       "acceptanceCriteria": [
         "Create DayPage/Components/EmptyStateView.swift",
         "Component takes: title (LocalizedStringKey), subtitle (LocalizedStringKey?), ctaLabel (String?), ctaAction (() -> Void)?, showOrbAccent (Bool)",
@@ -198,7 +198,7 @@
     {
       "id": "US-012",
       "title": "Create GlassErrorBanner component",
-      "description": "As a developer, I need a glass-tone error banner that slides in from the top, auto-dismisses after 5s, and supports retry — for surfacing failures without breaking the v4 visual language.",
+      "description": "As a developer, I need a glass-tone error banner that slides in from the top, auto-dismisses after 5s, and supports retry \u2014 for surfacing failures without breaking the v4 visual language.",
       "acceptanceCriteria": [
         "Create DayPage/Components/GlassErrorBanner.swift",
         "Banner takes: icon (Image), title (LocalizedStringKey), subtitle (LocalizedStringKey?), retryLabel (String?), retryAction (() -> Void)?",
@@ -217,7 +217,7 @@
     {
       "id": "US-013",
       "title": "Wire GlassErrorBanner into 4 failure sources",
-      "description": "As a user, I want compile failures, Whisper transcription failures, and permission denials to surface visibly — without blocking modals.",
+      "description": "As a user, I want compile failures, Whisper transcription failures, and permission denials to surface visibly \u2014 without blocking modals.",
       "acceptanceCriteria": [
         "CompilationService failure path posts GlassErrorBanner with retry button (re-runs compile)",
         "VoiceService Whisper failure posts banner explaining audio is saved but transcript failed",
@@ -235,7 +235,7 @@
     {
       "id": "US-014",
       "title": "Create DayOrbView component",
-      "description": "As a developer, I need the signature Day Orb — a radial gradient circle with halo and inner shadows — implemented as a reusable SwiftUI view.",
+      "description": "As a developer, I need the signature Day Orb \u2014 a radial gradient circle with halo and inner shadows \u2014 implemented as a reusable SwiftUI view.",
       "acceptanceCriteria": [
         "Create DayPage/Features/Today/DayOrbView.swift",
         "Component takes: signalCount (Int), size (CGFloat = 200)",
@@ -257,7 +257,7 @@
       "title": "Replace Today header heatmap with Day Orb hero",
       "description": "As a P-Nomad, I want Today to greet me with the Day Orb instead of OnThisDayCard + WeeklyRecapSection.",
       "acceptanceCriteria": [
-        "TodayView hero region shows: serif date heading -> mono kicker (e.g. 14 APR · 5 SIGNALS) -> DayOrbView(signalCount: vm.signalCount)",
+        "TodayView hero region shows: serif date heading -> mono kicker (e.g. 14 APR \u00b7 5 SIGNALS) -> DayOrbView(signalCount: vm.signalCount)",
         "OnThisDayCard removed or hidden from TodayView (relocation tracked in follow-up issue)",
         "WeeklyRecapSection removed or hidden from TodayView",
         "Orb size on Today is 200pt; orb tap currently triggers placeholder action (TODO comment for Day Drawer follow-up)",
@@ -307,7 +307,7 @@
     {
       "id": "US-018",
       "title": "Implement MemoDetailView attachment sections",
-      "description": "As a P-Reader, I want MemoDetailView to render full-size attachments — voice waveform with scrub, full-resolution photo, location map, file row.",
+      "description": "As a P-Reader, I want MemoDetailView to render full-size attachments \u2014 voice waveform with scrub, full-resolution photo, location map, file row.",
       "acceptanceCriteria": [
         "Voice memo: render existing VoiceMemoPlayerRow at full width with waveform + scrub + duration label",
         "Photo memo: render full-resolution UIImage (load via PhotoLibraryService); tap toggles to fullScreenCover with the image",
@@ -399,7 +399,7 @@
     {
       "id": "US-023",
       "title": "Restyle DailyPageView hero card to v4 layout",
-      "description": "As a P-Reader, I want Daily Page to read like a page — status chip, serif title, serif paragraphs, threads, mentions — using the v4 hi-tone glass surface.",
+      "description": "As a P-Reader, I want Daily Page to read like a page \u2014 status chip, serif title, serif paragraphs, threads, mentions \u2014 using the v4 hi-tone glass surface.",
       "acceptanceCriteria": [
         "Replace DailyPageView body layout with v4 hero per screens/page.jsx:14-69",
         "Status row: 8x8 amber circle with shadow (amberGlow radius 6) + mono chip COMPILED N SIGNALS",
@@ -454,7 +454,7 @@
     {
       "id": "US-026",
       "title": "Update RecordingOverlayView with dual-pulse halo",
-      "description": "As a P-Quiet, I want the recording overlay to breathe (dual ring pulse 1.6s with 0.3s phase offset) like capture.jsx:474-475 — the only allowed motion in v4.",
+      "description": "As a P-Quiet, I want the recording overlay to breathe (dual ring pulse 1.6s with 0.3s phase offset) like capture.jsx:474-475 \u2014 the only allowed motion in v4.",
       "acceptanceCriteria": [
         "Replace existing RecordingOverlayView pulse animation with two concentric circles",
         "Outer ring: scale 0.85 -> 1.10, opacity 0.40 -> 0.10, easeInOut, 1.6s duration, .repeatForever, autoreverses true",
@@ -473,7 +473,7 @@
     {
       "id": "US-027",
       "title": "Create first-run WelcomeScreen",
-      "description": "As a first-launch user, I want exactly one welcome screen — a fading-in Day Orb, one serif line, one Begin button — and never see it again after.",
+      "description": "As a first-launch user, I want exactly one welcome screen \u2014 a fading-in Day Orb, one serif line, one Begin button \u2014 and never see it again after.",
       "acceptanceCriteria": [
         "Create DayPage/Features/Onboarding/WelcomeScreen.swift",
         "Layout: centered Day Orb (size 156, fades in over 800ms), bilingual serif 32pt line, amberDeep filled pill button with bilingual Begin label",
@@ -492,7 +492,7 @@
     {
       "id": "US-028",
       "title": "Add text composer caret breathing micro-animation",
-      "description": "As a P-Quiet, I want the text composer caret to subtly breathe (800ms opacity 0.6 to 1.0) when focused — the documented motion exception.",
+      "description": "As a P-Quiet, I want the text composer caret to subtly breathe (800ms opacity 0.6 to 1.0) when focused \u2014 the documented motion exception.",
       "acceptanceCriteria": [
         "In TextComposer (Today input), add caret overlay or cursor view that animates opacity 0.6 -> 1.0 every 800ms while focused (.repeatForever, autoreverses)",
         "Add // motion-exception: caret breathing 800ms documented in PRD US-013 / FR-20 comment at the call site",

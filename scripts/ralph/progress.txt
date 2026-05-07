@@ -89,3 +89,4 @@ Started: Fri Apr 24 00:47:52 +07 2026
   - GitHub PAT for dispatch needs `repo` scope; stored as Sentry Webhook Authorization header value `token <PAT>` (not Bearer)
   - Runbook includes dedup test instructions: run the same curl twice to verify no duplicate Linear issue is created
 ---
+[2026-05-07T11:00:44Z] Story #US-001: Bundle Source Serif 4 + Source Han Serif SC fonts — PASSED

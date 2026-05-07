@@ -60,6 +60,52 @@ enum DSFonts {
     static func newYorkItalic(size: CGFloat) -> Font {
         Font.system(size: size, design: .serif).italic()
     }
+
+    // MARK: - Cascading Serif (Source Serif 4 + Source Han Serif SC)
+
+    /// Returns a SwiftUI Font backed by a UIFontDescriptor cascade list so that:
+    ///   • Latin characters render via Source Serif 4 (Regular/Medium/SemiBold or italic)
+    ///   • CJK characters automatically fall back to Source Han Serif SC at the same weight.
+    ///     (Source Han Serif SC has no italic face; iOS renders CJK in upright style even
+    ///      when italic is requested — this is the standard platform behaviour for CJK fonts.)
+    /// Falls back to the system serif design if any required font face is absent from the bundle.
+    static func serif(size: CGFloat, weight: Font.Weight = .regular, italic: Bool = false) -> Font {
+        // PostScript name mapping for the primary Latin face.
+        let latinPS: String
+        if italic {
+            latinPS = "SourceSerif4-It"
+        } else {
+            switch weight {
+            case .medium:     latinPS = "SourceSerif4-Medium"
+            case .semibold:   latinPS = "SourceSerif4-SemiBold"
+            default:          latinPS = "SourceSerif4-Regular"
+            }
+        }
+
+        // PostScript name mapping for the CJK fallback face.
+        let cjkPS: String
+        switch weight {
+        case .medium:   cjkPS = "SourceHanSerifSC-Medium"
+        case .semibold: cjkPS = "SourceHanSerifSC-SemiBold"
+        default:        cjkPS = "SourceHanSerifSC-Regular"
+        }
+
+        guard
+            let latinBase = UIFont(name: latinPS, size: size),
+            let cjkBase   = UIFont(name: cjkPS,   size: size)
+        else {
+            // Either face is missing from the bundle — fall back to system serif.
+            let base = Font.system(size: size, weight: weight, design: .serif)
+            return italic ? base.italic() : base
+        }
+
+        let cjkDescriptor = cjkBase.fontDescriptor
+        let cascadeDescriptor = latinBase.fontDescriptor.addingAttributes([
+            UIFontDescriptor.AttributeName.cascadeList: [cjkDescriptor]
+        ])
+        let cascadedFont = UIFont(descriptor: cascadeDescriptor, size: size)
+        return Font(cascadedFont)
+    }
 }
 
 // MARK: - Typography Levels
