@@ -22,3 +22,24 @@
 "empty.mic_denied.title" = "需要麦克风权限。";
 "empty.mic_denied.subtitle" = "请在「设置」中允许访问麦克风，以便录制语音备忘。";
 "empty.mic_denied.cta" = "打开设置";
+
+/* GlassErrorBanner — US-013 */
+
+/* Compilation failure */
+"error.compile.title" = "编译失败。";
+"error.compile.subtitle" = "请检查网络连接后重试。";
+"error.compile.retry" = "重试";
+
+/* Whisper transcription failure */
+"error.whisper.title" = "转写暂时不可用。";
+"error.whisper.subtitle" = "音频已保存，网络恢复后将自动转写。";
+
+/* Mic permission denied */
+"error.mic_denied.title" = "麦克风权限被拒绝。";
+"error.mic_denied.subtitle" = "请前往「设置」开启麦克风权限，以便录制语音备忘。";
+"error.mic_denied.cta" = "打开设置";
+
+/* Location permission denied */
+"error.location_denied.title" = "定位权限被拒绝。";
+"error.location_denied.subtitle" = "请前往「设置」开启定位权限，以便为备忘添加位置。";
+"error.location_denied.cta" = "打开设置";

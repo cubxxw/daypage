@@ -22,3 +22,24 @@
 "empty.mic_denied.title" = "Microphone access needed.";
 "empty.mic_denied.subtitle" = "Allow microphone access in Settings to record voice memos.";
 "empty.mic_denied.cta" = "Open Settings";
+
+/* GlassErrorBanner — US-013 */
+
+/* Compilation failure */
+"error.compile.title" = "Compilation failed.";
+"error.compile.subtitle" = "Check your connection and try again.";
+"error.compile.retry" = "Retry";
+
+/* Whisper transcription failure */
+"error.whisper.title" = "Transcript unavailable.";
+"error.whisper.subtitle" = "Your audio was saved. Transcription will retry when connection improves.";
+
+/* Mic permission denied */
+"error.mic_denied.title" = "Microphone access denied.";
+"error.mic_denied.subtitle" = "Open Settings to allow microphone access for voice memos.";
+"error.mic_denied.cta" = "Open Settings";
+
+/* Location permission denied */
+"error.location_denied.title" = "Location access denied.";
+"error.location_denied.subtitle" = "Open Settings to allow location access for your memos.";
+"error.location_denied.cta" = "Open Settings";

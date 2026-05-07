@@ -639,9 +639,18 @@ final class TodayViewModel: ObservableObject {
                 let loc = try await locationService.currentLocation(timeout: 3)
                 pendingLocation = loc
             } catch LocationError.denied {
-                submitError = locationService.authorizationStatus == .denied
-                    ? "定位权限被拒绝，请在「设置 → 隐私 → 定位服务」中授权"
-                    : "无法获取位置权限"
+                GlassErrorBannerStack.shared.push(
+                    GlassErrorBannerItem(
+                        icon: Image(systemName: "location.slash"),
+                        title: "error.location_denied.title",
+                        subtitle: "error.location_denied.subtitle",
+                        retryLabel: NSLocalizedString("error.location_denied.cta", comment: ""),
+                        retryAction: {
+                            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                            UIApplication.shared.open(url)
+                        }
+                    )
+                )
             } catch LocationError.timeout {
                 // Even on timeout, LocationService may have returned coords-only
                 if let loc = locationService.lastLocation {
@@ -723,16 +732,15 @@ final class TodayViewModel: ObservableObject {
                 ))
             } catch {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
-                BannerCenter.shared.show(AppBannerModel(
-                    kind: .error,
-                    title: "编译失败：网络不稳定",
-                    primaryAction: BannerAction(label: "立即重试") { [weak self] in
-                        self?.compile()
-                    },
-                    secondaryAction: BannerAction(label: "稍后自动重试") {
-                        BannerCenter.shared.dismiss()
-                    }
-                ))
+                GlassErrorBannerStack.shared.push(
+                    GlassErrorBannerItem(
+                        icon: Image(systemName: "wifi.slash"),
+                        title: "error.compile.title",
+                        subtitle: "error.compile.subtitle",
+                        retryLabel: NSLocalizedString("error.compile.retry", comment: ""),
+                        retryAction: { [weak self] in self?.compile() }
+                    )
+                )
             }
         }
     }

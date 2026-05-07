@@ -52,6 +52,8 @@ final class VoiceService: NSObject, ObservableObject {
     // MARK: Published
 
     @Published var state: RecordingState = .idle
+    /// Set to true when Whisper transcription failed on an active connection (audio was saved).
+    @Published var lastTranscriptFailed: Bool = false
     /// 录制中每秒更新的实时已过秒数
     @Published var elapsedSeconds: Int = 0
     /// 归一化音频电平 0.0–1.0，录制中约 30fps 更新
@@ -187,11 +189,17 @@ final class VoiceService: NSObject, ObservableObject {
         // 推导 vault 相对路径
         let filePath = "raw/assets/\(fileURL.lastPathComponent)"
 
+        lastTranscriptFailed = false
         let transcript = await transcribeAudio(at: fileURL)
 
-        // 如果转录失败且处于离线状态，加入队列等待稍后处理
-        if transcript == nil && !NetworkMonitor.shared.isOnline {
-            VoiceAttachmentQueue.shared.enqueue(audioPath: filePath, memoDate: Date())
+        if transcript == nil {
+            if NetworkMonitor.shared.isOnline {
+                // Online but transcription failed — surface banner so user knows audio is saved.
+                lastTranscriptFailed = true
+            } else {
+                // Offline — queue for later retry.
+                VoiceAttachmentQueue.shared.enqueue(audioPath: filePath, memoDate: Date())
+            }
         }
 
         let result = VoiceRecordingResult(

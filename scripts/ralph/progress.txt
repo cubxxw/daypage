@@ -101,3 +101,4 @@ Started: Fri Apr 24 00:47:52 +07 2026
 [2026-05-07T11:15:09Z] Story #US-009: Apply CJKTextPolish at memo render sites — PASSED
 [2026-05-07T11:18:22Z] Story #US-010: Create EmptyStateView component with bilingual copy — PASSED
 [2026-05-07T11:21:24Z] Story #US-011: Wire EmptyStateView into Today and Archive surfaces — PASSED
+[2026-05-07T11:25:02Z] Story #US-012: Create GlassErrorBanner component — PASSED
