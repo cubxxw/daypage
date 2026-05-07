@@ -66,12 +66,10 @@ struct SidebarView: View {
 
     // MARK: - Nav Items
 
+    // Primary nav (Today/Archive/Graph) moved to GlassTabBar pill — sidebar keeps Feedback only.
     private var navSection: some View {
         VStack(alignment: .leading, spacing: 2) {
-            navItem(tab: .today, icon: "square.and.pencil", label: "Today")
-            navItem(tab: .archive, icon: "archivebox", label: "Archive")
             navItem(tab: .feedback, icon: "bubble.left.and.exclamationmark.bubble.right", label: "Feedback")
-            navItem(tab: .graph, icon: "point.3.connected.trianglepath.dotted", label: "Graph", disabled: true)
         }
         .padding(.horizontal, 12)
     }
