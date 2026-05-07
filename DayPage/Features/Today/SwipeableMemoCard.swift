@@ -65,11 +65,21 @@ struct SwipeableMemoCard: View {
 
             // Card — highPriorityGesture wins over PressableCardModifier's
             // LongPressGesture inside MemoCardView (no drag conflict).
-            MemoCardView(memo: memo, onDelete: onDelete)
-                .offset(x: currentOffset)
-                .drawingGroup(opaque: false, colorMode: .extendedLinear)
-                .highPriorityGesture(swipeGesture)
-                .onTapGesture { if revealedSide != nil { snapClose() } }
+            // NavigationLink is disabled while a swipe panel is revealed so
+            // tapping a revealed card only snaps it closed, never pushes detail.
+            NavigationLink(value: memo.id) {
+                MemoCardView(memo: memo, onDelete: onDelete)
+            }
+            .buttonStyle(.plain)
+            .disabled(revealedSide != nil)
+            .offset(x: currentOffset)
+            .drawingGroup(opaque: false, colorMode: .extendedLinear)
+            .highPriorityGesture(swipeGesture)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if revealedSide != nil { snapClose() }
+                }
+            )
         }
         .clipped()
         // MARK: VoiceOver support — expose swipe actions as named accessibility actions

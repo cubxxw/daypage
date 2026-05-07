@@ -293,6 +293,11 @@ struct TodayView: View {
                 }
             }
             .navigationBarHidden(true)
+            .navigationDestination(for: UUID.self) { memoID in
+                if let memo = viewModel.memos.first(where: { $0.id == memoID }) {
+                    MemoDetailView(memo: memo, vm: viewModel)
+                }
+            }
             .onAppear {
                 viewModel.load()
                 updateVoiceQueueBanner(count: voiceQueue.pendingCount)
