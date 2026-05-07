@@ -189,11 +189,18 @@ struct TodayView: View {
 
                                 // Memo cards (reverse-chronological)
                                 if viewModel.memos.isEmpty && !viewModel.isLoading {
-                                    // Capture v2 design note 01: a blank page
-                                    // is the product, not a problem to solve.
-                                    // The dock below carries every cue the
-                                    // user needs.
-                                    Color.clear.frame(height: 1)
+                                    let hasOnboarded = UserDefaults.standard.bool(forKey: AppSettings.Keys.hasOnboarded)
+                                    Group {
+                                        if hasOnboarded {
+                                            EmptyStateView.todayNoSignals()
+                                        } else {
+                                            EmptyStateView.todayBlank {
+                                                // focus is implicit — the input bar is always visible below
+                                            }
+                                        }
+                                    }
+                                    .padding(.top, 48)
+                                    .padding(.horizontal, 20)
                                 } else {
                                     ForEach(Array(viewModel.memos.enumerated()), id: \.element.id) { idx, memo in
                                         TimelineRow(
@@ -250,6 +257,29 @@ struct TodayView: View {
                         }
                         .coordinateSpace(name: "todayScroll")
                         .frame(maxHeight: geo.size.height)
+                    }
+
+                    // MARK: Compile Area
+                    // Shows a locked hint when signals < 3, or the compile
+                    // button when ready. Hidden once today's page is compiled.
+                    if !viewModel.isDailyPageCompiled && !viewModel.memos.isEmpty {
+                        HStack {
+                            Spacer()
+                            if viewModel.memos.count < 3 {
+                                EmptyStateView.compileLocked(currentCount: viewModel.memos.count)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 8)
+                            } else {
+                                CompileFooterButton(
+                                    memoCount: viewModel.memos.count,
+                                    isCompiling: viewModel.isCompiling,
+                                    isVisible: true,
+                                    onTap: { viewModel.compile() }
+                                )
+                            }
+                            Spacer()
+                        }
+                        .padding(.bottom, 4)
                     }
 
                     // MARK: Input Bar — single canonical surface (V4).
