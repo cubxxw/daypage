@@ -1,126 +1,156 @@
 #!/bin/bash
-# Ralph Wiggum - Long-running AI agent loop
-# Usage: ./ralph.sh [--tool amp|claude] [max_iterations]
+# Ralph - Autonomous AI agent loop for Solo Compass
+# Each iteration: fresh Claude Code instance → implement single story → test → commit
+# Usage: ./ralph.sh [--tool claude] [max_iterations]
 
 set -e
 
-# Parse arguments
-TOOL="amp"  # Default to amp for backwards compatibility
+TOOL="claude"
 MAX_ITERATIONS=10
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --tool)
-      TOOL="$2"
-      shift 2
-      ;;
-    --tool=*)
-      TOOL="${1#*=}"
-      shift
-      ;;
-    *)
-      # Assume it's max_iterations if it's a number
-      if [[ "$1" =~ ^[0-9]+$ ]]; then
-        MAX_ITERATIONS="$1"
-      fi
-      shift
-      ;;
+    --tool) TOOL="$2"; shift 2 ;;
+    --tool=*) TOOL="${1#*=}"; shift ;;
+    *) [[ "$1" =~ ^[0-9]+$ ]] && MAX_ITERATIONS="$1"; shift ;;
   esac
 done
 
-# Validate tool choice
-if [[ "$TOOL" != "amp" && "$TOOL" != "claude" ]]; then
-  echo "Error: Invalid tool '$TOOL'. Must be 'amp' or 'claude'."
-  exit 1
-fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
-# prd.json lookup: project root takes priority over scripts/ralph/
-# Put your prd.json in the project root. scripts/ralph/prd.json is a fallback.
-if [ -f "$PROJECT_ROOT/prd.json" ]; then
-  PRD_FILE="$PROJECT_ROOT/prd.json"
-else
-  PRD_FILE="$SCRIPT_DIR/prd.json"
-fi
+# PRD is at project root, progress is in scripts/ralph/
+PRD_FILE="$SCRIPT_DIR/../../prd.json"
 PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
-ARCHIVE_DIR="$SCRIPT_DIR/archive"
-LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Archive previous run if branch changed
-if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
-  CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
-  LAST_BRANCH=$(cat "$LAST_BRANCH_FILE" 2>/dev/null || echo "")
-
-  if [ -n "$CURRENT_BRANCH" ] && [ -n "$LAST_BRANCH" ] && [ "$CURRENT_BRANCH" != "$LAST_BRANCH" ]; then
-    # Archive the previous run
-    DATE=$(date +%Y-%m-%d)
-    # Strip "ralph/" prefix from branch name for folder
-    FOLDER_NAME=$(echo "$LAST_BRANCH" | sed 's|^ralph/||')
-    ARCHIVE_FOLDER="$ARCHIVE_DIR/$DATE-$FOLDER_NAME"
-
-    echo "Archiving previous run: $LAST_BRANCH"
-    mkdir -p "$ARCHIVE_FOLDER"
-    [ -f "$PRD_FILE" ] && cp "$PRD_FILE" "$ARCHIVE_FOLDER/"
-    [ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
-    echo "   Archived to: $ARCHIVE_FOLDER"
-
-    # Reset progress file for new run
-    echo "# Ralph Progress Log" > "$PROGRESS_FILE"
-    echo "Started: $(date)" >> "$PROGRESS_FILE"
-    echo "---" >> "$PROGRESS_FILE"
-  fi
-fi
-
-# Track current branch
-if [ -f "$PRD_FILE" ]; then
-  CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
-  if [ -n "$CURRENT_BRANCH" ]; then
-    echo "$CURRENT_BRANCH" > "$LAST_BRANCH_FILE"
-  fi
-fi
-
-# Initialize progress file if it doesn't exist
+# Init progress file
 if [ ! -f "$PROGRESS_FILE" ]; then
-  echo "# Ralph Progress Log" > "$PROGRESS_FILE"
-  echo "Started: $(date)" >> "$PROGRESS_FILE"
+  echo "# DayPage — Ralph Progress Log" > "$PROGRESS_FILE"
+  echo "Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$PROGRESS_FILE"
+  echo "Tool: $TOOL" >> "$PROGRESS_FILE"
   echo "---" >> "$PROGRESS_FILE"
 fi
 
-echo "Starting Ralph - Tool: $TOOL - Max iterations: $MAX_ITERATIONS"
+echo "🚀 Ralph starting — Tool: $TOOL, Max iterations: $MAX_ITERATIONS"
+echo "📋 PRD: $PRD_FILE"
+echo ""
 
 for i in $(seq 1 $MAX_ITERATIONS); do
-  echo ""
-  echo "==============================================================="
-  echo "  Ralph Iteration $i of $MAX_ITERATIONS ($TOOL)"
-  echo "==============================================================="
+  echo "═══════════════════════════════════════════════════════════"
+  echo "  Iteration $i / $MAX_ITERATIONS"
+  echo "═══════════════════════════════════════════════════════════"
 
-  # Run the selected tool with the ralph prompt
-  if [[ "$TOOL" == "amp" ]]; then
-    OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | amp --dangerously-allow-all 2>&1 | tee /dev/stderr) || true
-  else
-    # Claude Code: use --dangerously-skip-permissions for autonomous operation, --print for output
-    OUTPUT=$(claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/CLAUDE.md" 2>&1 | tee /dev/stderr) || true
-  fi
+  # Find next incomplete story
+  STORY=$(python3 -c "
+import json, sys
+with open('$PRD_FILE') as f:
+    prd = json.load(f)
+incomplete = [s for s in prd['stories'] if not s['passes']]
+if not incomplete:
+    print('ALL_DONE')
+    sys.exit(0)
+story = incomplete[0]
+print(json.dumps(story))
+")
 
-  # Check for completion signal
-  if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
-    echo ""
-    echo "Ralph completed all tasks!"
-    echo "Completed at iteration $i of $MAX_ITERATIONS"
-
-    # Ask Claude to create a PR via /ship-pr
-    echo "Creating PR via Claude /ship-pr..."
-    claude --dangerously-skip-permissions --print "/ship-pr" 2>&1 | tee /dev/stderr || true
-
+  if [ "$STORY" = "ALL_DONE" ]; then
+    echo "✅ ALL STORIES COMPLETE!"
+    echo "All stories pass: true" >> "$PROGRESS_FILE"
     exit 0
   fi
 
-  echo "Iteration $i complete. Continuing..."
-  sleep 2
+  STORY_ID=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+  STORY_NAME=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['name'])")
+  STORY_DESC=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['description'])")
+  STORY_ACCEPT=$(echo "$STORY" | python3 -c "import json,sys; print(json.load(sys.stdin)['acceptance'])")
+
+  echo "📌 Story #$STORY_ID: $STORY_NAME"
+  echo "   Acceptance: $STORY_ACCEPT"
+
+  # Build the Claude Code prompt
+  PROMPT="You are implementing a SINGLE user story for the Solo Compass iOS app.
+
+PROJECT: Solo Compass (独行罗盘) — living map for solo travelers
+iOS app location: apps/ios/SoloCompass/
+Tech: SwiftUI, MapKit, iOS 17+, MVVM with @Observable
+
+STORY #$STORY_ID: $STORY_NAME
+DESCRIPTION: $STORY_DESC
+ACCEPTANCE CRITERIA: $STORY_ACCEPT
+
+Read the CLAUDE.md for project conventions. Read existing Swift files to understand the codebase.
+Implement ONLY this story. Do NOT touch unrelated code.
+After implementing:
+1. Verify the code compiles conceptually (no Xcode available, but check syntax)
+2. Run any relevant tests
+3. Print a summary of what you changed
+4. The acceptance criteria must be satisfied"
+
+  echo "   🤖 Running Claude Code..."
+
+  # Run Claude Code in the repo root
+  cd "$REPO_ROOT"
+  
+  if claude -p "$PROMPT" \
+    --allowedTools "Read,Write,Edit,Bash" \
+    --max-turns 20 \
+    --effort high \
+    --output-format json \
+    --dangerously-skip-permissions 2>&1 | tee /tmp/ralph-output-$i.json; then
+    
+    echo "   ✅ Story #$STORY_ID implemented successfully"
+
+    # Git add + commit
+    cd "$REPO_ROOT"
+    if git diff --quiet && git diff --cached --quiet; then
+      echo "   ⚠️ No changes to commit"
+    else
+      git add -A
+      git commit -m "feat(ios): story #$STORY_ID — $STORY_NAME
+
+Implemented: $STORY_DESC
+Acceptance: $STORY_ACCEPT"
+      echo "   📝 Committed: story #$STORY_ID"
+    fi
+
+    # Mark story as passes: true
+    python3 -c "
+import json
+with open('$PRD_FILE') as f:
+    prd = json.load(f)
+for s in prd['stories']:
+    if s['id'] == '$STORY_ID':
+        s['passes'] = True
+        break
+with open('$PRD_FILE', 'w') as f:
+    json.dump(prd, f, indent=2)
+"
+    echo "   ✔️ Story #$STORY_ID marked as passes: true"
+
+    # Log progress
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Story #$STORY_ID: $STORY_NAME — PASSED" >> "$PROGRESS_FILE"
+
+  else
+    echo "   ❌ Story #$STORY_ID FAILED"
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Story #$STORY_ID: $STORY_NAME — FAILED (iteration $i)" >> "$PROGRESS_FILE"
+    
+    # Don't exit — continue to next iteration (Claude may fix it in next pass)
+  fi
+
+  echo ""
 done
 
-echo ""
-echo "Ralph reached max iterations ($MAX_ITERATIONS) without completing all tasks."
-echo "Check $PROGRESS_FILE for status."
-exit 1
+echo "🏁 Ralph complete after $MAX_ITERATIONS iterations"
+echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Ralph complete after $MAX_ITERATIONS iterations" >> "$PROGRESS_FILE"
+
+# Report remaining incomplete stories
+REMAINING=$(python3 -c "
+import json
+with open('$PRD_FILE') as f:
+    prd = json.load(f)
+remaining = [s['name'] for s in prd['stories'] if not s['passes']]
+if remaining:
+    print('Remaining: ' + ', '.join(remaining))
+else:
+    print('All complete! 🎉')
+")
+echo "📊 $REMAINING"
