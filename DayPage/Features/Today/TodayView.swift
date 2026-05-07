@@ -159,25 +159,15 @@ struct TodayView: View {
                         )
                     }
 
+                    // MARK: Day Orb Hero — serif date + mono kicker + orb
+                    orbHero
+
                     // MARK: Timeline (75% of available space)
                     GeometryReader { geo in
                         ScrollView {
                             LazyVStack(spacing: 8) {
-                                // On This Day card
-                                if let entry = viewModel.onThisDayEntry {
-                                    OnThisDayCard(
-                                        entry: entry,
-                                        onDismiss: { viewModel.dismissOnThisDay() },
-                                        onTap: { e in
-                                            let fmt = DateFormatter()
-                                            fmt.dateFormat = "yyyy-MM-dd"
-                                            fmt.locale = Locale(identifier: "en_US_POSIX")
-                                            fmt.timeZone = TimeZone.current
-                                            onThisDayDateString = fmt.string(from: e.originalDate)
-                                        }
-                                    )
-                                    .padding(.top, 4)
-                                }
+                                // OnThisDayCard removed — relocation tracked in follow-up issue (US-015)
+                                // WeeklyRecapSection removed — relocation tracked in follow-up issue (US-015)
 
                                 // Daily Page entry card (post-compile). Auto-compile runs
                                 // silently on load; users swipe left to reveal a manual
@@ -238,17 +228,6 @@ struct TodayView: View {
                                         .foregroundColor(DSColor.error)
                                         .padding(.horizontal, 20)
                                 }
-
-                                // MARK: Weekly Recap (this week's compiled days, newest first)
-                                // Rendered after today's raw stream so the user scrolls "from now
-                                // into memory" — Phase 1 of the time-pyramid recap. Phase 2/3
-                                // will collapse last week / month / year into coarser cards below.
-                                WeeklyRecapSection(
-                                    entries: viewModel.weeklyRecap,
-                                    onTapEntry: { dateStr in
-                                        onThisDayDateString = dateStr
-                                    }
-                                )
 
                                 Spacer(minLength: 16)
                             }
@@ -525,6 +504,43 @@ struct TodayView: View {
                     }
             )
         }
+    }
+
+    // MARK: - Day Orb Hero
+
+    /// Hero region shown at the top of Today: serif date + mono signal kicker + 200pt Day Orb.
+    @ViewBuilder
+    private var orbHero: some View {
+        VStack(spacing: 6) {
+            Text(weekdayName(currentTime))
+                .font(DSType.serifDisplay32)
+                .foregroundColor(DSColor.inkPrimary)
+
+            Text(orbKicker(currentTime))
+                .font(DSType.mono10)
+                .foregroundColor(DSColor.inkSubtle)
+                .textCase(.uppercase)
+                .tracking(1.0)
+
+            Button {
+                // TODO: open Day Drawer (follow-up story)
+            } label: {
+                DayOrbView(signalCount: viewModel.signalCount, size: 200)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+
+    private func orbKicker(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "d MMM"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        let count = viewModel.signalCount
+        let plural = count == 1 ? "SIGNAL" : "SIGNALS"
+        return "\(f.string(from: date).uppercased()) · \(count) \(plural)"
     }
 
     // MARK: - InputBarV4 (variant D: Silent Press-to-Talk)

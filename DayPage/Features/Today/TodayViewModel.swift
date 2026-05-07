@@ -56,6 +56,9 @@ final class TodayViewModel: ObservableObject {
     /// Today's memos in reverse-chronological order (newest first).
     @Published var memos: [Memo] = []
 
+    /// Number of signals (memos) captured today — drives the Day Orb readout.
+    var signalCount: Int { memos.count }
+
     /// Whether the Daily Page for today has been compiled.
     @Published var isDailyPageCompiled: Bool = false
 
