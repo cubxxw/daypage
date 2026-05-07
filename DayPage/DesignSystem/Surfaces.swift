@@ -1,0 +1,114 @@
+import SwiftUI
+
+// MARK: - GlassTone
+
+/// Opacity tier for every Liquid Glass surface.
+/// Maps to DSColor.glassStd / glassHi / glassLo from the v4 palette.
+enum GlassTone {
+    case std       // 62 % — default body cards
+    case hi        // 85 % — sheets, pills, panel menus
+    case lo        // 35 % — nested rows, secondary chips
+    case amberHero // Deep-amber hero (Daily Page card, non-glass)
+
+    var fill: Color {
+        switch self {
+        case .std:       return DSColor.glassStd
+        case .hi:        return DSColor.glassHi
+        case .lo:        return DSColor.glassLo
+        case .amberHero: return Color(hex: "5D3000").opacity(0.92)
+        }
+    }
+
+    var rim: Color {
+        switch self {
+        case .std, .lo:  return DSColor.glassRim
+        case .hi:        return DSColor.glassRimD
+        case .amberHero: return DSColor.amberRim
+        }
+    }
+}
+
+// MARK: - LiquidGlassCard
+
+/// Translucent warm-amber pane — the core v4 card surface.
+/// Layers: warm tint → ultraThinMaterial (blur 28, saturate 160 %)
+/// → top inner highlight → 0.5 pt hairline → soft drop-shadow stack.
+struct LiquidGlassCard: ViewModifier {
+    var cornerRadius: CGFloat = 18
+    var tone: GlassTone = .std
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(tone.fill)
+                    .background(
+                        .ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    )
+                    .saturation(1.6)
+            )
+            .overlay(
+                // Top inner highlight — gives the "wet glass" rim.
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [DSColor.glassEdge, Color.clear],
+                            startPoint: .top,
+                            endPoint: .center
+                        ),
+                        lineWidth: 0.6
+                    )
+            )
+            .overlay(
+                // 0.5 pt hairline around the full perimeter.
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(tone.rim, lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: Color(hex: "2D1E0A").opacity(0.04), radius: 1, x: 0, y: 1)
+            .shadow(color: Color(hex: "2D1E0A").opacity(0.08), radius: 24, x: 0, y: 8)
+    }
+}
+
+// MARK: - LiquidGlassPill
+
+/// Fully-rounded pill surface (cornerRadius 999, tone .hi).
+/// Use for action chips, tags, and badge-style controls.
+struct LiquidGlassPill: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .modifier(LiquidGlassCard(cornerRadius: 999, tone: .hi))
+    }
+}
+
+// MARK: - LiquidGlassPanel
+
+/// Panel surface used for expanded TabBar menus and drawers (tone .hi).
+struct LiquidGlassPanel: ViewModifier {
+    var cornerRadius: CGFloat = 20
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(LiquidGlassCard(cornerRadius: cornerRadius, tone: .hi))
+    }
+}
+
+// MARK: - View extensions
+
+extension View {
+    /// iOS 26-style Liquid Glass card — the default card surface.
+    func liquidGlassCard(cornerRadius: CGFloat = 18, tone: GlassTone = .std) -> some View {
+        modifier(LiquidGlassCard(cornerRadius: cornerRadius, tone: tone))
+    }
+
+    /// Fully-rounded Liquid Glass pill (cornerRadius 999, tone .hi).
+    func liquidGlassPill() -> some View {
+        modifier(LiquidGlassPill())
+    }
+
+    /// Expanded-menu panel surface (tone .hi).
+    func liquidGlassPanel(cornerRadius: CGFloat = 20) -> some View {
+        modifier(LiquidGlassPanel(cornerRadius: cornerRadius))
+    }
+}

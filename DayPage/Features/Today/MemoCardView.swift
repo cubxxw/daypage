@@ -636,7 +636,7 @@ struct DailyPageEntryCard: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
             .frame(maxWidth: .infinity)
-            .liquidGlassCard(cornerRadius: 18, tone: .elevated)
+            .liquidGlassCard(cornerRadius: 18, tone: .hi)
             .overlay(alignment: .leading) {
                 // Left amber accent strip
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
