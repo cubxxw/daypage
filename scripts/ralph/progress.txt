@@ -119,3 +119,17 @@ Started: Thu May  7 12:02:39 UTC 2026
 ---
 
 [2026-05-07T12:04:00Z] Story #US-025: Add Source Signals list to DailyPageView with push-to-detail — PASSED
+
+## 2026-05-07 - US-026
+- Replaced card-style RecordingOverlayView with full-screen orb overlay
+- Dual concentric ring pulse: outer scale 0.85→1.10, opacity 0.40→0.10, easeInOut 1.6s repeatForever
+- Inner ring: same curve, delayed 0.3s via DispatchQueue.main.asyncAfter
+- Inner core: 110pt radial gradient #FFD9A8→#A8541B, warm glow shadow (radius 20), 0.5pt white border
+- Status text (English) + M:SS JetBrainsMono timer + transcribing ProgressView
+- Cancel / Save / Transcribe buttons with glass-style backgrounds
+- Motion-exception comments at both animation call sites
+- Old card layout removed; waveform param still accepted for API compatibility
+- Files changed: DayPage/Features/Today/RecordingOverlayView.swift, prd.json
+---
+
+[2026-05-07T12:05:00Z] Story #US-026: Update RecordingOverlayView with dual-pulse halo — PASSED

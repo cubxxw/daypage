@@ -17,10 +17,9 @@ enum RecordingOverlayMode: Equatable {
 
 // MARK: - RecordingOverlayView
 //
-// Floating card shown above the input bar while the user is holding the
-// press-to-talk button. Three primary visual states plus a post-release
-// transcribing spinner. Visuals are driven entirely by the `mode`, `elapsed`
-// and `waveform` inputs — no internal state.
+// Full-screen recording overlay centered on a Day-Orb-style radial gradient core,
+// with dual concentric ring pulse animation per capture.jsx:474-475.
+// Replaces the old card-style overlay.
 
 struct RecordingOverlayView: View {
 
@@ -28,152 +27,152 @@ struct RecordingOverlayView: View {
     let elapsedSeconds: Int
     let waveform: [Float]
 
+    // Dual-pulse halo animation state
+    @State private var pulseOuter: Bool = false
+    @State private var pulseInner: Bool = false
+
     var body: some View {
-        VStack(spacing: 10) {
-            statusLine
-            waveformBar
-            timerLine
-            if mode == .recording {
-                gestureHintRow
+        ZStack {
+            // Dimmed background
+            Color.black.opacity(0.55).ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                // Orb with dual-pulse halo
+                ZStack {
+                    // Outer ring pulse
+                    Circle()
+                        .stroke(
+                            Color(red: 1.0, green: 0.851, blue: 0.659).opacity(pulseOuter ? 0.10 : 0.40),
+                            lineWidth: 1.5
+                        )
+                        .frame(width: 142, height: 142)
+                        .scaleEffect(pulseOuter ? 1.10 : 0.85)
+                        .animation(
+                            // motion-exception: dual-ring pulse 1.6s is the only allowed motion in v4
+                            .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+                            value: pulseOuter
+                        )
+
+                    // Inner ring pulse — 0.3s phase offset via delayed onAppear
+                    Circle()
+                        .stroke(
+                            Color(red: 1.0, green: 0.851, blue: 0.659).opacity(pulseInner ? 0.10 : 0.40),
+                            lineWidth: 1.5
+                        )
+                        .frame(width: 130, height: 130)
+                        .scaleEffect(pulseInner ? 1.10 : 0.85)
+                        .animation(
+                            // motion-exception: dual-ring pulse 1.6s is the only allowed motion in v4
+                            .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+                            value: pulseInner
+                        )
+
+                    // Inner core: 110pt radial gradient orb
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color(red: 1.0, green: 0.851, blue: 0.659),  // #FFD9A8
+                                    Color(red: 0.659, green: 0.329, blue: 0.106) // #A8541B
+                                ],
+                                center: .init(x: 0.35, y: 0.30),
+                                startRadius: 0,
+                                endRadius: 55
+                            )
+                        )
+                        .frame(width: 110, height: 110)
+                        .shadow(color: Color(red: 1.0, green: 0.608, blue: 0.302).opacity(0.55), radius: 20, x: 0, y: 0)
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.60), lineWidth: 0.5))
+
+                    // Mic icon in center
+                    Image(systemName: mode == .transcribing ? "waveform" : "mic.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(Color(red: 0.365, green: 0.188, blue: 0.0)) // warm dark amber
+                }
+                .frame(width: 142, height: 142)
+                .onAppear {
+                    pulseOuter = true
+                    // 0.3s phase offset for inner ring
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        pulseInner = true
+                    }
+                }
+
+                // Status + timer
+                VStack(spacing: 6) {
+                    Text(statusText)
+                        .font(DSFonts.inter(size: 15, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.90))
+
+                    Text(formattedTime(elapsedSeconds))
+                        .font(DSFonts.jetBrainsMono(size: 24, weight: .medium))
+                        .foregroundColor(Color.white)
+                        .monospacedDigit()
+
+                    if mode == .transcribing {
+                        ProgressView()
+                            .tint(Color.white.opacity(0.80))
+                            .scaleEffect(0.85)
+                    }
+                }
+
+                // Cancel / Save buttons
+                if mode == .recording || mode == .cancelArmed || mode == .transcribeArmed {
+                    HStack(spacing: 20) {
+                        // Cancel
+                        Button {
+                            // Parent handles dismiss via gesture; placeholder action
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Cancel")
+                                    .font(DSFonts.inter(size: 12, weight: .medium))
+                            }
+                            .foregroundColor(mode == .cancelArmed ? DSColor.errorRed : Color.white.opacity(0.75))
+                            .frame(width: 72, height: 56)
+                            .background(Color.white.opacity(mode == .cancelArmed ? 0.25 : 0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        // Save / Transcribe
+                        Button {
+                            // Parent handles action via gesture release
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: mode == .transcribeArmed ? "text.bubble" : "checkmark")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text(mode == .transcribeArmed ? "Transcribe" : "Save")
+                                    .font(DSFonts.inter(size: 12, weight: .medium))
+                            }
+                            .foregroundColor(mode == .transcribeArmed ? Color(red: 0.30, green: 0.55, blue: 1.0) : Color.white.opacity(0.90))
+                            .frame(width: 72, height: 56)
+                            .background(Color.white.opacity(mode == .transcribeArmed ? 0.25 : 0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .frame(maxWidth: .infinity)
-        .background(backgroundFill)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(borderColor, lineWidth: 1)
-        )
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(.opacity.combined(with: .scale(scale: 0.92)))
     }
 
-    // MARK: - Status Line
-
-    @ViewBuilder
-    private var statusLine: some View {
-        HStack(spacing: 8) {
-            Image(systemName: statusIcon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(foregroundColor)
-            Text(statusText)
-                .font(.custom("Inter-Medium", size: 13))
-                .foregroundColor(foregroundColor)
-            Spacer()
-        }
-    }
-
-    // MARK: - Waveform Bar
-
-    @ViewBuilder
-    private var waveformBar: some View {
-        let barCount = min(40, waveform.count)
-        HStack(alignment: .center, spacing: 2) {
-            ForEach(0 ..< barCount, id: \.self) { i in
-                let level = waveform[i]
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(waveformColor)
-                    .frame(width: 3, height: max(4, CGFloat(level) * 28))
-                    .animation(Motion.fade, value: level)
-            }
-        }
-        .frame(height: 32)
-    }
-
-    // MARK: - Timer Line
-
-    @ViewBuilder
-    private var timerLine: some View {
-        HStack(spacing: 0) {
-            Text(formattedTime(elapsedSeconds))
-                .font(.system(size: 20, weight: .semibold, design: .monospaced))
-                .foregroundColor(foregroundColor)
-                .monospacedDigit()
-            Spacer()
-            if mode == .transcribing {
-                ProgressView()
-                    .tint(foregroundColor)
-            }
-        }
-    }
-
-    // MARK: - Style Helpers
-
-    private var statusIcon: String {
-        switch mode {
-        case .recording: return "mic.fill"
-        case .cancelArmed: return "trash.fill"
-        case .transcribeArmed: return "text.bubble.fill"
-        case .transcribing: return "waveform"
-        }
-    }
+    // MARK: - Status Text
 
     private var statusText: String {
         switch mode {
-        case .recording: return "松手发送 · ↑ 取消 · ← 转文字"
-        case .cancelArmed: return "↑ 松手取消"
-        case .transcribeArmed: return "← 松手转文字"
-        case .transcribing: return "正在转写…"
+        case .recording: return "Listening…"
+        case .cancelArmed: return "Release to cancel"
+        case .transcribeArmed: return "Release to transcribe"
+        case .transcribing: return "Transcribing…"
         }
     }
 
-    private var backgroundFill: Color {
-        switch mode {
-        case .recording: return DSColor.surface
-        case .cancelArmed: return DSColor.errorContainer
-        case .transcribeArmed: return Color(red: 0.85, green: 0.92, blue: 1.0)
-        case .transcribing: return DSColor.surface
-        }
-    }
+    // MARK: - Helpers (kept for compatibility — waveform param still accepted)
 
-    private var borderColor: Color {
-        switch mode {
-        case .recording: return DSColor.outlineVariant
-        case .cancelArmed: return DSColor.error
-        case .transcribeArmed: return Color(red: 0.20, green: 0.45, blue: 0.85)
-        case .transcribing: return DSColor.outlineVariant
-        }
-    }
-
-    private var foregroundColor: Color {
-        switch mode {
-        case .recording: return DSColor.onSurface
-        case .cancelArmed: return DSColor.error
-        case .transcribeArmed: return Color(red: 0.12, green: 0.30, blue: 0.65)
-        case .transcribing: return DSColor.onSurface
-        }
-    }
-
-    private var waveformColor: Color {
-        switch mode {
-        case .recording: return DSColor.amberArchival
-        case .cancelArmed: return DSColor.error
-        case .transcribeArmed: return Color(red: 0.20, green: 0.45, blue: 0.85)
-        case .transcribing: return DSColor.onSurfaceVariant
-        }
-    }
-
-    // MARK: - Gesture Hint Row
-    //
-    // Shown only in .recording state so users discover the swipe affordances
-    // the first time they hold the button. Two small pills indicating the
-    // cancel (↑) and transcribe (←) zones help users understand what to do
-    // before they commit to a direction.
-
-    @ViewBuilder
-    private var gestureHintRow: some View {
-        HStack(spacing: 12) {
-            Spacer()
-            gestureHintPill(icon: "arrow.up", label: "上滑取消", color: DSColor.error.opacity(0.75))
-            gestureHintPill(icon: "arrow.left", label: "左滑转文字", color: Color(red: 0.20, green: 0.45, blue: 0.85).opacity(0.75))
-            Spacer()
-        }
-    }
-
+    // Legacy gesture hint pill — unused by v4 overlay but kept to avoid breaking callers
     @ViewBuilder
     private func gestureHintPill(icon: String, label: String, color: Color) -> some View {
         HStack(spacing: 4) {
