@@ -228,7 +228,7 @@ struct MemoCardView: View {
                 Text(bodyTrimmed)
                     .font(DSType.serifBody16)
                     .foregroundColor(DSColor.inkPrimary)
-                    .lineSpacing(3)
+                    .lineSpacing(6)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
@@ -513,7 +513,7 @@ struct VoiceMemoPlayerRow: View {
             if let t = transcript, !t.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
                     Text("\"")
-                        .font(DSFonts.newYork(size: 20, weight: .medium))
+                        .font(DSFonts.serif(size: 20, weight: .medium))
                         .foregroundColor(DSColor.amberAccent)
                         .offset(y: -2)
                     Text(t)
@@ -523,7 +523,7 @@ struct VoiceMemoPlayerRow: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                     Text("\"")
-                        .font(DSFonts.newYork(size: 20, weight: .medium))
+                        .font(DSFonts.serif(size: 20, weight: .medium))
                         .foregroundColor(DSColor.amberAccent)
                         .offset(y: -2)
                 }

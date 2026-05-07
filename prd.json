@@ -34,7 +34,7 @@
         "Tests pass (unit test verifying serif() returns non-nil Font for each weight)"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

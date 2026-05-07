@@ -338,9 +338,9 @@ struct DailyPageView: View {
                         .fill(DSColor.primary)
                         .frame(width: 2)
                     Text(model.summary)
-                        .titleSMStyle()
+                        .font(DSType.serifBody18)
                         .foregroundColor(DSColor.onSurface)
-                        .lineSpacing(4)
+                        .lineSpacing(6)
                         .padding(.leading, 16)
                         .padding(.vertical, 4)
                 }

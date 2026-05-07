@@ -303,7 +303,7 @@ struct InputBarV4: View {
             action()
         } label: {
             Text("Aa")
-                .font(DSFonts.newYork(size: 16, weight: .medium))
+                .font(DSFonts.serif(size: 16, weight: .medium))
                 .foregroundStyle(DSColor.inkPrimary)
                 .frame(width: 44, height: 44)
                 .background(Color.clear)
