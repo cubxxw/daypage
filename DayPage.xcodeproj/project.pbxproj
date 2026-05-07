@@ -111,6 +111,8 @@
 		FB0000002 /* FeedbackViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1000002 /* FeedbackViewModel.swift */; };
 		FB0000003 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1000003 /* FeedbackView.swift */; };
 		FB0000004 /* FeedbackContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1000004 /* FeedbackContext.swift */; };
+		ES0000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ES1000001 /* EmptyStateView.swift */; };
+		LS0000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = LS1000001 /* Localizable.strings */; };
 		DBB277156934B2FA96E16077 /* WatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BB61FECBCF7AB756E7A6CE /* WatchApp.swift */; };
 		9034B2964DD6432BD7FA7250 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B5757B488F583231EC8F6 /* RootView.swift */; };
 		B197ECDEBDA86D4351A96898 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93ED807E07C2171E9F4234B /* RecordingView.swift */; };
@@ -246,6 +248,10 @@
 		FB1000002 /* FeedbackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackViewModel.swift; sourceTree = "<group>"; };
 		FB1000003 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		FB1000004 /* FeedbackContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackContext.swift; sourceTree = "<group>"; };
+		ES1000001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		LS1000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		LS1000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		LS1000001 /* Localizable.strings */ = {isa = PBXVariantGroup; children = (LS1000002 /* en */, LS1000003 /* zh-Hans */); name = Localizable.strings; sourceTree = "<group>"; };
 		F5BB61FECBCF7AB756E7A6CE /* WatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchApp.swift; sourceTree = "<group>"; };
 		C98B5757B488F583231EC8F6 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B93ED807E07C2171E9F4234B /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
@@ -290,14 +296,32 @@
 				A50000002 /* App */,
 				A50000003 /* DesignSystem */,
 				A50000004 /* Features */,
+				ES5000001 /* Components */,
 				A50000005 /* Models */,
 				A50000006 /* Services */,
 				A50000007 /* Storage */,
 				A50000008 /* Config */,
 				A50000020 /* Utilities */,
+				ES5000002 /* Resources */,
 				A50000009 /* Products */,
 			);
 			path = DayPage;
+			sourceTree = "<group>";
+		};
+		ES5000001 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				ES1000001 /* EmptyStateView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		ES5000002 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				LS1000001 /* Localizable.strings */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		A50000002 /* App */ = {
