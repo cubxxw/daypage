@@ -1,0 +1,170 @@
+# DayPage iCloud Sync - Ralph Progress Log
+
+Source PRD: tasks/design-icloud-sync.md (Issue #64)
+Branch: ralph/icloud-sync
+Start: 2026-04-22
+
+Previous run (V3 Wave 2) archived at: archive/2026-04-22-daypage-v3-wave2-experience/
+
+---
+
+## Codebase Patterns (carried over from Wave 2)
+- isAttachmentDownloaded: read .ubiquitousItemDownloadingStatusKey via URL.resourceValues; non-ubiquitous files return true (no iCloud key present)
+- pollDownloadStatus: use Task { for _ in 0..<30 { await Task.sleep(2s); if downloaded { insert to Set; return } } } pattern for polling without timers in SwiftUI views
+- AppSettings nonisolated accessors (e.g., currentTimeZone, currentAttachmentPolicy, currentVaultLocation): pattern for reading UserDefaults from non-MainActor contexts like VaultInitializer static methods
+- VaultMigrationService.verifyMigration is internal (not private) to enable direct unit testing from DayPageTests
+- @MainActor class methods called from XCTest async tests: wrap with await MainActor.run { ... } — XCTAssertThrowsError doesn't work for @MainActor methods, use do/catch inside MainActor.run instead
+- PhotoDownloadPlaceholder / AudioDownloadPlaceholder: standalone struct views for iCloud eviction states; keep outside MemoCardView to allow reuse
+- ConflictMerger uses NSFileVersion.unresolvedConflictVersionsOfItem (not NSMetadataQuery) for conflict detection — simpler and works without a running query
+- NSFileVersion conflict resolution: set version.isResolved = true, then call NSFileVersion.removeOtherVersionsOfItem — both steps required
+- ConflictMerger.resolveConflictsIfNeeded(in:) can be called from VaultInitializer or app foreground to sweep for any unresolved conflicts
+- Test IDs in pbxproj: T20000002 (file ref), T10000002 (build file) — next available: T20000003 / T10000003
+- VaultInitializer.vaultURL is the single entry point for all 37 vault file path accesses
+- RawStorage.atomicWrite uses temp-file + FileManager.replaceItemAt pattern for atomic writes
+- Services are @MainActor final class singletons; view models are @MainActor final class: ObservableObject
+- DSColor / DSFonts / DSRadius / DSSpacing tokens used for all visuals
+- To add new Swift files: add PBXBuildFile + PBXFileReference + group child + Sources entry in project.pbxproj (use sequential IDs A1xxxxxxx / A2xxxxxxx, last used A20000056)
+- Build command: xcodebuild -scheme DayPage -destination 'platform=iOS Simulator,arch=arm64,id=3A661BD8-5F57-42B2-B4BA-DBB2FAB4FAD0' build
+- Test command: xcodebuild -scheme DayPage -destination 'platform=iOS Simulator,arch=arm64,id=3A661BD8-5F57-42B2-B4BA-DBB2FAB4FAD0' test
+- SourceKit diagnostics show macOS/cross-module false positives — trust xcodebuild, not SourceKit
+- DayPageTests target uses T* pbxproj ID prefix; app uses A* prefix
+- VaultInitializer.testOverrideURL is the injection point for unit tests
+- RawStorage.atomicWrite is now wrapped in NSFileCoordinator; temp-file + replaceItemAt logic runs inside the coordinator block
+- iCloudVaultLocator.vaultURL falls back to LocalVaultLocator().vaultURL when iCloud unavailable (nil ubiquity container)
+- VaultInitializer.shared is a lazy static var (closure-evaluated once at first access); safe to reassign later for rollback
+
+---
+
+## 2026-04-22 - US-001
+- Implemented VaultLocator protocol with `vaultURL: URL` and `isUsingiCloud: Bool` in DayPage/Storage/VaultLocator.swift
+- Implemented LocalVaultLocator struct returning Documents/vault path (identical to prior hard-coded behavior)
+- Added `VaultInitializer.shared: VaultLocator = LocalVaultLocator()` static property
+- Updated `VaultInitializer.vaultURL` to: `if let override = testOverrideURL { return override }; return shared.vaultURL`
+- Added VaultLocator.swift to project.pbxproj (IDs A10000056/A20000056)
+- Files changed: DayPage/Storage/VaultLocator.swift (new), DayPage/Storage/VaultInitializer.swift, DayPage.xcodeproj/project.pbxproj
+- **Learnings for future iterations:**
+  - VaultInitializer.shared is now the injection point for swapping storage backends at runtime
+  - All 37 call sites remain untouched; they continue to use VaultInitializer.vaultURL which now delegates to shared.vaultURL
+  - Last pbxproj ID used: A20000056 (next available: A20000057)
+---
+
+## 2026-04-22 - US-002
+- Added iCloud entitlements to DayPage/App/DayPage.entitlements: icloud-container-identifiers, ubiquity-container-identifiers, icloud-services=CloudDocuments
+- Implemented `struct iCloudVaultLocator: VaultLocator` in DayPage/Storage/VaultLocator.swift
+  - `vaultURL`: returns ubiquity container's Documents/vault, falls back to LocalVaultLocator when nil
+  - `isUsingiCloud`: returns true iff `url(forUbiquityContainerIdentifier:)` is non-nil
+- Updated `VaultInitializer.shared` from `= LocalVaultLocator()` to a lazy closure: tries iCloudVaultLocator first, falls back to LocalVaultLocator
+- Wrapped `RawStorage.atomicWrite` with `NSFileCoordinator.coordinate(writingItemAt:options:.forReplacing)`: temp-file + replaceItemAt logic runs inside the coordinator block
+- Files changed: DayPage/App/DayPage.entitlements, DayPage/Storage/VaultLocator.swift, DayPage/Storage/VaultInitializer.swift, DayPage/Storage/RawStorage.swift
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - When iCloud not configured (Simulator without account), iCloudVaultLocator.isUsingiCloud == false → shared = LocalVaultLocator() → no crash
+  - NSFileCoordinator.coordinate block receives a potentially remapped `coordinatedURL`; use it (not the original url) for all I/O inside the block
+  - NSFileCoordinator errors land in the `error:` inout parameter, not as thrown exceptions; capture both coordinatorError and writeError
+---
+
+## 2026-04-22 - US-003
+- Added `enum VaultLocation: String { case local, iCloud }` and `enum AttachmentPolicy: String { case onDemand, alwaysLocal }` to AppSettings.swift
+- Added `vaultLocation: VaultLocation` property (UserDefaults key "vaultLocation", default .local) with objectWillChange.send() in setter
+- Added `attachmentPolicy: AttachmentPolicy` property (UserDefaults key "attachmentPolicy", default .onDemand) with objectWillChange.send() in setter
+- Added `migrationCompletedAt: Date?` property (UserDefaults key "migrationCompletedAt", default nil) with objectWillChange.send() in setter
+- Files changed: DayPage/Config/AppSettings.swift
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - AppSettings uses objectWillChange.send() before UserDefaults.set() — no @Published needed since properties are computed (read from UserDefaults each time)
+  - The pattern: `objectWillChange.send() + UserDefaults.set()` triggers SwiftUI updates for computed properties on ObservableObject
+  - VaultLocation and AttachmentPolicy enums are defined at file scope in AppSettings.swift, not nested, for cleaner access in other files
+---
+
+## 2026-04-22 - US-005
+- Created DayPage/Services/ConflictMerger.swift (enum, no singleton — pure functions + static conflict resolution)
+- mergeRawMemos: concatenate → sort by created → deduplicate UUID (keep first occurrence)
+- mergeLogLines: concatenate lines from both strings → deduplicate by first whitespace-delimited token (timestamp key)
+- mergeJSONEntries: decode both JSON arrays → concatenate → deduplicate by idKey field string value
+- resolveConflictsIfNeeded(in:): enumerates vault with .ubiquitousItemHasUnresolvedConflictsKey, calls resolveConflict(at:)
+- resolveConflict(at:): uses NSFileVersion.unresolvedConflictVersionsOfItem, dispatches to resolveMDConflict or resolveJSONConflict, marks versions resolved, posts .vaultConflictResolved notification
+- Created DayPageTests/ConflictMergerTests.swift: 9 XCTest cases
+- Added both files to project.pbxproj (A20000075 / T20000002)
+- Files changed: DayPage/Services/ConflictMerger.swift (new), DayPageTests/ConflictMergerTests.swift (new), DayPage.xcodeproj/project.pbxproj
+- Build: ** BUILD SUCCEEDED **, Tests: ** TEST SUCCEEDED ** (16 total: 9 new + 7 existing)
+- **Learnings for future iterations:**
+  - NSFileVersion.unresolvedConflictVersionsOfItem is simpler than NSMetadataQuery for conflict detection — no query lifecycle needed
+  - version.isResolved = true must be set BEFORE calling NSFileVersion.removeOtherVersionsOfItem
+  - ConflictMerger is a pure enum (no instance state) — all methods static; conflict detection is a separate sweep call
+  - Last pbxproj IDs used: A20000075 (app file ref), A10000075 (app build file), T20000002 (test file ref), T10000002 (test build file)
+  - Next available: A20000076 / A10000076 / T20000003 / T10000003
+---
+
+## 2026-04-22 - US-004
+- Created DayPage/Services/iCloudSyncMonitor.swift as @MainActor final class with SyncStatus enum
+- NSMetadataQuery uses searchScopes=[NSMetadataQueryUbiquitousDocumentsScope] + predicate filtering by vault path prefix
+- queryDidUpdate/queryDidFinishGathering handlers dispatch to @MainActor Task to update @Published properties
+- startMonitoring is no-op when VaultInitializer.shared.isUsingiCloud == false; status stays .notConfigured
+- Registered iCloudSyncMonitor.shared.startMonitoring in DayPageApp.init after VaultInitializer.initializeIfNeeded()
+- Added iCloudSyncMonitor.swift to pbxproj (IDs A10000064/A20000064)
+- Files changed: DayPage/Services/iCloudSyncMonitor.swift (new), DayPage/App/DayPageApp.swift, DayPage.xcodeproj/project.pbxproj
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - NSMetadataQuery callbacks (NSMetadataQueryDidUpdate/DidFinishGathering) arrive on a background thread; always dispatch to @MainActor via Task { @MainActor in }
+  - q.disableUpdates() / q.enableUpdates() must bracket result reading to prevent mutations during iteration
+  - Last pbxproj ID used: A10000064/A20000064 (next available: A10000065/A20000065)
+---
+
+## 2026-04-22 - US-006
+- Added iCloudSyncSection to SettingsView in the Data area (inserted before dataSection)
+- Wired @StateObject private var syncMonitor = iCloudSyncMonitor.shared
+- .notConfigured: shows iCloudNotConfiguredCard with ☁️ icon + "开启多设备同步" title + openSettings button
+- .connected(lastSync:): green dot + "已连接" + "iCloud Drive" label + formatted last sync time (今天 HH:mm or M月d日 HH:mm)
+- .syncing(pendingFiles:): ProgressView spinner + "同步中" + "\(n) 个文件待传"
+- .error(message:): red exclamation + "同步错误" + message text
+- attachmentPolicyPicker: Picker between .onDemand and .alwaysLocal; hidden when .notConfigured
+- rollbackButton: destructive button shown when migrationCompletedAt is set and within 30-day window; calls VaultInitializer.shared = LocalVaultLocator() + appSettings.vaultLocation = .local
+- Files changed: DayPage/Features/Settings/SettingsView.swift
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - @StateObject with a singleton class (iCloudSyncMonitor.shared): use @StateObject private var x = MySingleton.shared — SwiftUI will observe @Published changes correctly
+  - switch on an enum with associated values in @ViewBuilder: use case .notConfigured / case .connected(let x) / case .syncing(let n) / case .error(let msg) — compiler handles exhaustiveness
+  - AttachmentPolicy picker binding: use explicit Binding(get:set:) pointing to appSettings.attachmentPolicy so the Picker writes back to UserDefaults via AppSettings setter
+  - Rollback side-effects: set VaultInitializer.shared = LocalVaultLocator() to swap the runtime locator; no need to re-initialize vault directories (they already exist locally)
+---
+
+## 2026-04-22 - US-007
+- Added isAttachmentDownloaded(_:) to MemoCardView: reads .ubiquitousItemDownloadingStatusKey; returns true for local vault (isUsingiCloud == false)
+- Added startDownload(_:): calls FileManager.startDownloadingUbiquitousItem; no-op for local vault or already-downloaded files
+- Added pollDownloadStatus(for:): polls every 2s up to 30 times via async Task; inserts to @State downloadedURLs Set when downloaded, triggering view refresh
+- Photo attachment: replaced firstPhotoThumbnail computed var with loadThumbnail(from:) func; shows PhotoDownloadPlaceholder when !isReady; starts download onAppear
+- Audio attachment: shows AudioDownloadPlaceholder when !isReady; starts download onAppear and onTapGesture
+- Added PhotoDownloadPlaceholder struct: gray RoundedRectangle + ProgressView + label
+- Added AudioDownloadPlaceholder struct: icloud.and.arrow.down icon + placeholder waveform bars + "--:--" duration
+- VaultInitializer.prefetchAttachmentsIfNeeded(): enumerates vault/raw/assets/ with .ubiquitousItemDownloadingStatusKey; calls startDownloadingUbiquitousItem for any non-current items; guarded by isUsingiCloud && attachmentPolicy == .alwaysLocal
+- AppSettings.currentAttachmentPolicy(): nonisolated static accessor reading UserDefaults directly — same pattern as currentTimeZone()
+- Files changed: DayPage/Features/Today/MemoCardView.swift, DayPage/Storage/VaultInitializer.swift, DayPage/Config/AppSettings.swift
+- Build: ** BUILD SUCCEEDED **
+- **Learnings for future iterations:**
+  - URL.resourceValues(forKeys:) returns nil keys (not an error) for non-ubiquitous files — guard the key, don't assume error
+  - @State Set<URL> is the cleanest way to track which iCloud URLs have finished downloading without a separate service
+  - pollDownloadStatus must be called after startDownload; poll interval of 2s is adequate for iCloud small files
+  - prefetchAttachmentsIfNeeded is called from initializeIfNeeded (sync context) — keep it synchronous, fire-and-forget per file
+---
+
+## 2026-04-22 - US-008
+- Created DayPage/Services/VaultMigrationService.swift as @MainActor final class singleton
+- migrateToiCloud(localVault:iCloudVault:progress:): enumerates local vault, copies each file preserving modificationDate, writes migration.log to iCloudVault
+- verifyMigration: compares file counts; SHA-256 hashes 3 largest raw/*.md + 3 latest wiki/daily/*.md; throws MigrationError.verificationFailed on mismatch
+- On verification success: AppSettings.vaultLocation = .iCloud, migrationCompletedAt = Date()
+- On any failure: AppSettings NOT updated (migrationCompletedAt stays nil)
+- migrateIfNeeded(): auto-trigger guard (isUsingiCloud + vaultLocation==.local + raw/*.md non-empty)
+- VaultInitializer.triggerMigrationIfNeeded(): private static func called from initializeIfNeeded; uses AppSettings.currentVaultLocation() nonisolated accessor
+- AppSettings.currentVaultLocation(): added nonisolated static accessor following currentAttachmentPolicy pattern
+- MigrationProgressSheet: VStack with icloud icon, ProgressView, file count label; interactiveDismissDisabled
+- TodayView: added @StateObject migrationService + .sheet(isPresented: $migrationService.isMigrating) showing MigrationProgressSheet
+- Created DayPageTests/VaultMigrationServiceTests.swift: 5 XCTest cases all pass
+- Files changed: DayPage/Services/VaultMigrationService.swift (new), DayPageTests/VaultMigrationServiceTests.swift (new), DayPage/Storage/VaultInitializer.swift, DayPage/Config/AppSettings.swift, DayPage/Features/Today/TodayView.swift, DayPage.xcodeproj/project.pbxproj
+- Build: ** BUILD SUCCEEDED **, Tests: ** TEST SUCCEEDED ** (25 total: 5 new + 20 existing)
+- **Learnings for future iterations:**
+  - verifyMigration must be internal (not private) to allow XCTest to call it directly via @testable import
+  - @MainActor method from async XCTest: use await MainActor.run { do { try ... } catch { } } — XCTAssertThrowsError doesn't support @MainActor methods
+  - Migration test for "verification fails → settings not set": create two vaults with same relative paths but different file content; call verifyMigration directly rather than relying on copy-then-verify (copy overwrites the different content)
+  - CryptoKit SHA256 available without extra import on iOS 16+; just add `import CryptoKit`
+  - Last pbxproj IDs used: A20000076 / A10000076 (app), T20000003 / T10000003 (tests); next: A20000077 / A10000077 / T20000004 / T10000004
+---
