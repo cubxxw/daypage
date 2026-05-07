@@ -14,6 +14,13 @@ struct MemoDetailView: View {
     @State private var fullResImage: UIImage?
     @State private var showPhotoFullscreen: Bool = false
 
+    // Edit body state
+    @State private var isEditingBody: Bool = false
+    @State private var editedBody: String = ""
+
+    // Delete confirmation
+    @State private var showDeleteConfirm: Bool = false
+
     private var kickerText: String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -30,19 +37,46 @@ struct MemoDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // MARK: Back Button
-                    Button {
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("Today")
-                                .font(DSType.bodySM)
+                    // MARK: Navigation Bar Row
+                    HStack {
+                        Button {
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Today")
+                                    .font(DSType.bodySM)
+                            }
+                            .foregroundColor(DSColor.inkMuted)
                         }
-                        .foregroundColor(DSColor.inkMuted)
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Menu {
+                            Button {
+                                editedBody = memo.body
+                                isEditingBody = true
+                            } label: {
+                                Label("Edit Body", systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive) {
+                                Haptics.tapConfirm()
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Delete Memo", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.system(size: 20, weight: .regular))
+                                .foregroundColor(DSColor.inkMuted)
+                                .frame(width: 36, height: 36)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     .padding(.top, 16)
                     .padding(.bottom, 20)
 
@@ -53,11 +87,42 @@ struct MemoDetailView: View {
                         .tracking(1.2)
                         .padding(.bottom, 14)
 
-                    // MARK: Serif Body
+                    // MARK: Serif Body (view or edit)
                     let bodyTrimmed = memo.body.trimmingCharacters(in: .whitespacesAndNewlines)
                     let isBodyDuplicate = memo.type == .voice &&
                         memo.attachments.contains(where: { $0.transcript == bodyTrimmed && !bodyTrimmed.isEmpty })
-                    if !bodyTrimmed.isEmpty && !isBodyDuplicate {
+
+                    if isEditingBody {
+                        VStack(alignment: .leading, spacing: 10) {
+                            TextEditor(text: $editedBody)
+                                .font(DSType.serifBody16)
+                                .foregroundColor(DSColor.inkPrimary)
+                                .frame(minHeight: 120)
+                                .scrollContentBackground(.hidden)
+                                .background(DSColor.glassLo)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                            HStack(spacing: 12) {
+                                Button("Cancel") {
+                                    isEditingBody = false
+                                }
+                                .font(DSType.bodySM)
+                                .foregroundColor(DSColor.inkMuted)
+                                .buttonStyle(.plain)
+
+                                Spacer()
+
+                                Button("Save") {
+                                    vm.update(memo: memo, body: editedBody)
+                                    isEditingBody = false
+                                }
+                                .font(DSType.bodySM)
+                                .foregroundColor(DSColor.amberDeep)
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.bottom, 14)
+                    } else if !bodyTrimmed.isEmpty && !isBodyDuplicate {
                         Text(CJKTextPolish.polish(bodyTrimmed))
                             .font(DSType.serifBody16)
                             .foregroundColor(DSColor.inkPrimary)
@@ -121,6 +186,15 @@ struct MemoDetailView: View {
         .navigationBarHidden(true)
         .fullScreenCover(isPresented: $showPhotoFullscreen) {
             PhotoFullscreenView(image: fullResImage)
+        }
+        .confirmationDialog("Delete this memo?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                vm.deleteMemo(memo)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This cannot be undone.")
         }
     }
 }

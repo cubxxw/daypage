@@ -232,6 +232,24 @@ final class TodayViewModel: ObservableObject {
         }
     }
 
+    /// Replaces the body text of an existing memo and writes through to disk.
+    func update(memo: Memo, body: String) {
+        guard let idx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
+        var updated = memos[idx]
+        updated.body = body
+        var newMemos = memos
+        newMemos[idx] = updated
+        do {
+            try rewrite(memos: newMemos)
+            withAnimation(Motion.rise) {
+                memos = newMemos
+            }
+            Haptics.commit()
+        } catch {
+            submitError = "保存失败：\(error.localizedDescription)"
+        }
+    }
+
     /// Pins a memo to the top of today's list without changing its original timestamp.
     /// Uses a separate `pinnedAt` field for sort order; `created` remains untouched.
     func pinMemo(_ memo: Memo) {
