@@ -69,7 +69,7 @@
         "iPhone 17 build succeeds"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
