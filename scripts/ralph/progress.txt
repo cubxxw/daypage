@@ -85,3 +85,18 @@ Started: Thu May  7 12:02:39 UTC 2026
 ---
 
 [2026-05-07T12:02:00Z] Story #US-023: Restyle DailyPageView hero card to v4 layout — PASSED
+
+## 2026-05-07 - US-024
+- Added FlowLayout (SwiftUI Layout protocol) for wrapping mention chips
+- Added DailyPageModel.ThreadEntry struct (label + Color) and mentions [String]
+- DailyPageParser: parseThreads() and parseMentions() from ## THREADS / ## MENTIONS sections
+- v4ThreadsSection: Space Grotesk 11pt semibold heading + 4x24pt color blocks + serif 16pt labels
+- v4MentionsSection: Space Grotesk 11pt semibold heading + FlowLayout of amberDeep/amberSoft capsule chips
+- Stub data fallback when compile output lacks sections (stubThreads, stubMentions)
+- Files changed: DayPage/Features/Daily/DailyPageView.swift, prd.json
+- **Learnings for future iterations:**
+  - FlowLayout is now available in DailyPageView.swift for reuse in other wrapping layouts
+  - DailyPageModel now has threads and mentions fields; DailyPageParser tries to parse but falls back gracefully
+---
+
+[2026-05-07T12:03:00Z] Story #US-024: Add Threads + Mentions sections + FlowLayout for DailyPage — PASSED

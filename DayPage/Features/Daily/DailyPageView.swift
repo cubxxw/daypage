@@ -26,6 +26,10 @@ struct DailyPageModel {
     /// Vault 相对路径，指向封面主图（例如 "raw/assets/photo_...jpg"）。
     /// 当日无照片时返回 nil。
     let coverAssetPath: String?
+    /// Color-coded narrative threads. Falls back to stub when compile output lacks them.
+    let threads: [ThreadEntry]
+    /// Entity mention chips. Falls back to stub when compile output lacks them.
+    let mentions: [String]
 
     struct PageSection {
         let title: String
@@ -36,6 +40,61 @@ struct DailyPageModel {
         let time: String
         let name: String
         let note: String
+    }
+
+    /// A narrative thread with an optional color label.
+    struct ThreadEntry {
+        let label: String
+        let color: Color
+    }
+}
+
+// MARK: - FlowLayout
+
+/// SwiftUI Layout that wraps subviews to new lines when the line width is exceeded.
+struct FlowLayout: Layout {
+
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                y += lineHeight + spacing
+                totalHeight = y
+                x = 0
+                lineHeight = 0
+            }
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        totalHeight += lineHeight
+        return CGSize(width: maxWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxWidth = bounds.maxX
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > bounds.minX {
+                y += lineHeight + spacing
+                x = bounds.minX
+                lineHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
     }
 }
 
@@ -307,20 +366,90 @@ struct DailyPageView: View {
                     narrativeParagraph(section.body)
                         .padding(.bottom, 8)
                 }
-
-                // Divider before threads/mentions if they exist
-                if !model.locations.isEmpty {
-                    hairlineDivider
-                        .padding(.vertical, 22)
-                    locationsSection(model: model)
-                }
             } else if !model.summary.isEmpty {
                 // Fallback: render summary as single paragraph
                 narrativeParagraph(model.summary)
+                    .padding(.bottom, 8)
             }
+
+            // Threads section
+            let displayThreads = model.threads.isEmpty
+                ? stubThreads
+                : model.threads
+            hairlineDivider.padding(.vertical, 22)
+            v4ThreadsSection(threads: displayThreads)
+
+            // Mentions section
+            let displayMentions = model.mentions.isEmpty
+                ? stubMentions
+                : model.mentions
+            hairlineDivider.padding(.vertical, 22)
+            v4MentionsSection(mentions: displayMentions)
         }
         .padding(28)
         .liquidGlassCard(cornerRadius: 24, tone: .hi)
+    }
+
+    // Stub data used when compile output has no threads/mentions — TODO: remove once AI output format updated
+    private var stubThreads: [DailyPageModel.ThreadEntry] {
+        [
+            DailyPageModel.ThreadEntry(label: "Daily reflection", color: DSColor.amberAccent),
+            DailyPageModel.ThreadEntry(label: "Work notes", color: DSColor.amberDeep),
+        ]
+    }
+
+    private var stubMentions: [String] {
+        ["@today", "@log"]
+    }
+
+    // MARK: - Threads UI
+
+    private func v4ThreadsSection(threads: [DailyPageModel.ThreadEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("THREADS")
+                .font(DSFonts.spaceGrotesk(size: 11, weight: .semibold))
+                .foregroundColor(DSColor.inkMuted)
+                .tracking(1.6)
+                .textCase(.uppercase)
+
+            ForEach(threads.indices, id: \.self) { i in
+                let thread = threads[i]
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(thread.color)
+                        .frame(width: 4, height: 24)
+                    Text(thread.label)
+                        .font(DSType.serifBody16)
+                        .foregroundColor(DSColor.inkPrimary)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    // MARK: - Mentions UI
+
+    private func v4MentionsSection(mentions: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MENTIONS")
+                .font(DSFonts.spaceGrotesk(size: 11, weight: .semibold))
+                .foregroundColor(DSColor.inkMuted)
+                .tracking(1.6)
+                .textCase(.uppercase)
+
+            FlowLayout(spacing: 8) {
+                ForEach(mentions, id: \.self) { mention in
+                    Text(mention)
+                        .font(DSFonts.inter(size: 12, weight: .medium))
+                        .foregroundColor(DSColor.amberDeep)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(DSColor.amberSoft)
+                        .overlay(Capsule().strokeBorder(DSColor.amberRim, lineWidth: 0.5))
+                        .clipShape(Capsule())
+                }
+            }
+        }
     }
 
     private var hairlineDivider: some View {
@@ -760,6 +889,10 @@ enum DailyPageParser {
         // -- 解析 AI FOLLOW-UP 段落（以 > 开头的行） --
         let followUpQuestions = parseFollowUpQuestions(from: bodyText)
 
+        // TODO: Parse threads/mentions from compiled markdown when format is defined — follow-up issue.
+        let threads = parseThreads(from: bodyText)
+        let mentions = parseMentions(from: bodyText)
+
         return DailyPageModel(
             dateString: dateString,
             weekday: weekday,
@@ -771,7 +904,9 @@ enum DailyPageParser {
             locations: locations,
             followUpQuestions: followUpQuestions,
             memoCount: entriesCount,
-            coverAssetPath: resolvedCover
+            coverAssetPath: resolvedCover,
+            threads: threads,
+            mentions: mentions
         )
     }
 
@@ -856,6 +991,50 @@ enum DailyPageParser {
                     let cleaned = question.replacingOccurrences(of: #"^Question \d+:\s*"#, with: "", options: .regularExpression)
                     results.append(cleaned)
                 }
+            }
+        }
+        return results
+    }
+
+    /// Parses ## THREADS section; falls back to stub data when section absent.
+    private static func parseThreads(from body: String) -> [DailyPageModel.ThreadEntry] {
+        let threadColors: [Color] = [
+            DSColor.amberAccent,
+            DSColor.amberDeep,
+            Color(hex: "4C7A3F"),
+            Color(hex: "3B6BA8"),
+            DSColor.amberGlow
+        ]
+        var results: [DailyPageModel.ThreadEntry] = []
+        var inSection = false
+
+        for line in body.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == "## THREADS" { inSection = true; continue }
+            if trimmed.hasPrefix("## ") && inSection { break }
+            if inSection && trimmed.hasPrefix("- ") {
+                let label = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                if !label.isEmpty {
+                    let color = threadColors[results.count % threadColors.count]
+                    results.append(DailyPageModel.ThreadEntry(label: label, color: color))
+                }
+            }
+        }
+        return results
+    }
+
+    /// Parses ## MENTIONS section; falls back to empty when section absent.
+    private static func parseMentions(from body: String) -> [String] {
+        var results: [String] = []
+        var inSection = false
+
+        for line in body.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == "## MENTIONS" { inSection = true; continue }
+            if trimmed.hasPrefix("## ") && inSection { break }
+            if inSection && trimmed.hasPrefix("- ") {
+                let name = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty { results.append(name) }
             }
         }
         return results
