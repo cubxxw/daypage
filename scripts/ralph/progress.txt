@@ -13,6 +13,15 @@ Started: Thu May  7 12:02:39 UTC 2026
 - GlassErrorBanner managed by ErrorBannerManager singleton; post via ErrorBannerManager.shared.post(...)
 - EmptyStateView has factory methods: .todayBlank(), .todayNoSignals(), .compileLocked(currentCount:), .archiveDayEmpty(), .micPermissionDenied()
 - DayOrbView lives in DayPage/Features/Today/DayOrbView.swift; takes signalCount: Int, size: CGFloat = 200
+- GlassTabBar in DayPage/Components/GlassTabBar.swift drives primary nav; AppSection bridged to AppTab via AppNavigationModel.sectionBinding
+- SidebarView now shows only Feedback row; Today/Archive/Graph moved to GlassTabBar pill
+- WelcomeScreen shown on first launch via "hasSeenWelcome" UserDefaults key; mounted in RootView
+- DailyPageMemoVM: lightweight MemoDetailViewModel for archive dates; follows same rewrite() pattern as TodayViewModel
+- MemoDetailView accepts `any MemoDetailViewModel` (protocol); both TodayViewModel and DailyPageMemoVM conform
+- FlowLayout (SwiftUI Layout) available in DailyPageView.swift for wrapping chip/pill rows
+- BreathingCaretView: custom 800ms caret used with .tint(.clear) to replace native UITextView cursor
+- When creating new Swift files, ALWAYS add to project.pbxproj: PBXBuildFile, PBXFileReference, PBXGroup, PBXSourcesBuildPhase
+- motion-exception animation pattern: .easeInOut(duration:).repeatForever(autoreverses:) with comment at call site
 
 [2026-05-07T11:00:44Z] Story #US-001: Bundle Source Serif 4 + Source Han Serif SC fonts — PASSED
 [2026-05-07T11:02:02Z] Story #US-002: Implement DSFonts.serif cascading helper — PASSED
