@@ -98,6 +98,45 @@ struct FlowLayout: Layout {
     }
 }
 
+// MARK: - DailyPageMemoVM
+
+/// Lightweight MemoDetailViewModel for archive-date memos in DailyPageView.
+@MainActor
+final class DailyPageMemoVM: ObservableObject, MemoDetailViewModel {
+
+    @Published var memos: [Memo] = []
+
+    func update(memo: Memo, body: String) {
+        guard let idx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
+        var updated = memos[idx]
+        updated.body = body
+        var newMemos = memos
+        newMemos[idx] = updated
+        try? rewrite(memos: newMemos, referenceDate: memo.created)
+        memos = newMemos
+        Haptics.commit()
+    }
+
+    func deleteMemo(_ memo: Memo) {
+        let remaining = memos.filter { $0.id != memo.id }
+        try? rewrite(memos: remaining, referenceDate: memo.created)
+        memos = remaining
+    }
+
+    private func rewrite(memos: [Memo], referenceDate: Date) throws {
+        let url = RawStorage.fileURL(for: referenceDate)
+        if memos.isEmpty {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            return
+        }
+        let ordered = memos.sorted { $0.created < $1.created }
+        let content = ordered.map { $0.toMarkdown() }.joined(separator: RawStorage.memoSeparator)
+        try RawStorage.atomicWrite(string: content, to: url)
+    }
+}
+
 // MARK: - DailyPageView
 
 /// 渲染来自 vault/wiki/daily/YYYY-MM-DD.md 的已编译 Daily Page。
@@ -107,6 +146,7 @@ struct DailyPageView: View {
     var onReturnToToday: ((String) -> Void)? = nil  // 点击跟进问题时调用，传入预填充文本
 
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var memoVM = DailyPageMemoVM()
     @State private var selectedTab: DailyPageTab = .digest
     @State private var model: DailyPageModel? = nil
     @State private var rawText: String = ""
@@ -156,6 +196,13 @@ struct DailyPageView: View {
                             .foregroundColor(DSColor.primary)
                             .padding(.top, 8)
                     }
+                }
+            }
+            .navigationDestination(for: Memo.ID.self) { memoID in
+                if let memo = memoVM.memos.first(where: { $0.id == memoID }) {
+                    MemoDetailView(memo: memo, vm: memoVM)
+                } else {
+                    Text("Memo no longer exists").foregroundColor(DSColor.inkMuted)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -316,12 +363,152 @@ struct DailyPageView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 24)
 
-            // AI Follow-up Threads
+            // Action row: Regenerate / Add note / Reflect
+            sourceActionsRow(model: model)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+
+            // Source Signals list
+            if !rawMemos.isEmpty {
+                sourceSignalsSection
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
+            }
+
+            // AI Follow-up Threads (legacy section kept for compatibility)
             if !model.followUpQuestions.isEmpty {
                 threadsSection(model: model)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
             }
+        }
+    }
+
+    // MARK: - Source Actions Row
+
+    private func sourceActionsRow(model: DailyPageModel) -> some View {
+        HStack(spacing: 8) {
+            ActionBtn(icon: "arrow.clockwise", label: "Regenerate") {
+                Task { await recompile() }
+            }
+            ActionBtn(icon: "plus.bubble", label: "Add note") {
+                dismiss()
+                onReturnToToday?("")
+            }
+            ActionBtn(icon: "text.bubble", label: "Reflect", disabled: true) {
+                // Coming soon — TODO: Reflect feature follow-up issue
+            }
+        }
+    }
+
+    // MARK: - Source Signals Section
+
+    private var sourceSignalsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SOURCE SIGNALS")
+                .font(DSFonts.spaceGrotesk(size: 11, weight: .semibold))
+                .foregroundColor(DSColor.inkMuted)
+                .tracking(1.6)
+                .padding(.bottom, 4)
+
+            VStack(spacing: 0) {
+                ForEach(memoVM.memos) { memo in
+                    NavigationLink(value: memo.id) {
+                        SourceSignalRow(memo: memo)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .liquidGlassCard(cornerRadius: 18, tone: .std)
+            .padding(4)
+        }
+    }
+
+    // MARK: - ActionBtn
+
+    struct ActionBtn: View {
+        let icon: String
+        let label: String
+        var disabled: Bool = false
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .medium))
+                    Text(label)
+                        .font(DSType.labelSM)
+                    if disabled {
+                        Text("Coming soon")
+                            .font(DSType.mono9)
+                            .foregroundColor(DSColor.inkSubtle)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(DSColor.amberSoft, in: Capsule())
+                    }
+                }
+                .foregroundColor(disabled ? DSColor.inkSubtle : DSColor.inkPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .liquidGlassPill()
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
+        }
+    }
+
+    // MARK: - SourceSignalRow
+
+    private struct SourceSignalRow: View {
+        let memo: Memo
+
+        private var kindIcon: String {
+            if let att = memo.attachments.first {
+                switch att.kind {
+                case "audio": return "V"
+                case "photo": return "P"
+                case "location": return "L"
+                default: return "T"
+                }
+            }
+            return "T"
+        }
+
+        private var monoTime: String {
+            let f = DateFormatter()
+            f.dateFormat = "HH:mm"
+            f.locale = Locale(identifier: "en_US_POSIX")
+            return f.string(from: memo.created)
+        }
+
+        var body: some View {
+            HStack(spacing: 10) {
+                // Kind tile
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(DSColor.amberSoft)
+                        .frame(width: 28, height: 28)
+                    Text(kindIcon)
+                        .font(DSFonts.jetBrainsMono(size: 11, weight: .medium))
+                        .foregroundColor(DSColor.amberDeep)
+                }
+
+                // Truncated body
+                Text(memo.body.isEmpty ? "(no text)" : memo.body)
+                    .font(DSType.bodySM)
+                    .foregroundColor(DSColor.inkPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Timestamp
+                Text(monoTime)
+                    .font(DSType.mono9)
+                    .foregroundColor(DSColor.inkMuted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
     }
 
@@ -797,6 +984,7 @@ struct DailyPageView: View {
             loaded = []
         }
         rawMemos = loaded.sorted { $0.created < $1.created }
+        memoVM.memos = rawMemos
     }
 }
 

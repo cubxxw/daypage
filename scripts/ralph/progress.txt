@@ -100,3 +100,22 @@ Started: Thu May  7 12:02:39 UTC 2026
 ---
 
 [2026-05-07T12:03:00Z] Story #US-024: Add Threads + Mentions sections + FlowLayout for DailyPage — PASSED
+
+## 2026-05-07 - US-025
+- Added SOURCE SIGNALS section to DailyPageView with glass card list
+- Each row: 28x28 amberSoft tile with kind glyph (T/V/P/L), truncated body, mono timestamp
+- NavigationLink(value: memo.id) for each row → pushes to MemoDetailView
+- Added navigationDestination(for: Memo.ID.self) in the NavigationStack
+- Created DailyPageMemoVM: ObservableObject + MemoDetailViewModel for archive dates
+  - rewrite() pattern same as TodayViewModel
+  - memoVM.memos wired from rawMemos after loadPage()
+- Added source action row: Regenerate / Add note / Reflect (disabled with "Coming soon" badge)
+- Changed MemoDetailView.vm type from TodayViewModel to any MemoDetailViewModel (protocol)
+- Files changed: DayPage/Features/Daily/DailyPageView.swift, DayPage/Features/MemoDetail/MemoDetailView.swift, prd.json
+- **Learnings for future iterations:**
+  - MemoDetailView now accepts `any MemoDetailViewModel` — both TodayViewModel and DailyPageMemoVM work
+  - DailyPageMemoVM follows same rewrite() pattern as TodayViewModel using RawStorage.memoSeparator
+  - navigationDestination(for: Memo.ID.self) added to DailyPageView's NavigationStack
+---
+
+[2026-05-07T12:04:00Z] Story #US-025: Add Source Signals list to DailyPageView with push-to-detail — PASSED

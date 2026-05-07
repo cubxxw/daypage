@@ -8,7 +8,7 @@ import AVFoundation
 struct MemoDetailView: View {
 
     let memo: Memo
-    let vm: TodayViewModel
+    let vm: any MemoDetailViewModel
 
     @Environment(\.dismiss) private var dismiss
     @State private var fullResImage: UIImage?
