@@ -146,3 +146,16 @@ Started: Thu May  7 12:02:39 UTC 2026
 ---
 
 [2026-05-07T12:06:00Z] Story #US-027: Create first-run WelcomeScreen — PASSED
+
+## 2026-05-07 - US-028
+- Added BreathingCaretView: amberAccent 2x18pt RoundedRectangle, opacity 0.6→1.0, easeInOut 0.8s repeatForever autoreverses
+- motion-exception comment at both the .animation call site and the .tint(.clear) call site
+- Native TextField caret hidden via .tint(.clear), BreathingCaretView overlaid at top-leading when isFocused
+- Animation starts on onAppear (isHigh = true), stops when view dismissed (isFocused = false removes the overlay)
+- Files changed: DayPage/Features/Today/InputBarV4.swift, prd.json
+- **Learnings for future iterations:**
+  - Custom breathing caret: hide native with .tint(.clear), overlay BreathingCaretView in .overlay(alignment: .topLeading)
+  - BreathingCaretView positioned at fixed offset (padding .leading 20, .top 18) — doesn't track cursor position exactly
+---
+
+[2026-05-07T12:07:00Z] Story #US-028: Add text composer caret breathing micro-animation — PASSED

@@ -349,7 +349,16 @@ struct InputBarV4: View {
                 .foregroundStyle(DSColor.inkPrimary)
                 .focused($isFocused)
                 .lineLimit(1...8)
-                .tint(DSColor.amberAccent)
+                // motion-exception: caret breathing 800ms documented in PRD US-013 / FR-20
+                // Hide native caret and render breathing custom caret overlay below.
+                .tint(.clear)
+                .overlay(alignment: .topLeading) {
+                    if isFocused {
+                        BreathingCaretView()
+                            .padding(.leading, 20)
+                            .padding(.top, 18)
+                    }
+                }
                 .padding(.horizontal, 20)
                 .padding(.top, 14)
                 .padding(.bottom, 10)
@@ -650,5 +659,25 @@ struct InputBarV4: View {
             return String(format: "%.4f, %.4f", lat, lng)
         }
         return "Unknown location"
+    }
+}
+
+// MARK: - BreathingCaretView
+
+/// Custom text-input caret that pulses opacity 0.6→1.0 every 800ms while visible.
+/// Shown in place of the native UITextView caret (which is hidden via .tint(.clear)).
+/// Positioned at the top-leading edge of the TextField; does not track cursor offset.
+private struct BreathingCaretView: View {
+
+    @State private var isHigh: Bool = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(DSColor.amberAccent)
+            .frame(width: 2, height: 18)
+            .opacity(isHigh ? 1.0 : 0.6)
+            // motion-exception: caret breathing 800ms documented in PRD US-013 / FR-20
+            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHigh)
+            .onAppear { isHigh = true }
     }
 }
