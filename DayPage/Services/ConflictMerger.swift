@@ -154,11 +154,29 @@ enum ConflictMerger {
 
         if isRaw {
             var original = parseMemos(from: originalData)
+            let beforeCount = original.count
             for version in conflictVersions {
                 if let conflictData = try? Data(contentsOf: version.url) {
                     let conflictMemos = parseMemos(from: conflictData)
                     original = mergeRawMemos(original: original, conflict: conflictMemos)
+                } else {
+                    DayPageLogger.log(
+                        level: "WARN",
+                        message: "[ConflictMerger] Could not read conflict version for \(primaryURL.lastPathComponent) — version skipped, memos in that version may be lost"
+                    )
                 }
+            }
+            let afterCount = original.count
+            let crumb = Breadcrumb()
+            crumb.category = "conflict_merger"
+            crumb.message = "merged \(primaryURL.lastPathComponent): \(beforeCount) primary + conflict versions → \(afterCount) memos"
+            crumb.level = afterCount < beforeCount ? .warning : .info
+            SentrySDK.addBreadcrumb(crumb)
+            if afterCount < beforeCount {
+                DayPageLogger.log(
+                    level: "WARN",
+                    message: "[ConflictMerger] Memo count decreased after merge of \(primaryURL.lastPathComponent): \(beforeCount) → \(afterCount)"
+                )
             }
             let merged = original.map { $0.toMarkdown() }.joined(separator: RawStorage.memoSeparator)
             try writeMerged(data: Data(merged.utf8), to: primaryURL)

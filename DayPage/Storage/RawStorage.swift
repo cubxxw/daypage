@@ -1,4 +1,5 @@
 import Foundation
+import Sentry
 
 // MARK: - RawStorage
 
@@ -62,6 +63,12 @@ enum RawStorage {
             }
 
             try atomicWrite(string: combined, to: url)
+
+            let crumb = Breadcrumb()
+            crumb.category = "rawstorage"
+            crumb.message = "append memo \(memo.id) to \(url.lastPathComponent)"
+            crumb.level = .info
+            SentrySDK.addBreadcrumb(crumb)
         }
     }
 
@@ -71,10 +78,25 @@ enum RawStorage {
     /// 如果文件不存在或不包含有效的 memo，返回空数组。
     static func read(for date: Date) throws -> [Memo] {
         let url = fileURL(for: date)
-        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            let crumb = Breadcrumb()
+            crumb.category = "rawstorage"
+            crumb.message = "read: file not found \(url.lastPathComponent)"
+            crumb.level = .warning
+            SentrySDK.addBreadcrumb(crumb)
+            return []
+        }
 
         let content = try String(contentsOf: url, encoding: .utf8)
-        return parse(fileContent: content)
+        let memos = parse(fileContent: content)
+
+        let crumb = Breadcrumb()
+        crumb.category = "rawstorage"
+        crumb.message = "read \(memos.count) memos from \(url.lastPathComponent)"
+        crumb.level = .info
+        SentrySDK.addBreadcrumb(crumb)
+
+        return memos
     }
 
     // MARK: - Parsing
