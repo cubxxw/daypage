@@ -12,16 +12,25 @@ enum DSFonts {
     /// 在应用启动时调用一次（例如在 DayPageApp.init 中）。
     /// 如果字体文件未打包，SwiftUI 将回退到系统字体。
     static func registerAll() {
-        let names = [
+        let ttfNames = [
             "SpaceGrotesk-Light", "SpaceGrotesk-Regular", "SpaceGrotesk-Medium",
             "SpaceGrotesk-SemiBold", "SpaceGrotesk-Bold",
             "Inter-Light", "Inter-Regular", "Inter-Medium",
             "Inter-SemiBold", "Inter-Bold",
             "JetBrainsMono-Regular", "JetBrainsMono-Medium",
+            "SourceSerif4-Regular", "SourceSerif4-Medium",
+            "SourceSerif4-SemiBold", "SourceSerif4-It",
         ]
-        for name in names {
-            if let url = Bundle.main.url(forResource: name, withExtension: "ttf") ??
-                         Bundle.main.url(forResource: name, withExtension: "otf") {
+        let otfNames = [
+            "SourceHanSerifSC-Regular", "SourceHanSerifSC-Medium", "SourceHanSerifSC-SemiBold",
+        ]
+        for name in ttfNames {
+            if let url = Bundle.main.url(forResource: name, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
+        }
+        for name in otfNames {
+            if let url = Bundle.main.url(forResource: name, withExtension: "otf") {
                 CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
             }
         }
