@@ -19,6 +19,7 @@
 		A10000006 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000006 /* Typography.swift */; };
 		A10000007 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000007 /* Components.swift */; };
 		A100000F1 /* GlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000F1 /* GlassSurface.swift */; };
+		A100000F2 /* Surfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000F2 /* Surfaces.swift */; };
 		A10000008 /* Memo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000008 /* Memo.swift */; };
 		A10000009 /* RawStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000009 /* RawStorage.swift */; };
 		A10000010 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010 /* TodayView.swift */; };
@@ -110,6 +111,17 @@
 		FB0000002 /* FeedbackViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1000002 /* FeedbackViewModel.swift */; };
 		FB0000003 /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1000003 /* FeedbackView.swift */; };
 		FB0000004 /* FeedbackContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1000004 /* FeedbackContext.swift */; };
+		ES0000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ES1000001 /* EmptyStateView.swift */; };
+		ES0000002 /* GlassErrorBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = ES1000002 /* GlassErrorBanner.swift */; };
+		ES0000003 /* GlassTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = ES1000003 /* GlassTabBar.swift */; };
+		DS0000001 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = DS1000001 /* Motion.swift */; };
+		DS0000002 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = DS1000002 /* Haptics.swift */; };
+		FT0000001 /* DayOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT1000001 /* DayOrbView.swift */; };
+		MD0000001 /* MemoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MD1000001 /* MemoDetailView.swift */; };
+		MD0000002 /* MemoDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = MD1000002 /* MemoDetailViewModel.swift */; };
+		CJ0000001 /* CJKTextPolish.swift in Sources */ = {isa = PBXBuildFile; fileRef = CJ1000001 /* CJKTextPolish.swift */; };
+		WS0000001 /* WelcomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = WS1000001 /* WelcomeScreen.swift */; };
+		LS0000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = LS1000001 /* Localizable.strings */; };
 		DBB277156934B2FA96E16077 /* WatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BB61FECBCF7AB756E7A6CE /* WatchApp.swift */; };
 		9034B2964DD6432BD7FA7250 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98B5757B488F583231EC8F6 /* RootView.swift */; };
 		B197ECDEBDA86D4351A96898 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B93ED807E07C2171E9F4234B /* RecordingView.swift */; };
@@ -149,6 +161,7 @@
 		A20000006 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		A20000007 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		A200000F1 /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
+		A200000F2 /* Surfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Surfaces.swift; sourceTree = "<group>"; };
 		A20000008 /* Memo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Memo.swift; sourceTree = "<group>"; };
 		A20000009 /* RawStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RawStorage.swift; sourceTree = "<group>"; };
 		A20000010 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
@@ -244,6 +257,19 @@
 		FB1000002 /* FeedbackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackViewModel.swift; sourceTree = "<group>"; };
 		FB1000003 /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		FB1000004 /* FeedbackContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackContext.swift; sourceTree = "<group>"; };
+		ES1000001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		ES1000002 /* GlassErrorBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassErrorBanner.swift; sourceTree = "<group>"; };
+		ES1000003 /* GlassTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassTabBar.swift; sourceTree = "<group>"; };
+		DS1000001 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
+		DS1000002 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		FT1000001 /* DayOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayOrbView.swift; sourceTree = "<group>"; };
+		MD1000001 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
+		MD1000002 /* MemoDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailViewModel.swift; sourceTree = "<group>"; };
+		CJ1000001 /* CJKTextPolish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKTextPolish.swift; sourceTree = "<group>"; };
+		WS1000001 /* WelcomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeScreen.swift; sourceTree = "<group>"; };
+		LS1000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		LS1000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		LS1000001 /* Localizable.strings */ = {isa = PBXVariantGroup; children = (LS1000002 /* en */, LS1000003 /* zh-Hans */); name = Localizable.strings; sourceTree = "<group>"; };
 		F5BB61FECBCF7AB756E7A6CE /* WatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchApp.swift; sourceTree = "<group>"; };
 		C98B5757B488F583231EC8F6 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B93ED807E07C2171E9F4234B /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
@@ -288,14 +314,34 @@
 				A50000002 /* App */,
 				A50000003 /* DesignSystem */,
 				A50000004 /* Features */,
+				ES5000001 /* Components */,
 				A50000005 /* Models */,
 				A50000006 /* Services */,
 				A50000007 /* Storage */,
 				A50000008 /* Config */,
 				A50000020 /* Utilities */,
+				ES5000002 /* Resources */,
 				A50000009 /* Products */,
 			);
 			path = DayPage;
+			sourceTree = "<group>";
+		};
+		ES5000001 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				ES1000001 /* EmptyStateView.swift */,
+				ES1000002 /* GlassErrorBanner.swift */,
+				ES1000003 /* GlassTabBar.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		ES5000002 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				LS1000001 /* Localizable.strings */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		A50000002 /* App */ = {
@@ -321,10 +367,13 @@
 				A20000006 /* Typography.swift */,
 				A20000007 /* Components.swift */,
 				A200000F1 /* GlassSurface.swift */,
+				A200000F2 /* Surfaces.swift */,
 				A20000091 /* GrainOverlay.swift */,
 				A20000041 /* Spacing.swift */,
 				A20000043 /* Interactions.swift */,
 				A20000053 /* InputTokens.swift */,
+				DS1000001 /* Motion.swift */,
+				DS1000002 /* Haptics.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -342,8 +391,18 @@
 				A50000017 /* Onboarding */,
 				A50000021 /* Auth */,
 				A50000022 /* Feedback */,
+				MD5000001 /* MemoDetail */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		MD5000001 /* MemoDetail */ = {
+			isa = PBXGroup;
+			children = (
+				MD1000001 /* MemoDetailView.swift */,
+				MD1000002 /* MemoDetailViewModel.swift */,
+			);
+			path = MemoDetail;
 			sourceTree = "<group>";
 		};
 		A50000021 /* Auth */ = {
@@ -373,6 +432,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000008 /* Memo.swift */,
+				CJ1000001 /* CJKTextPolish.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -457,6 +517,7 @@
 				A20000055 /* PressToTalkButton.swift */,
 				A20000063 /* SwipeableMemoCard.swift */,
 				A20000084 /* WeeklyRecapSection.swift */,
+				FT1000001 /* DayOrbView.swift */,
 			);
 			path = Today;
 			sourceTree = "<group>";
@@ -520,6 +581,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000048 /* OnboardingView.swift */,
+				WS1000001 /* WelcomeScreen.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -797,6 +859,7 @@
 				A10000006 /* Typography.swift in Sources */,
 				A10000007 /* Components.swift in Sources */,
 				A100000F1 /* GlassSurface.swift in Sources */,
+				A100000F2 /* Surfaces.swift in Sources */,
 				A10000091 /* GrainOverlay.swift in Sources */,
 				A10000041 /* Spacing.swift in Sources */,
 				A10000043 /* Interactions.swift in Sources */,
@@ -871,6 +934,16 @@
 				FB0000002 /* FeedbackViewModel.swift in Sources */,
 				FB0000003 /* FeedbackView.swift in Sources */,
 				FB0000004 /* FeedbackContext.swift in Sources */,
+				ES0000001 /* EmptyStateView.swift in Sources */,
+				ES0000002 /* GlassErrorBanner.swift in Sources */,
+				ES0000003 /* GlassTabBar.swift in Sources */,
+				DS0000001 /* Motion.swift in Sources */,
+				DS0000002 /* Haptics.swift in Sources */,
+				FT0000001 /* DayOrbView.swift in Sources */,
+				MD0000001 /* MemoDetailView.swift in Sources */,
+				MD0000002 /* MemoDetailViewModel.swift in Sources */,
+				CJ0000001 /* CJKTextPolish.swift in Sources */,
+				WS0000001 /* WelcomeScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

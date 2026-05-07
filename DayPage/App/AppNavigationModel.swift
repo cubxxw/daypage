@@ -20,14 +20,38 @@ final class AppNavigationModel: ObservableObject {
 
     init() {}
 
+    /// Binding<AppSection> bridging GlassTabBar ↔ selectedTab.
+    var sectionBinding: Binding<AppSection> {
+        Binding(
+            get: {
+                switch self.selectedTab {
+                case .today:    return .today
+                case .archive:  return .archive
+                case .graph:    return .graph
+                case .feedback: return .today
+                }
+            },
+            set: { section in
+                switch section {
+                case .today:   self.navigate(to: .today)
+                case .archive: self.navigate(to: .archive)
+                case .graph:   self.navigate(to: .graph)
+#if DEBUG
+                case .search:  break
+#endif
+                }
+            }
+        )
+    }
+
     func openSidebar() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+        withAnimation(Motion.slide) {
             isSidebarOpen = true
         }
     }
 
     func closeSidebar() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.90)) {
+        withAnimation(Motion.slide) {
             isSidebarOpen = false
         }
     }
@@ -39,13 +63,13 @@ final class AppNavigationModel: ObservableObject {
 
     func openFeedbackPanel() {
         closeSidebar()
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+        withAnimation(Motion.slide) {
             isFeedbackPanelOpen = true
         }
     }
 
     func closeFeedbackPanel() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.90)) {
+        withAnimation(Motion.slide) {
             isFeedbackPanelOpen = false
         }
     }

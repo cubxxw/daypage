@@ -1,0 +1,45 @@
+/* EmptyStateView — US-010 */
+
+/* Today Blank */
+"empty.today.blank.title" = "Today is a blank canvas.";
+"empty.today.blank.subtitle" = "Tap below to capture your first thought, voice memo, or photo.";
+"empty.today.blank.cta" = "Add a memo";
+
+/* Today No Signals */
+"empty.today.no_signals.title" = "Nothing surfaced yet.";
+"empty.today.no_signals.subtitle" = "Keep logging — signals appear once you've captured a few memos.";
+
+/* Compile Locked */
+"empty.compile_locked.title" = "Not enough to compile.";
+"empty.compile_locked.subtitle" = "You have %d memo(s). Reach 3 to unlock daily compilation.";
+
+/* Archive Day Empty */
+"empty.archive_day.title" = "No page for this day.";
+"empty.archive_day.subtitle" = "This day hasn't been compiled yet. Head to Today to add memos first.";
+"empty.archive_day.cta" = "Go to Today";
+
+/* Mic Permission Denied */
+"empty.mic_denied.title" = "Microphone access needed.";
+"empty.mic_denied.subtitle" = "Allow microphone access in Settings to record voice memos.";
+"empty.mic_denied.cta" = "Open Settings";
+
+/* GlassErrorBanner — US-013 */
+
+/* Compilation failure */
+"error.compile.title" = "Compilation failed.";
+"error.compile.subtitle" = "Check your connection and try again.";
+"error.compile.retry" = "Retry";
+
+/* Whisper transcription failure */
+"error.whisper.title" = "Transcript unavailable.";
+"error.whisper.subtitle" = "Your audio was saved. Transcription will retry when connection improves.";
+
+/* Mic permission denied */
+"error.mic_denied.title" = "Microphone access denied.";
+"error.mic_denied.subtitle" = "Open Settings to allow microphone access for voice memos.";
+"error.mic_denied.cta" = "Open Settings";
+
+/* Location permission denied */
+"error.location_denied.title" = "Location access denied.";
+"error.location_denied.subtitle" = "Open Settings to allow location access for your memos.";
+"error.location_denied.cta" = "Open Settings";

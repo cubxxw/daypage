@@ -10,6 +10,7 @@ struct DayDetailView: View {
     let dateString: String
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var nav: AppNavigationModel
 
     enum Tab: String, CaseIterable {
         case daily = "Daily Page"

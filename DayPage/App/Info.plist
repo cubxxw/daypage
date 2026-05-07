@@ -56,6 +56,13 @@
 		<string>Inter-Bold.ttf</string>
 		<string>JetBrainsMono-Regular.ttf</string>
 		<string>JetBrainsMono-Medium.ttf</string>
+		<string>SourceSerif4-Regular.ttf</string>
+		<string>SourceSerif4-Medium.ttf</string>
+		<string>SourceSerif4-SemiBold.ttf</string>
+		<string>SourceSerif4-It.ttf</string>
+		<string>SourceHanSerifSC-Regular.otf</string>
+		<string>SourceHanSerifSC-Medium.otf</string>
+		<string>SourceHanSerifSC-SemiBold.otf</string>
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>

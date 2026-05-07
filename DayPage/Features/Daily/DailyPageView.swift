@@ -26,6 +26,10 @@ struct DailyPageModel {
     /// Vault 相对路径，指向封面主图（例如 "raw/assets/photo_...jpg"）。
     /// 当日无照片时返回 nil。
     let coverAssetPath: String?
+    /// Color-coded narrative threads. Falls back to stub when compile output lacks them.
+    let threads: [ThreadEntry]
+    /// Entity mention chips. Falls back to stub when compile output lacks them.
+    let mentions: [String]
 
     struct PageSection {
         let title: String
@@ -36,6 +40,100 @@ struct DailyPageModel {
         let time: String
         let name: String
         let note: String
+    }
+
+    /// A narrative thread with an optional color label.
+    struct ThreadEntry {
+        let label: String
+        let color: Color
+    }
+}
+
+// MARK: - FlowLayout
+
+/// SwiftUI Layout that wraps subviews to new lines when the line width is exceeded.
+struct FlowLayout: Layout {
+
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                y += lineHeight + spacing
+                totalHeight = y
+                x = 0
+                lineHeight = 0
+            }
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        totalHeight += lineHeight
+        return CGSize(width: maxWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxWidth = bounds.maxX
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > bounds.minX {
+                y += lineHeight + spacing
+                x = bounds.minX
+                lineHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
+
+// MARK: - DailyPageMemoVM
+
+/// Lightweight MemoDetailViewModel for archive-date memos in DailyPageView.
+@MainActor
+final class DailyPageMemoVM: ObservableObject, MemoDetailViewModel {
+
+    @Published var memos: [Memo] = []
+
+    func update(memo: Memo, body: String) {
+        guard let idx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
+        var updated = memos[idx]
+        updated.body = body
+        var newMemos = memos
+        newMemos[idx] = updated
+        try? rewrite(memos: newMemos, referenceDate: memo.created)
+        memos = newMemos
+        Haptics.commit()
+    }
+
+    func deleteMemo(_ memo: Memo) {
+        let remaining = memos.filter { $0.id != memo.id }
+        try? rewrite(memos: remaining, referenceDate: memo.created)
+        memos = remaining
+    }
+
+    private func rewrite(memos: [Memo], referenceDate: Date) throws {
+        let url = RawStorage.fileURL(for: referenceDate)
+        if memos.isEmpty {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            return
+        }
+        let ordered = memos.sorted { $0.created < $1.created }
+        let content = ordered.map { $0.toMarkdown() }.joined(separator: RawStorage.memoSeparator)
+        try RawStorage.atomicWrite(string: content, to: url)
     }
 }
 
@@ -48,6 +146,7 @@ struct DailyPageView: View {
     var onReturnToToday: ((String) -> Void)? = nil  // 点击跟进问题时调用，传入预填充文本
 
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var memoVM = DailyPageMemoVM()
     @State private var selectedTab: DailyPageTab = .digest
     @State private var model: DailyPageModel? = nil
     @State private var rawText: String = ""
@@ -97,6 +196,13 @@ struct DailyPageView: View {
                             .foregroundColor(DSColor.primary)
                             .padding(.top, 8)
                     }
+                }
+            }
+            .navigationDestination(for: Memo.ID.self) { memoID in
+                if let memo = memoVM.memos.first(where: { $0.id == memoID }) {
+                    MemoDetailView(memo: memo, vm: memoVM)
+                } else {
+                    Text("Memo no longer exists").foregroundColor(DSColor.inkMuted)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -246,41 +352,307 @@ struct DailyPageView: View {
         .padding(.bottom, 32)
     }
 
-    // MARK: - Digest Content
+    // MARK: - Digest Content (v4 hero layout)
 
     @ViewBuilder
     private func digestContent(model: DailyPageModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Date header
-            headerSection(model: model)
-                .padding(.horizontal, 20)
+            // v4 hero card — glass hi-tone surface
+            v4HeroCard(model: model)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
                 .padding(.bottom, 24)
 
-            // Hero banner (16:7 asset) — full-bleed, no horizontal padding
-            HeroBannerView(coverAssetPath: model.coverAssetPath)
-                .padding(.bottom, 32)
+            // Action row: Regenerate / Add note / Reflect
+            sourceActionsRow(model: model)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
 
-            // Narrative sections
-            ForEach(model.sections, id: \.title) { section in
-                narrativeSection(section)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
+            // Source Signals list
+            if !rawMemos.isEmpty {
+                sourceSignalsSection
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
             }
 
-            // Locations Today
-            if !model.locations.isEmpty {
-                locationsSection(model: model)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
-            }
-
-            // AI Follow-up Threads
+            // AI Follow-up Threads (legacy section kept for compatibility)
             if !model.followUpQuestions.isEmpty {
                 threadsSection(model: model)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
             }
         }
+    }
+
+    // MARK: - Source Actions Row
+
+    private func sourceActionsRow(model: DailyPageModel) -> some View {
+        HStack(spacing: 8) {
+            ActionBtn(icon: "arrow.clockwise", label: "Regenerate") {
+                Task { await recompile() }
+            }
+            ActionBtn(icon: "plus.bubble", label: "Add note") {
+                dismiss()
+                onReturnToToday?("")
+            }
+            ActionBtn(icon: "text.bubble", label: "Reflect", disabled: true) {
+                // Coming soon — TODO: Reflect feature follow-up issue
+            }
+        }
+    }
+
+    // MARK: - Source Signals Section
+
+    private var sourceSignalsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SOURCE SIGNALS")
+                .font(DSFonts.spaceGrotesk(size: 11, weight: .semibold))
+                .foregroundColor(DSColor.inkMuted)
+                .tracking(1.6)
+                .padding(.bottom, 4)
+
+            VStack(spacing: 0) {
+                ForEach(memoVM.memos) { memo in
+                    NavigationLink(value: memo.id) {
+                        SourceSignalRow(memo: memo)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .liquidGlassCard(cornerRadius: 18, tone: .std)
+            .padding(4)
+        }
+    }
+
+    // MARK: - ActionBtn
+
+    struct ActionBtn: View {
+        let icon: String
+        let label: String
+        var disabled: Bool = false
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .medium))
+                    Text(label)
+                        .font(DSType.labelSM)
+                    if disabled {
+                        Text("Coming soon")
+                            .font(DSType.mono9)
+                            .foregroundColor(DSColor.inkSubtle)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(DSColor.amberSoft, in: Capsule())
+                    }
+                }
+                .foregroundColor(disabled ? DSColor.inkSubtle : DSColor.inkPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .liquidGlassPill()
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
+        }
+    }
+
+    // MARK: - SourceSignalRow
+
+    private struct SourceSignalRow: View {
+        let memo: Memo
+
+        private var kindIcon: String {
+            if let att = memo.attachments.first {
+                switch att.kind {
+                case "audio": return "V"
+                case "photo": return "P"
+                case "location": return "L"
+                default: return "T"
+                }
+            }
+            return "T"
+        }
+
+        private var monoTime: String {
+            let f = DateFormatter()
+            f.dateFormat = "HH:mm"
+            f.locale = Locale(identifier: "en_US_POSIX")
+            return f.string(from: memo.created)
+        }
+
+        var body: some View {
+            HStack(spacing: 10) {
+                // Kind tile
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(DSColor.amberSoft)
+                        .frame(width: 28, height: 28)
+                    Text(kindIcon)
+                        .font(DSFonts.jetBrainsMono(size: 11, weight: .medium))
+                        .foregroundColor(DSColor.amberDeep)
+                }
+
+                // Truncated body
+                Text(memo.body.isEmpty ? "(no text)" : memo.body)
+                    .font(DSType.bodySM)
+                    .foregroundColor(DSColor.inkPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Timestamp
+                Text(monoTime)
+                    .font(DSType.mono9)
+                    .foregroundColor(DSColor.inkMuted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+        }
+    }
+
+    // MARK: - v4 Hero Card
+
+    private func v4HeroCard(model: DailyPageModel) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Status row: amber dot + "COMPILED N SIGNALS" chip
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(DSColor.amberAccent)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: DSColor.amberGlow, radius: 6, x: 0, y: 0)
+
+                Text("COMPILED \(model.entriesCount) SIGNALS")
+                    .font(DSType.mono10)
+                    .foregroundColor(DSColor.inkMuted)
+                    .tracking(0.8)
+
+                Spacer()
+            }
+            .padding(.bottom, 16)
+
+            // Title: serif date heading
+            Text(dailyPageMonthDay(model.dateString))
+                .font(DSType.serifDisplay32)
+                .foregroundColor(DSColor.inkPrimary)
+                .tracking(-0.6)
+                .lineSpacing(2)
+                .padding(.bottom, 22)
+
+            // Narrative sections with hairline dividers
+            if !model.sections.isEmpty {
+                // First section (no top divider)
+                narrativeParagraph(model.sections[0].body)
+                    .padding(.bottom, 8)
+
+                // Remaining sections with dividers
+                ForEach(model.sections.dropFirst(), id: \.title) { section in
+                    hairlineDivider
+                        .padding(.vertical, 22)
+                    narrativeParagraph(section.body)
+                        .padding(.bottom, 8)
+                }
+            } else if !model.summary.isEmpty {
+                // Fallback: render summary as single paragraph
+                narrativeParagraph(model.summary)
+                    .padding(.bottom, 8)
+            }
+
+            // Threads section
+            let displayThreads = model.threads.isEmpty
+                ? stubThreads
+                : model.threads
+            hairlineDivider.padding(.vertical, 22)
+            v4ThreadsSection(threads: displayThreads)
+
+            // Mentions section
+            let displayMentions = model.mentions.isEmpty
+                ? stubMentions
+                : model.mentions
+            hairlineDivider.padding(.vertical, 22)
+            v4MentionsSection(mentions: displayMentions)
+        }
+        .padding(28)
+        .liquidGlassCard(cornerRadius: 24, tone: .hi)
+    }
+
+    // Stub data used when compile output has no threads/mentions — TODO: remove once AI output format updated
+    private var stubThreads: [DailyPageModel.ThreadEntry] {
+        [
+            DailyPageModel.ThreadEntry(label: "Daily reflection", color: DSColor.amberAccent),
+            DailyPageModel.ThreadEntry(label: "Work notes", color: DSColor.amberDeep),
+        ]
+    }
+
+    private var stubMentions: [String] {
+        ["@today", "@log"]
+    }
+
+    // MARK: - Threads UI
+
+    private func v4ThreadsSection(threads: [DailyPageModel.ThreadEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("THREADS")
+                .font(DSFonts.spaceGrotesk(size: 11, weight: .semibold))
+                .foregroundColor(DSColor.inkMuted)
+                .tracking(1.6)
+                .textCase(.uppercase)
+
+            ForEach(threads.indices, id: \.self) { i in
+                let thread = threads[i]
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(thread.color)
+                        .frame(width: 4, height: 24)
+                    Text(thread.label)
+                        .font(DSType.serifBody16)
+                        .foregroundColor(DSColor.inkPrimary)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    // MARK: - Mentions UI
+
+    private func v4MentionsSection(mentions: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MENTIONS")
+                .font(DSFonts.spaceGrotesk(size: 11, weight: .semibold))
+                .foregroundColor(DSColor.inkMuted)
+                .tracking(1.6)
+                .textCase(.uppercase)
+
+            FlowLayout(spacing: 8) {
+                ForEach(mentions, id: \.self) { mention in
+                    Text(mention)
+                        .font(DSFonts.inter(size: 12, weight: .medium))
+                        .foregroundColor(DSColor.amberDeep)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(DSColor.amberSoft)
+                        .overlay(Capsule().strokeBorder(DSColor.amberRim, lineWidth: 0.5))
+                        .clipShape(Capsule())
+                }
+            }
+        }
+    }
+
+    private var hairlineDivider: some View {
+        Rectangle()
+            .fill(DSColor.glassRimD)
+            .frame(maxWidth: .infinity)
+            .frame(height: 0.5)
+    }
+
+    private func narrativeParagraph(_ body: String) -> some View {
+        // Render-only polish: CJK/Latin spacing; does not modify vault file.
+        Text(CJKTextPolish.polish(body))
+            .font(DSType.serifBody16)
+            .foregroundColor(DSColor.inkPrimary)
+            .lineSpacing(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Timeline Content
@@ -337,10 +709,11 @@ struct DailyPageView: View {
                     Rectangle()
                         .fill(DSColor.primary)
                         .frame(width: 2)
-                    Text(model.summary)
-                        .titleSMStyle()
+                    // Render-only polish: CJK/Latin spacing; does not modify vault file.
+                    Text(CJKTextPolish.polish(model.summary))
+                        .font(DSType.serifBody18)
                         .foregroundColor(DSColor.onSurface)
-                        .lineSpacing(4)
+                        .lineSpacing(6)
                         .padding(.leading, 16)
                         .padding(.vertical, 4)
                 }
@@ -401,8 +774,8 @@ struct DailyPageView: View {
                     .frame(height: 1)
             }
 
-            // Body text with wikilink rendering
-            wikifiedText(section.body)
+            // Render-only polish: CJK/Latin spacing applied before wikilink rendering; does not modify vault file.
+            wikifiedText(CJKTextPolish.polish(section.body))
         }
     }
 
@@ -611,6 +984,7 @@ struct DailyPageView: View {
             loaded = []
         }
         rawMemos = loaded.sorted { $0.created < $1.created }
+        memoVM.memos = rawMemos
     }
 }
 
@@ -703,6 +1077,10 @@ enum DailyPageParser {
         // -- 解析 AI FOLLOW-UP 段落（以 > 开头的行） --
         let followUpQuestions = parseFollowUpQuestions(from: bodyText)
 
+        // TODO: Parse threads/mentions from compiled markdown when format is defined — follow-up issue.
+        let threads = parseThreads(from: bodyText)
+        let mentions = parseMentions(from: bodyText)
+
         return DailyPageModel(
             dateString: dateString,
             weekday: weekday,
@@ -714,7 +1092,9 @@ enum DailyPageParser {
             locations: locations,
             followUpQuestions: followUpQuestions,
             memoCount: entriesCount,
-            coverAssetPath: resolvedCover
+            coverAssetPath: resolvedCover,
+            threads: threads,
+            mentions: mentions
         )
     }
 
@@ -799,6 +1179,50 @@ enum DailyPageParser {
                     let cleaned = question.replacingOccurrences(of: #"^Question \d+:\s*"#, with: "", options: .regularExpression)
                     results.append(cleaned)
                 }
+            }
+        }
+        return results
+    }
+
+    /// Parses ## THREADS section; falls back to stub data when section absent.
+    private static func parseThreads(from body: String) -> [DailyPageModel.ThreadEntry] {
+        let threadColors: [Color] = [
+            DSColor.amberAccent,
+            DSColor.amberDeep,
+            Color(hex: "4C7A3F"),
+            Color(hex: "3B6BA8"),
+            DSColor.amberGlow
+        ]
+        var results: [DailyPageModel.ThreadEntry] = []
+        var inSection = false
+
+        for line in body.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == "## THREADS" { inSection = true; continue }
+            if trimmed.hasPrefix("## ") && inSection { break }
+            if inSection && trimmed.hasPrefix("- ") {
+                let label = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                if !label.isEmpty {
+                    let color = threadColors[results.count % threadColors.count]
+                    results.append(DailyPageModel.ThreadEntry(label: label, color: color))
+                }
+            }
+        }
+        return results
+    }
+
+    /// Parses ## MENTIONS section; falls back to empty when section absent.
+    private static func parseMentions(from body: String) -> [String] {
+        var results: [String] = []
+        var inSection = false
+
+        for line in body.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed == "## MENTIONS" { inSection = true; continue }
+            if trimmed.hasPrefix("## ") && inSection { break }
+            if inSection && trimmed.hasPrefix("- ") {
+                let name = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty { results.append(name) }
             }
         }
         return results

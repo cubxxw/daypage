@@ -12,16 +12,25 @@ enum DSFonts {
     /// 在应用启动时调用一次（例如在 DayPageApp.init 中）。
     /// 如果字体文件未打包，SwiftUI 将回退到系统字体。
     static func registerAll() {
-        let names = [
+        let ttfNames = [
             "SpaceGrotesk-Light", "SpaceGrotesk-Regular", "SpaceGrotesk-Medium",
             "SpaceGrotesk-SemiBold", "SpaceGrotesk-Bold",
             "Inter-Light", "Inter-Regular", "Inter-Medium",
             "Inter-SemiBold", "Inter-Bold",
             "JetBrainsMono-Regular", "JetBrainsMono-Medium",
+            "SourceSerif4-Regular", "SourceSerif4-Medium",
+            "SourceSerif4-SemiBold", "SourceSerif4-It",
         ]
-        for name in names {
-            if let url = Bundle.main.url(forResource: name, withExtension: "ttf") ??
-                         Bundle.main.url(forResource: name, withExtension: "otf") {
+        let otfNames = [
+            "SourceHanSerifSC-Regular", "SourceHanSerifSC-Medium", "SourceHanSerifSC-SemiBold",
+        ]
+        for name in ttfNames {
+            if let url = Bundle.main.url(forResource: name, withExtension: "ttf") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
+        }
+        for name in otfNames {
+            if let url = Bundle.main.url(forResource: name, withExtension: "otf") {
                 CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
             }
         }
@@ -42,14 +51,62 @@ enum DSFonts {
     }
 
     /// Serif body font for memo content / Daily Page narrative.
-    /// "New York" is the iOS system serif; SwiftUI resolves it via `.custom`
-    /// without a UIFont probe. Falls back to Georgia if unavailable.
+    /// - Deprecated: Use `serif(size:weight:italic:)` which cascades Source Serif 4 → Source Han Serif SC.
+    @available(*, deprecated, renamed: "serif")
     static func newYork(size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        Font.system(size: size, weight: weight, design: .serif)
+        serif(size: size, weight: weight)
     }
 
+    /// - Deprecated: Use `serif(size:italic:)` which cascades Source Serif 4 → Source Han Serif SC.
+    @available(*, deprecated, renamed: "serif")
     static func newYorkItalic(size: CGFloat) -> Font {
-        Font.system(size: size, design: .serif).italic()
+        serif(size: size, italic: true)
+    }
+
+    // MARK: - Cascading Serif (Source Serif 4 + Source Han Serif SC)
+
+    /// Returns a SwiftUI Font backed by a UIFontDescriptor cascade list so that:
+    ///   • Latin characters render via Source Serif 4 (Regular/Medium/SemiBold or italic)
+    ///   • CJK characters automatically fall back to Source Han Serif SC at the same weight.
+    ///     (Source Han Serif SC has no italic face; iOS renders CJK in upright style even
+    ///      when italic is requested — this is the standard platform behaviour for CJK fonts.)
+    /// Falls back to the system serif design if any required font face is absent from the bundle.
+    static func serif(size: CGFloat, weight: Font.Weight = .regular, italic: Bool = false) -> Font {
+        // PostScript name mapping for the primary Latin face.
+        let latinPS: String
+        if italic {
+            latinPS = "SourceSerif4-It"
+        } else {
+            switch weight {
+            case .medium:     latinPS = "SourceSerif4-Medium"
+            case .semibold:   latinPS = "SourceSerif4-SemiBold"
+            default:          latinPS = "SourceSerif4-Regular"
+            }
+        }
+
+        // PostScript name mapping for the CJK fallback face.
+        let cjkPS: String
+        switch weight {
+        case .medium:   cjkPS = "SourceHanSerifSC-Medium"
+        case .semibold: cjkPS = "SourceHanSerifSC-SemiBold"
+        default:        cjkPS = "SourceHanSerifSC-Regular"
+        }
+
+        guard
+            let latinBase = UIFont(name: latinPS, size: size),
+            let cjkBase   = UIFont(name: cjkPS,   size: size)
+        else {
+            // Either face is missing from the bundle — fall back to system serif.
+            let base = Font.system(size: size, weight: weight, design: .serif)
+            return italic ? base.italic() : base
+        }
+
+        let cjkDescriptor = cjkBase.fontDescriptor
+        let cascadeDescriptor = latinBase.fontDescriptor.addingAttributes([
+            UIFontDescriptor.AttributeName.cascadeList: [cjkDescriptor]
+        ])
+        let cascadedFont = UIFont(descriptor: cascadeDescriptor, size: size)
+        return Font(cascadedFont)
     }
 }
 
@@ -107,17 +164,17 @@ enum DSType {
     // MARK: - V4 Liquid Glass Serif Levels
 
     /// Serif body 16pt — memo card body copy.
-    static let serifBody16: Font = DSFonts.newYork(size: 16, weight: .regular)
+    static let serifBody16: Font = DSFonts.serif(size: 16, weight: .regular)
     /// Serif body 18pt — Daily Page card lead summary.
-    static let serifBody18: Font = DSFonts.newYork(size: 18, weight: .regular)
+    static let serifBody18: Font = DSFonts.serif(size: 18, weight: .regular)
     /// Serif body 20pt — quoted voice transcript.
-    static let serifBody20: Font = DSFonts.newYork(size: 20, weight: .regular)
+    static let serifBody20: Font = DSFonts.serif(size: 20, weight: .regular)
     /// Serif italic 18pt — voice-memo "quote" style.
-    static let serifQuote: Font = DSFonts.newYorkItalic(size: 18)
+    static let serifQuote: Font = DSFonts.serif(size: 18, italic: true)
     /// Serif display 28pt — Today header date.
-    static let serifDisplay28: Font = DSFonts.newYork(size: 28, weight: .semibold)
+    static let serifDisplay28: Font = DSFonts.serif(size: 28, weight: .semibold)
     /// Serif display 32pt — sidebar date / large headers.
-    static let serifDisplay32: Font = DSFonts.newYork(size: 32, weight: .semibold)
+    static let serifDisplay32: Font = DSFonts.serif(size: 32, weight: .semibold)
 }
 
 // MARK: - View Modifiers

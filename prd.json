@@ -17,7 +17,7 @@
         "iPhone 17 simulator build succeeds"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -34,7 +34,7 @@
         "Tests pass (unit test verifying serif() returns non-nil Font for each weight)"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -51,7 +51,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -69,7 +69,7 @@
         "iPhone 17 build succeeds"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -86,7 +86,7 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -104,7 +104,7 @@
         "iPhone 17 build succeeds"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -120,7 +120,7 @@
         "iPhone 17 build succeeds"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -138,7 +138,7 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -156,7 +156,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -175,7 +175,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -192,7 +192,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -211,7 +211,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -229,7 +229,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -249,7 +249,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -266,7 +266,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -284,7 +284,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -301,7 +301,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -319,7 +319,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -338,7 +338,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -355,7 +355,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -375,7 +375,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 21,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -393,7 +393,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 22,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -413,7 +413,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -430,7 +430,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 24,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -448,7 +448,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -467,7 +467,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 26,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -486,7 +486,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 27,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -503,7 +503,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 28,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

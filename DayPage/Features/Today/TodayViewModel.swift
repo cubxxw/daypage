@@ -49,12 +49,15 @@ enum PendingAttachment: Identifiable {
 
 /// Manages state for TodayView: loading today's memos, tracking compiled state.
 @MainActor
-final class TodayViewModel: ObservableObject {
+final class TodayViewModel: ObservableObject, MemoDetailViewModel {
 
     // MARK: Published State
 
     /// Today's memos in reverse-chronological order (newest first).
     @Published var memos: [Memo] = []
+
+    /// Number of signals (memos) captured today — drives the Day Orb readout.
+    var signalCount: Int { memos.count }
 
     /// Whether the Daily Page for today has been compiled.
     @Published var isDailyPageCompiled: Bool = false
@@ -221,11 +224,29 @@ final class TodayViewModel: ObservableObject {
         do {
             try rewrite(memos: remaining)
             // Optimistic UI update
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(Motion.rise) {
                 memos = remaining
             }
         } catch {
             submitError = "删除失败：\(error.localizedDescription)"
+        }
+    }
+
+    /// Replaces the body text of an existing memo and writes through to disk.
+    func update(memo: Memo, body: String) {
+        guard let idx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
+        var updated = memos[idx]
+        updated.body = body
+        var newMemos = memos
+        newMemos[idx] = updated
+        do {
+            try rewrite(memos: newMemos)
+            withAnimation(Motion.rise) {
+                memos = newMemos
+            }
+            Haptics.commit()
+        } catch {
+            submitError = "保存失败：\(error.localizedDescription)"
         }
     }
 
@@ -608,7 +629,7 @@ final class TodayViewModel: ObservableObject {
 
             do {
                 try RawStorage.append(memo)
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                withAnimation(Motion.spring) {
                     memos.insert(memo, at: 0)
                 }
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()
@@ -639,9 +660,18 @@ final class TodayViewModel: ObservableObject {
                 let loc = try await locationService.currentLocation(timeout: 3)
                 pendingLocation = loc
             } catch LocationError.denied {
-                submitError = locationService.authorizationStatus == .denied
-                    ? "定位权限被拒绝，请在「设置 → 隐私 → 定位服务」中授权"
-                    : "无法获取位置权限"
+                GlassErrorBannerStack.shared.push(
+                    GlassErrorBannerItem(
+                        icon: Image(systemName: "location.slash"),
+                        title: "error.location_denied.title",
+                        subtitle: "error.location_denied.subtitle",
+                        retryLabel: NSLocalizedString("error.location_denied.cta", comment: ""),
+                        retryAction: {
+                            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                            UIApplication.shared.open(url)
+                        }
+                    )
+                )
             } catch LocationError.timeout {
                 // Even on timeout, LocationService may have returned coords-only
                 if let loc = locationService.lastLocation {
@@ -723,16 +753,15 @@ final class TodayViewModel: ObservableObject {
                 ))
             } catch {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
-                BannerCenter.shared.show(AppBannerModel(
-                    kind: .error,
-                    title: "编译失败：网络不稳定",
-                    primaryAction: BannerAction(label: "立即重试") { [weak self] in
-                        self?.compile()
-                    },
-                    secondaryAction: BannerAction(label: "稍后自动重试") {
-                        BannerCenter.shared.dismiss()
-                    }
-                ))
+                GlassErrorBannerStack.shared.push(
+                    GlassErrorBannerItem(
+                        icon: Image(systemName: "wifi.slash"),
+                        title: "error.compile.title",
+                        subtitle: "error.compile.subtitle",
+                        retryLabel: NSLocalizedString("error.compile.retry", comment: ""),
+                        retryAction: { [weak self] in self?.compile() }
+                    )
+                )
             }
         }
     }

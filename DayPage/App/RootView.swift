@@ -6,6 +6,7 @@ struct RootView: View {
     @StateObject private var bannerCenter = BannerCenter.shared
     @ObservedObject private var appSettings = AppSettings.shared
     @State private var hasOnboarded: Bool = UserDefaults.standard.bool(forKey: AppSettings.Keys.hasOnboarded)
+    @State private var hasSeenWelcome: Bool = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
     @State private var authSkipped: Bool = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
     // Drives the auth fullScreenCover. Kept as @State (not a derived computed property)
     // so SwiftUI reliably dismisses the cover when `authService.session` flips to non-nil
@@ -65,6 +66,12 @@ struct RootView: View {
                     .onChange(of: authSkipped) { skipped in
                         if skipped { showAuthSheet = false }
                     }
+                    .fullScreenCover(isPresented: Binding(
+                        get: { !hasSeenWelcome },
+                        set: { if !$0 { hasSeenWelcome = true } }
+                    )) {
+                        WelcomeScreen(hasSeenWelcome: $hasSeenWelcome)
+                    }
             } else {
                 OnboardingView(hasOnboarded: $hasOnboarded)
             }
@@ -85,17 +92,17 @@ struct RootView: View {
             ZStack {
                 TodayView()
                     .opacity(nav.selectedTab == .today ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.18), value: nav.selectedTab)
+                    .animation(Motion.fade, value: nav.selectedTab)
                     .allowsHitTesting(nav.selectedTab == .today && !nav.isSidebarOpen)
 
                 ArchiveView()
                     .opacity(nav.selectedTab == .archive ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.18), value: nav.selectedTab)
+                    .animation(Motion.fade, value: nav.selectedTab)
                     .allowsHitTesting(nav.selectedTab == .archive && !nav.isSidebarOpen)
 
                 GraphView()
                     .opacity(nav.selectedTab == .graph ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.18), value: nav.selectedTab)
+                    .animation(Motion.fade, value: nav.selectedTab)
                     .allowsHitTesting(nav.selectedTab == .graph && !nav.isSidebarOpen)
             }
 
@@ -146,6 +153,13 @@ struct RootView: View {
                 )
                 .allowsHitTesting(nav.isFeedbackPanelOpen)
                 .zIndex(2)
+
+            // Glass pill nav — top-trailing, above all content layers
+            GlassTabBar(active: nav.sectionBinding)
+                .zIndex(3)
+                .opacity(nav.isSidebarOpen || nav.isFeedbackPanelOpen ? 0 : 1)
+                .animation(Motion.fade, value: nav.isSidebarOpen)
+                .animation(Motion.fade, value: nav.isFeedbackPanelOpen)
         }
         // 边缘滑动打开：仅在拖动从左侧 40pt 以内开始时触发
         .gesture(
