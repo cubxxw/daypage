@@ -49,7 +49,7 @@ enum PendingAttachment: Identifiable {
 
 /// Manages state for TodayView: loading today's memos, tracking compiled state.
 @MainActor
-final class TodayViewModel: ObservableObject {
+final class TodayViewModel: ObservableObject, MemoDetailViewModel {
 
     // MARK: Published State
 

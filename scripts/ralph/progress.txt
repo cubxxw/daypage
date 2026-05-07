@@ -108,3 +108,4 @@ Started: Fri Apr 24 00:47:52 +07 2026
 [2026-05-07T11:36:12Z] Story #US-016: Create MemoDetailView shell with NavigationStack routing — PASSED
 [2026-05-07T11:37:37Z] Story #US-017: Make SwipeableMemoCard tap into MemoDetailView — PASSED
 [2026-05-07T11:41:22Z] Story #US-018: Implement MemoDetailView attachment sections — PASSED
+[2026-05-07T11:43:36Z] Story #US-019: Add edit-body and delete actions to MemoDetailView — PASSED
