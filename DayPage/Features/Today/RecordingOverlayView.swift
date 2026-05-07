@@ -78,7 +78,7 @@ struct RecordingOverlayView: View {
                 RoundedRectangle(cornerRadius: 1)
                     .fill(waveformColor)
                     .frame(width: 3, height: max(4, CGFloat(level) * 28))
-                    .animation(.easeOut(duration: 0.05), value: level)
+                    .animation(Motion.fade, value: level)
             }
         }
         .frame(height: 32)

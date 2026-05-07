@@ -280,7 +280,7 @@ struct TodayView: View {
                                 }
                         }
                     }
-                    .animation(.easeInOut(duration: 0.25), value: viewModel.submitError)
+                    .animation(Motion.rise, value: viewModel.submitError)
                 }
             }
             .navigationBarHidden(true)
@@ -452,7 +452,7 @@ struct TodayView: View {
             HStack(spacing: 0) {
                 Spacer()
                 Button {
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+                    withAnimation(Motion.spring) {
                         dailyPageRevealed = false
                     }
                     viewModel.compile()
@@ -472,7 +472,7 @@ struct TodayView: View {
                 summary: viewModel.dailyPageSummary,
                 onTap: {
                     if dailyPageRevealed {
-                        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+                        withAnimation(Motion.spring) {
                             dailyPageRevealed = false
                         }
                     } else {
@@ -489,7 +489,7 @@ struct TodayView: View {
                         }
                     }
                     .onEnded { value in
-                        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+                        withAnimation(Motion.spring) {
                             dailyPageRevealed = value.translation.width < -44
                         }
                     }

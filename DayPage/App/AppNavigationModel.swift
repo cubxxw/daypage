@@ -21,13 +21,13 @@ final class AppNavigationModel: ObservableObject {
     init() {}
 
     func openSidebar() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+        withAnimation(Motion.slide) {
             isSidebarOpen = true
         }
     }
 
     func closeSidebar() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.90)) {
+        withAnimation(Motion.slide) {
             isSidebarOpen = false
         }
     }
@@ -39,13 +39,13 @@ final class AppNavigationModel: ObservableObject {
 
     func openFeedbackPanel() {
         closeSidebar()
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+        withAnimation(Motion.slide) {
             isFeedbackPanelOpen = true
         }
     }
 
     func closeFeedbackPanel() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.90)) {
+        withAnimation(Motion.slide) {
             isFeedbackPanelOpen = false
         }
     }

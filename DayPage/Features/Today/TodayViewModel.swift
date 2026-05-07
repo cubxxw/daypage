@@ -221,7 +221,7 @@ final class TodayViewModel: ObservableObject {
         do {
             try rewrite(memos: remaining)
             // Optimistic UI update
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(Motion.rise) {
                 memos = remaining
             }
         } catch {
@@ -608,7 +608,7 @@ final class TodayViewModel: ObservableObject {
 
             do {
                 try RawStorage.append(memo)
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                withAnimation(Motion.spring) {
                     memos.insert(memo, at: 0)
                 }
                 UIImpactFeedbackGenerator(style: .soft).impactOccurred()

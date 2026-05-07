@@ -171,16 +171,14 @@ struct SwipeableMemoCard: View {
     }
 
     private func snapOpen(_ side: Side) {
-        // Tightened spring: response 0.22 (was 0.28), dampingFraction 0.82 (was 0.72).
-        // Matches Apple HIG range and reduces visible bounce during snap.
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+        withAnimation(Motion.spring) {
             revealedSide = side
         }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     func snapClose() {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+        withAnimation(Motion.spring) {
             revealedSide = nil
         }
     }
