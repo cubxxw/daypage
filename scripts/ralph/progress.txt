@@ -1,8 +1,13 @@
 # Ralph Progress Log
-Started: Thu May  7 12:02:39 UTC 2026
+Started: Fri May  8 12:55:00 UTC 2026
+Branch: ralph/today-composer-liquid-refinement
+PRD: tasks/prd-today-composer-liquid-refinement.md
+Issues: getyak/daypage#252 (Today 主页极简) + #250 (Composer 3.0 Liquid Composition)
 ---
 
 ## Codebase Patterns
+
+### 沿用 v4 Liquid Glass 的既有模式
 - Motion tokens live in DayPage/DesignSystem/Motion.swift; always use Motion.fade/rise/slide/spring instead of raw animation values
 - Haptics tokens live in DayPage/DesignSystem/Haptics.swift; use Haptics.tapConfirm/commit/warn/success instead of UIImpactFeedbackGenerator directly
 - Glass surfaces in DayPage/DesignSystem/Surfaces.swift; use .liquidGlassCard/.liquidGlassPill/.liquidGlassPanel modifiers
@@ -12,159 +17,15 @@ Started: Thu May  7 12:02:39 UTC 2026
 - SwipeableMemoCard uses NavigationLink(value: memo.id) + .disabled(revealedSide != nil) to prevent push when swiped
 - GlassErrorBanner managed by ErrorBannerManager singleton; post via ErrorBannerManager.shared.post(...)
 - EmptyStateView has factory methods: .todayBlank(), .todayNoSignals(), .compileLocked(currentCount:), .archiveDayEmpty(), .micPermissionDenied()
-- DayOrbView lives in DayPage/Features/Today/DayOrbView.swift; takes signalCount: Int, size: CGFloat = 200
-- GlassTabBar in DayPage/Components/GlassTabBar.swift drives primary nav; AppSection bridged to AppTab via AppNavigationModel.sectionBinding
-- SidebarView now shows only Feedback row; Today/Archive/Graph moved to GlassTabBar pill
-- WelcomeScreen shown on first launch via "hasSeenWelcome" UserDefaults key; mounted in RootView
+- DayOrbView lives in DayPage/Features/Today/DayOrbView.swift; takes signalCount: Int, size: CGFloat = 200 (本轮要改 default 200 → 140)
 - DailyPageMemoVM: lightweight MemoDetailViewModel for archive dates; follows same rewrite() pattern as TodayViewModel
 - MemoDetailView accepts `any MemoDetailViewModel` (protocol); both TodayViewModel and DailyPageMemoVM conform
-- FlowLayout (SwiftUI Layout) available in DailyPageView.swift for wrapping chip/pill rows
-- BreathingCaretView: custom 800ms caret used with .tint(.clear) to replace native UITextView cursor
-- When creating new Swift files, ALWAYS add to project.pbxproj: PBXBuildFile, PBXFileReference, PBXGroup, PBXSourcesBuildPhase
-- motion-exception animation pattern: .easeInOut(duration:).repeatForever(autoreverses:) with comment at call site
 
-[2026-05-07T11:00:44Z] Story #US-001: Bundle Source Serif 4 + Source Han Serif SC fonts — PASSED
-[2026-05-07T11:02:02Z] Story #US-002: Implement DSFonts.serif cascading helper — PASSED
-[2026-05-07T11:04:32Z] Story #US-003: Migrate DSType.serif* tokens to cascading serif — PASSED
-[2026-05-07T11:07:36Z] Story #US-004: Add DesignSystem/Surfaces.swift with glass modifiers — PASSED
-[2026-05-07T11:08:07Z] Story #US-005: Add DesignSystem/Motion.swift with timing tokens — PASSED
-[2026-05-07T11:10:00Z] Story #US-006: Add DesignSystem/Haptics.swift with semantic tiers — PASSED
-[2026-05-07T11:11:30Z] Story #US-007: Replace scattered animation calls with Motion tokens — PASSED
-[2026-05-07T11:13:04Z] Story #US-008: Add CJKTextPolish.swift with hair-space + double-punctuation rules — PASSED
-[2026-05-07T11:15:09Z] Story #US-009: Apply CJKTextPolish at memo render sites — PASSED
-[2026-05-07T11:18:22Z] Story #US-010: Create EmptyStateView component with bilingual copy — PASSED
-[2026-05-07T11:21:24Z] Story #US-011: Wire EmptyStateView into Today and Archive surfaces — PASSED
-[2026-05-07T11:25:02Z] Story #US-012: Create GlassErrorBanner component — PASSED
-[2026-05-07T11:29:19Z] Story #US-013: Wire GlassErrorBanner into 4 failure sources — PASSED
-[2026-05-07T11:31:24Z] Story #US-014: Create DayOrbView component — PASSED
-[2026-05-07T11:34:31Z] Story #US-015: Replace Today header heatmap with Day Orb hero — PASSED
-[2026-05-07T11:36:12Z] Story #US-016: Create MemoDetailView shell with NavigationStack routing — PASSED
-[2026-05-07T11:37:37Z] Story #US-017: Make SwipeableMemoCard tap into MemoDetailView — PASSED
-[2026-05-07T11:41:22Z] Story #US-018: Implement MemoDetailView attachment sections — PASSED
-[2026-05-07T11:43:36Z] Story #US-019: Add edit-body and delete actions to MemoDetailView — PASSED
-[2026-05-07T11:45:39Z] Story #US-020: Wire Archive memo cards to MemoDetailView — PASSED
+### 本轮新增的硬性规则
+- 删除文件前必须 `grep -rn '<SymbolName>' DayPage/` 确认无残留引用
+- 修改 i18n key 必须同时更新 zh-Hans.lproj 和 en.lproj 两份
+- 状态机转移函数禁止抛错；非法转移用 assert + log 兜底
+- 所有 Composer 动画必须支持 Reduced Motion 降级（fade-only 0.2s）
+- iPhone 17 Simulator 是默认验证机型；任何 UI 改动必须 `xcodebuild -destination 'platform=iOS Simulator,name=iPhone 17' build` 通过
 
-## 2026-05-07 - US-021 + US-022
-- US-021: GlassTabBar component created at DayPage/Components/GlassTabBar.swift
-  - AppSection enum with today/archive/graph (search #if DEBUG gated)
-  - Collapsed pill with liquidGlassPill(), section icon + label + chevron
-  - Expanded vertical menu with liquidGlassPanel(), each row amberDeep active / inkPrimary inactive
-  - Motion.spring for all transitions, tap-outside dismiss overlay
-  - View extension .glassTabBar(active:) for convenience overlay
-- US-022: GlassTabBar mounted in RootView, AppNavigationModel + SidebarView updated
-  - Added sectionBinding computed property on AppNavigationModel (AppSection ↔ AppTab bridge)
-  - GlassTabBar(active: nav.sectionBinding) mounted at zIndex 3, fades during sidebar/feedback panel
-  - SidebarView navSection trimmed to Feedback only (Today/Archive/Graph removed, comment noting GlassTabBar)
-- Fixed project.pbxproj: added all previously-created-but-unregistered files:
-  Motion.swift, Haptics.swift, EmptyStateView.swift, GlassErrorBanner.swift, GlassTabBar.swift,
-  DayOrbView.swift, MemoDetailView.swift, MemoDetailViewModel.swift, CJKTextPolish.swift
-- Files changed:
-  - DayPage/Components/GlassTabBar.swift (created earlier, now registered in project)
-  - DayPage/App/AppNavigationModel.swift: added sectionBinding
-  - DayPage/App/RootView.swift: mounted GlassTabBar overlay
-  - DayPage/App/SidebarView.swift: removed primary nav rows
-  - DayPage.xcodeproj/project.pbxproj: registered 9 missing swift files
-  - prd.json: US-021 and US-022 passes=true
-- **Learnings for future iterations:**
-  - When creating new Swift files, ALWAYS add to project.pbxproj: PBXBuildFile, PBXFileReference, PBXGroup, and PBXSourcesBuildPhase sections
-  - AppTab and AppSection are different enums; sectionBinding on AppNavigationModel bridges them
-  - GlassTabBar hides when sidebar or feedback panel open (opacity animation)
-  - SidebarView now only shows Feedback row; Today/Archive/Graph driven by GlassTabBar pill
 ---
-
-[2026-05-07T12:00:00Z] Story #US-021: Create GlassTabBar component (collapsed pill + expanded menu) — PASSED
-[2026-05-07T12:01:00Z] Story #US-022: Mount GlassTabBar in RootView and trim Sidebar primary nav — PASSED
-
-## 2026-05-07 - US-023
-- Restyled DailyPageView hero card to v4 Liquid Glass layout
-- Created new v4HeroCard() method replacing old digestContent header
-- Status row: 8x8 amber circle with amberGlow shadow + "COMPILED N SIGNALS" mono chip
-- Title: serifDisplay32, tracking -0.6, lineSpacing 2
-- Narrative paragraphs: serifBody16, lineSpacing 8, CJKTextPolish applied
-- Hairline dividers (0.5pt, glassRimD color) between sections, 22pt vertical margin
-- Hero wrapped in .liquidGlassCard(cornerRadius: 24, tone: .hi) with padding 28
-- Stub data note: if compilation output lacks sections, falls back to summary paragraph
-- Files changed:
-  - DayPage/Features/Daily/DailyPageView.swift: replaced digestContent + added v4HeroCard, hairlineDivider, narrativeParagraph
-  - prd.json: US-023 passes=true
-- **Learnings for future iterations:**
-  - DailyPageView uses both new v4 tokens (DSColor.ink*, DSColor.amber*) and old Material tokens (DSColor.primary, DSColor.onSurface etc.) — both coexist in Colors.swift
-  - Old tokens still compile but should be migrated in follow-up work
-  - The model.sections[] come from DailyPageParser parsing ## SECTION_NAME markdown headers
----
-
-[2026-05-07T12:02:00Z] Story #US-023: Restyle DailyPageView hero card to v4 layout — PASSED
-
-## 2026-05-07 - US-024
-- Added FlowLayout (SwiftUI Layout protocol) for wrapping mention chips
-- Added DailyPageModel.ThreadEntry struct (label + Color) and mentions [String]
-- DailyPageParser: parseThreads() and parseMentions() from ## THREADS / ## MENTIONS sections
-- v4ThreadsSection: Space Grotesk 11pt semibold heading + 4x24pt color blocks + serif 16pt labels
-- v4MentionsSection: Space Grotesk 11pt semibold heading + FlowLayout of amberDeep/amberSoft capsule chips
-- Stub data fallback when compile output lacks sections (stubThreads, stubMentions)
-- Files changed: DayPage/Features/Daily/DailyPageView.swift, prd.json
-- **Learnings for future iterations:**
-  - FlowLayout is now available in DailyPageView.swift for reuse in other wrapping layouts
-  - DailyPageModel now has threads and mentions fields; DailyPageParser tries to parse but falls back gracefully
----
-
-[2026-05-07T12:03:00Z] Story #US-024: Add Threads + Mentions sections + FlowLayout for DailyPage — PASSED
-
-## 2026-05-07 - US-025
-- Added SOURCE SIGNALS section to DailyPageView with glass card list
-- Each row: 28x28 amberSoft tile with kind glyph (T/V/P/L), truncated body, mono timestamp
-- NavigationLink(value: memo.id) for each row → pushes to MemoDetailView
-- Added navigationDestination(for: Memo.ID.self) in the NavigationStack
-- Created DailyPageMemoVM: ObservableObject + MemoDetailViewModel for archive dates
-  - rewrite() pattern same as TodayViewModel
-  - memoVM.memos wired from rawMemos after loadPage()
-- Added source action row: Regenerate / Add note / Reflect (disabled with "Coming soon" badge)
-- Changed MemoDetailView.vm type from TodayViewModel to any MemoDetailViewModel (protocol)
-- Files changed: DayPage/Features/Daily/DailyPageView.swift, DayPage/Features/MemoDetail/MemoDetailView.swift, prd.json
-- **Learnings for future iterations:**
-  - MemoDetailView now accepts `any MemoDetailViewModel` — both TodayViewModel and DailyPageMemoVM work
-  - DailyPageMemoVM follows same rewrite() pattern as TodayViewModel using RawStorage.memoSeparator
-  - navigationDestination(for: Memo.ID.self) added to DailyPageView's NavigationStack
----
-
-[2026-05-07T12:04:00Z] Story #US-025: Add Source Signals list to DailyPageView with push-to-detail — PASSED
-
-## 2026-05-07 - US-026
-- Replaced card-style RecordingOverlayView with full-screen orb overlay
-- Dual concentric ring pulse: outer scale 0.85→1.10, opacity 0.40→0.10, easeInOut 1.6s repeatForever
-- Inner ring: same curve, delayed 0.3s via DispatchQueue.main.asyncAfter
-- Inner core: 110pt radial gradient #FFD9A8→#A8541B, warm glow shadow (radius 20), 0.5pt white border
-- Status text (English) + M:SS JetBrainsMono timer + transcribing ProgressView
-- Cancel / Save / Transcribe buttons with glass-style backgrounds
-- Motion-exception comments at both animation call sites
-- Old card layout removed; waveform param still accepted for API compatibility
-- Files changed: DayPage/Features/Today/RecordingOverlayView.swift, prd.json
----
-
-[2026-05-07T12:05:00Z] Story #US-026: Update RecordingOverlayView with dual-pulse halo — PASSED
-
-## 2026-05-07 - US-027
-- Created DayPage/Features/Onboarding/WelcomeScreen.swift
-- Layout: centered DayOrbView(signalCount: 0, size: 156) fades in over 800ms
-- Bilingual serif 32pt + body 18pt italic subtitle lines
-- amberDeep filled Capsule pill "开始 · Begin" button with Motion.rise dismiss
-- Begin: Haptics.commit() + UserDefaults set "hasSeenWelcome" = true + hasSeenWelcome = true
-- Mounted in RootView as fullScreenCover(!hasSeenWelcome) inside the hasOnboarded branch
-- Added WelcomeScreen.swift to Xcode project (PBXBuildFile, PBXFileReference, Onboarding group, Sources)
-- Files changed: DayPage/Features/Onboarding/WelcomeScreen.swift, DayPage/App/RootView.swift, DayPage.xcodeproj/project.pbxproj, prd.json
----
-
-[2026-05-07T12:06:00Z] Story #US-027: Create first-run WelcomeScreen — PASSED
-
-## 2026-05-07 - US-028
-- Added BreathingCaretView: amberAccent 2x18pt RoundedRectangle, opacity 0.6→1.0, easeInOut 0.8s repeatForever autoreverses
-- motion-exception comment at both the .animation call site and the .tint(.clear) call site
-- Native TextField caret hidden via .tint(.clear), BreathingCaretView overlaid at top-leading when isFocused
-- Animation starts on onAppear (isHigh = true), stops when view dismissed (isFocused = false removes the overlay)
-- Files changed: DayPage/Features/Today/InputBarV4.swift, prd.json
-- **Learnings for future iterations:**
-  - Custom breathing caret: hide native with .tint(.clear), overlay BreathingCaretView in .overlay(alignment: .topLeading)
-  - BreathingCaretView positioned at fixed offset (padding .leading 20, .top 18) — doesn't track cursor position exactly
----
-
-[2026-05-07T12:07:00Z] Story #US-028: Add text composer caret breathing micro-animation — PASSED
