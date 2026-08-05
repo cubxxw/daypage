@@ -51,33 +51,59 @@ export async function middleware(request: NextRequest) {
   }
 
   // 2. Refresh Supabase session cookie. Mirrors the @supabase/ssr docs pattern.
+  // Public routes must remain available when auth configuration or Supabase is
+  // temporarily unavailable. Authenticated routes still fail closed below.
   let response = NextResponse.next({ request });
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+  let isAuthenticated = false;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (supabaseUrl && supabaseAnonKey) {
+    try {
+      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value),
+            );
+            response = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options),
+            );
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+      });
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error) {
+        console.error("[auth] Supabase session refresh failed", {
+          path: pathname,
+          message: error.message,
+        });
+      }
+      isAuthenticated = Boolean(user);
+    } catch (error) {
+      console.error("[auth] Supabase session refresh failed", {
+        path: pathname,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  } else {
+    console.error("[auth] Supabase public environment is incomplete", {
+      path: pathname,
+      hasUrl: Boolean(supabaseUrl),
+      hasAnonKey: Boolean(supabaseAnonKey),
+    });
+  }
 
   // 3. Gate the authenticated app routes.
-  if (!user && APP_PATHS.some((p) => pathname.startsWith(p))) {
+  if (!isAuthenticated && APP_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
