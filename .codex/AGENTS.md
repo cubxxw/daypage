@@ -1,26 +1,11 @@
-# ECC for Codex CLI
+# Codex host adapter
 
-This supplements the root `AGENTS.md` with a repo-local ECC baseline.
+Follow the repository constitution in `../AGENTS.md` and discover project roles
+through `../.agents/manifest.yaml`.
 
-## Repo Skill
-
-- Repo-generated Codex skill: `.agents/skills/daypage/SKILL.md`
-- Claude-facing companion skill: `.claude/skills/daypage/SKILL.md`
-- Keep user-specific credentials and private MCPs in `~/.codex/config.toml`, not in this repo.
-
-## MCP Baseline
-
-Treat `.codex/config.toml` as the default ECC-safe baseline for work in this repository.
-The generated baseline enables GitHub, Context7, Exa, Memory, Playwright, and Sequential Thinking.
-
-## Multi-Agent Support
-
-- Explorer: read-only evidence gathering
-- Reviewer: correctness, security, and regression review
-- Docs researcher: API and release-note verification
-
-## Workflow Files
-
-- No dedicated workflow command files were generated for this repo.
-
-Use these workflow files as reusable task scaffolds when the detected repository workflows recur.
+- `.codex/config.toml` contains only trusted repository defaults.
+- `.codex/agents/*.toml` are thin host adapters for canonical roles under
+  `../.agents/roles/`.
+- Repository configuration does not auto-start external MCP servers. Keep
+  credentials and private MCP configuration in the user's Codex configuration.
+- Do not duplicate product architecture or workflow policy here.

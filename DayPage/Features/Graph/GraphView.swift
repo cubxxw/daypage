@@ -7,6 +7,8 @@ import DayPageStorage
 
 struct GraphView: View {
 
+    let isActive: Bool
+
     @EnvironmentObject private var nav: AppNavigationModel
     @StateObject private var viewModel = GraphViewModel()
 
@@ -416,13 +418,14 @@ struct GraphView: View {
         }
         .onChange(of: viewModel.nodes.count) { count in
             didAutoFit = false
-            if !viewModel.nodes.isEmpty {
+            if isActive && !viewModel.nodes.isEmpty {
                 startSimulation()
                 if simulationSteps >= maxSimSteps { attemptAutoFit() }
             }
             let milestone = count / 10
             guard count > 0, milestone > lastNetworkMilestone else { return }
             lastNetworkMilestone = milestone
+            guard isActive, scenePhase == .active else { return }
             Haptics.soft()
             if UIAccessibility.isVoiceOverRunning {
                 let msg = String(
@@ -435,6 +438,14 @@ struct GraphView: View {
         .onDisappear {
             stopSimulation()
         }
+        .onChange(of: isActive) { active in
+            if active, scenePhase == .active,
+               !viewModel.nodes.isEmpty, simulationSteps < maxSimSteps {
+                startSimulation(reset: simulationSteps == 0)
+            } else {
+                stopSimulation()
+            }
+        }
         // #828 — if a search/date/type filter removes the focused node from the
         // visible set, drop focus so the preview bar can't dangle over a hidden
         // node. Membership can change without a count change, so recompute the
@@ -446,7 +457,7 @@ struct GraphView: View {
         .onChange(of: scenePhase) { phase in
             switch phase {
             case .active:
-                if !viewModel.nodes.isEmpty && simulationSteps < maxSimSteps {
+                if isActive && !viewModel.nodes.isEmpty && simulationSteps < maxSimSteps {
                     startSimulation(reset: false)
                 }
             case .inactive, .background:
@@ -1652,6 +1663,7 @@ struct GraphView: View {
     }
 
     private func startSimulation(reset: Bool = true) {
+        guard isActive, scenePhase == .active else { return }
         if reset {
             simulationSteps = 0
             snapshotAccessibilityPositions()

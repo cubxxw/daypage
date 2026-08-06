@@ -509,7 +509,7 @@ struct ArchiveView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - List mode scroll-to-top
-    @State private var listScrollOffset: CGFloat = 0
+    @State private var shouldShowListScrollToTop: Bool = false
     @State private var listScrollProxy: ScrollViewProxy? = nil
 
     /// Issue #302: monthly summary → share-card sheet.
@@ -646,11 +646,14 @@ struct ArchiveView: View {
                     }
                     .coordinateSpace(name: "archiveListScroll")
                     .onPreferenceChange(ArchiveListScrollOffsetKey.self) { value in
-                        listScrollOffset = value
+                        let shouldShow = value < -240
+                        if shouldShow != shouldShowListScrollToTop {
+                            shouldShowListScrollToTop = shouldShow
+                        }
                     }
                     .onAppear { listScrollProxy = proxy }
                     .overlay(alignment: .bottomTrailing) {
-                        if mode == .list && listScrollOffset < -240 && !viewModel.sortedDays.isEmpty {
+                        if mode == .list && shouldShowListScrollToTop && !viewModel.sortedDays.isEmpty {
                             Button {
                                 Haptics.soft()
                                 withAnimation(reduceMotion ? nil : Motion.spring) {
@@ -672,7 +675,7 @@ struct ArchiveView: View {
                             .accessibilityIdentifier("archive-scroll-to-top-button")
                         }
                     }
-                    .animation(reduceMotion ? nil : Motion.rise, value: mode == .list && listScrollOffset < -240)
+                    .animation(reduceMotion ? nil : Motion.rise, value: mode == .list && shouldShowListScrollToTop)
                     } // end ScrollViewReader
                 }
             }

@@ -86,6 +86,8 @@ Carthage/Checkouts
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 .claude/skills/verify-daypage/runs/
+.agents/**/runs/
+.codex/**/runs/
 .claude/PRPs/
 
 # -----------------------------------------------------------------------------

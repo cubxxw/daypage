@@ -1,0 +1,62 @@
+schema_version: 1
+canonical_root: .agents
+constitution: AGENTS.md
+documentation_index: docs/README.md
+
+boundaries:
+  development_control_plane: .agents
+  product_agent_runtime: agentry
+  runtime_artifacts_tracked: false
+  default_remote_writes: false
+  default_release: false
+  default_destructive_cleanup: false
+
+roles:
+  lead: .agents/roles/lead.md
+  product_architect: .agents/roles/product-architect.md
+  ios_engineer: .agents/roles/ios-engineer.md
+  web_engineer: .agents/roles/web-engineer.md
+  agent_platform: .agents/roles/agent-platform.md
+  qa_verifier: .agents/roles/qa-verifier.md
+  reviewer: .agents/roles/reviewer.md
+  docs_steward: .agents/roles/docs-steward.md
+
+workflows:
+  intake: .agents/workflows/intake.md
+  feature: .agents/workflows/feature.md
+  bug: .agents/workflows/bug.md
+  design: .agents/workflows/design.md
+  refactor: .agents/workflows/refactor.md
+  release: .agents/workflows/release.md
+
+contracts:
+  task: .agents/schemas/task.schema.json
+  handoff: .agents/schemas/handoff.schema.json
+  evidence: .agents/schemas/evidence.schema.json
+
+templates:
+  task_brief: .agents/templates/task-brief.md
+  handoff: .agents/templates/handoff.md
+  review_report: .agents/templates/review-report.md
+
+skills:
+  daypage:
+    canonical: .agents/skills/daypage/SKILL.md
+    claude_adapter: .claude/skills/daypage/SKILL.md
+
+codex:
+  config: .codex/config.toml
+  agent_directory: .codex/agents
+  standalone_agent_files_are_adapters: true
+  role_adapters:
+    lead: .codex/agents/lead.toml
+    product_architect: .codex/agents/product-architect.toml
+    ios_engineer: .codex/agents/ios-engineer.toml
+    web_engineer: .codex/agents/web-engineer.toml
+    agent_platform: .codex/agents/agent-platform.toml
+    qa_verifier: .codex/agents/qa-verifier.toml
+    reviewer: .codex/agents/reviewer.toml
+    docs_steward: .codex/agents/docs-steward.toml
+  host_helpers:
+    explorer: .codex/agents/explorer.toml
+    docs_researcher: .codex/agents/docs-researcher.toml

@@ -186,14 +186,29 @@ struct RootView: View {
                 TodayView()
                     .opacity(nav.selectedTab == .today ? 1 : 0)
                     .allowsHitTesting(nav.selectedTab == .today)
+                    .accessibilityHidden(
+                        nav.selectedTab != .today
+                            || nav.isSidebarOpen
+                            || nav.isFeedbackPanelOpen
+                    )
 
                 ArchiveView()
                     .opacity(nav.selectedTab == .archive ? 1 : 0)
                     .allowsHitTesting(nav.selectedTab == .archive)
+                    .accessibilityHidden(
+                        nav.selectedTab != .archive
+                            || nav.isSidebarOpen
+                            || nav.isFeedbackPanelOpen
+                    )
 
-                GraphView()
+                GraphView(isActive: nav.selectedTab == .graph)
                     .opacity(nav.selectedTab == .graph ? 1 : 0)
                     .allowsHitTesting(nav.selectedTab == .graph)
+                    .accessibilityHidden(
+                        nav.selectedTab != .graph
+                            || nav.isSidebarOpen
+                            || nav.isFeedbackPanelOpen
+                    )
             }
             // Scope the crossfade to tab swaps ONLY. Attaching on the outer
             // ZStack (instead of per-child .animation) keeps SwiftUI from
@@ -270,6 +285,9 @@ struct RootView: View {
                 // screen, otherwise VoiceOver users can still focus Settings /
                 // Recent rows that are visually at negative x coordinates.
                 .accessibilityHidden(!nav.isSidebarOpen)
+                .accessibilityAction(.escape) {
+                    nav.closeSidebar()
+                }
 
             // Right-side feedback panel — same scrim treatment as the sidebar
             // so both drawers feel like they belong to the same elevation tier.
@@ -315,6 +333,10 @@ struct RootView: View {
                     )
                 )
                 .allowsHitTesting(nav.isFeedbackPanelOpen)
+                .accessibilityHidden(!nav.isFeedbackPanelOpen)
+                .accessibilityAction(.escape) {
+                    nav.closeFeedbackPanel()
+                }
                 .zIndex(2)
 
             // Edge-swipe trigger: only the leftmost `edgeSwipeWidth` strip can

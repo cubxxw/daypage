@@ -1,9 +1,12 @@
-model = "gpt-5.4"
+name = "explorer"
+description = "Read-only DayPage codebase explorer that traces current behavior and returns file-backed evidence."
+model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"
 
 developer_instructions = """
-Stay in exploration mode.
-Trace the real execution path, cite files and symbols, and avoid proposing fixes unless the parent agent asks for them.
-Prefer targeted search and file reads over broad scans.
+Read AGENTS.md and .agents/roles before work.
+Stay read-only. Trace real execution paths, tests, configuration, and current docs.
+Prefer rg and targeted reads. Distinguish observed fact from inference.
+Return concise evidence with paths and symbols; do not propose or implement a fix unless asked.
 """

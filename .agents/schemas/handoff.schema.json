@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.local/schemas/handoff.schema.json",
+  "title": "DayPage Agent Handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "role",
+    "status",
+    "goal",
+    "assumptions",
+    "owned_paths",
+    "touched_files",
+    "decisions",
+    "evidence_refs",
+    "tests",
+    "residual_risks",
+    "blockers",
+    "conflict_notes",
+    "next_owner",
+    "next_action",
+    "git_sha",
+    "timestamp"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": { "const": "complete" }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "owned_paths": { "minItems": 1 },
+          "evidence_refs": { "minItems": 1 },
+          "tests": { "minItems": 1 },
+          "blockers": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "task_id": { "type": "string", "minLength": 1 },
+    "role": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["complete", "partial", "blocked", "failed"] },
+    "goal": { "type": "string", "minLength": 1 },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "owned_paths": { "type": "array", "items": { "type": "string" } },
+    "touched_files": { "type": "array", "items": { "type": "string" } },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision", "rationale", "alternatives"],
+        "properties": {
+          "decision": { "type": "string", "minLength": 1 },
+          "rationale": { "type": "string", "minLength": 1 },
+          "alternatives": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "result", "artifact"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "result": { "enum": ["pass", "fail", "blocked", "skipped"] },
+          "artifact": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "residual_risks": { "type": "array", "items": { "type": "string" } },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "conflict_notes": { "type": "array", "items": { "type": "string" } },
+    "next_owner": { "type": ["string", "null"] },
+    "next_action": { "type": ["string", "null"] },
+    "git_sha": { "type": ["string", "null"] },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,102 +1,52 @@
-```markdown
-# daypage Development Patterns
+---
+name: daypage
+description: Repository-specific context and safe development workflow for DayPage changes across Apple apps, DayPageKit, web, MCP server, agentry, documentation, and automation. Use when implementing, reviewing, diagnosing, or planning work in this repository.
+---
 
-> Auto-generated skill from repository analysis
+# DayPage repository workflow
 
-## Overview
-This skill teaches the core development patterns and conventions used in the `daypage` Swift codebase. You'll learn about file naming, import/export styles, commit message conventions, and how to structure and run tests. This guide is designed to help you quickly onboard and contribute effectively to the project.
+## Trigger
 
-## Coding Conventions
+Use for repository work that needs DayPage architecture, ownership, persistence, test,
+or delivery conventions. Do not use it as a release command or as permission to write
+to GitHub, cloud services, production data, or a user vault.
 
-### File Naming
-- Use **PascalCase** for all file names.
-  - Example: `DayPageView.swift`, `UserManager.swift`
+## Inputs
 
-### Import Style
-- Use **relative imports** to reference files within the project.
-  - Example:
-    ```swift
-    import "../Models/User"
-    ```
+- The user's goal and authorization.
+- The dirty worktree and current branch.
+- Root and closest applicable `AGENTS.md`.
+- `.agents/manifest.yaml` and the matching workflow.
+- Target code, tests, current docs, and accepted ADRs.
 
-### Export Style
-- Use **named exports** to expose specific types, functions, or classes.
-  - Example:
-    ```swift
-    public struct DayPage { ... }
-    ```
+## Procedure
 
-### Commit Messages
-- Follow the **Conventional Commits** format.
-- Use prefixes such as `chore`.
-- Keep commit messages concise, around 68 characters.
-  - Example:
-    ```
-    chore: update dependencies and fix minor warnings in UserManager
-    ```
+1. Classify the touched surface and load only its routed context.
+2. State acceptance criteria, non-goals, risks, owned paths, forbidden paths, and gates.
+3. Trace current behavior before editing. Treat `DayPageKit` as the shared
+   models/storage/services source unless evidence shows a target-specific adapter is needed.
+4. For feature, design, architecture, or broad refactor work, confirm the required issue
+   and decision record exist.
+5. Delegate only independent work with non-overlapping ownership. Preserve all unrelated
+   and concurrent changes.
+6. Implement the smallest coherent change. Do not change persistence formats, dependencies,
+   remote state, or release state implicitly.
+7. Run the scoped gates from `docs/engineering/testing.md`; inspect real isolated Markdown
+   output for storage changes and a running Simulator/browser for UI changes.
+8. Return a structured handoff with touched files, decisions, evidence, conflicts,
+   blockers, and residual risks.
 
-## Workflows
+## Side effects and recovery
 
-### Committing Changes
-**Trigger:** When you are ready to commit your code changes.
-**Command:** `/commit-changes`
+The default mode is local workspace writes only. Commits, pushes, issues, PRs, deploys,
+releases, production database changes, and destructive cleanup require explicit
+authorization for that action. If verification modifies a fixture vault or Simulator,
+use an isolated target and prove restoration before reporting success.
 
-1. Stage your changes:
-    ```
-    git add .
-    ```
-2. Write a commit message using the conventional format:
-    ```
-    git commit -m "chore: describe your change here"
-    ```
-3. Push your changes:
-    ```
-    git push
-    ```
+On failure, stop unsafe follow-on steps, preserve diagnostics without secrets or private
+content, restore any isolated fixture state, and report the exact failed gate.
 
-### Adding a New Swift File
-**Trigger:** When you need to add a new component or module.
-**Command:** `/add-swift-file`
+## Output
 
-1. Name your file using PascalCase, e.g., `NewFeature.swift`.
-2. Use relative imports for dependencies.
-    ```swift
-    import "../Models/Dependency"
-    ```
-3. Export your types or functions using named exports.
-    ```swift
-    public struct NewFeature { ... }
-    ```
-
-### Writing Tests
-**Trigger:** When you add new functionality or fix bugs.
-**Command:** `/write-test`
-
-1. Create a test file matching the pattern `*.test.*`, e.g., `DayPage.test.swift`.
-2. Place your test cases in this file.
-3. Use the project's preferred (unknown) testing framework.
-
-## Testing Patterns
-
-- Test files follow the `*.test.*` naming convention, such as `UserManager.test.swift`.
-- Place test files alongside the code they test or in a dedicated test directory.
-- The specific testing framework is not detected; follow existing patterns in the repository.
-
-**Example:**
-```swift
-// DayPage.test.swift
-
-import "../DayPage"
-
-func testDayPageInitialization() {
-    // Test implementation here
-}
-```
-
-## Commands
-| Command           | Purpose                                      |
-|-------------------|----------------------------------------------|
-| /commit-changes   | Commit your staged changes using conventions |
-| /add-swift-file   | Add a new Swift file following conventions   |
-| /write-test       | Create a new test file for your code         |
-```
+Use `.agents/templates/handoff.md` for non-trivial work. A completion claim must cite
+commands and results; “done” without evidence is invalid.
