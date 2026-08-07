@@ -119,6 +119,152 @@ public final class EntityPageService {
         // （已在 appendToEntityPage 中通过 frontmatter 更新处理）
     }
 
+    /// Applies one compilation operation exactly once per resolved entity page.
+    ///
+    /// All instructions targeting the same page are applied in memory and
+    /// persisted together with a stable operation marker in one atomic write.
+    /// A retry with the same `operationID` skips that entire page even if a
+    /// non-deterministic LLM produced different wording. The marker is an HTML
+    /// comment, so existing Markdown readers remain compatible.
+    ///
+    /// The overload without `operationID` intentionally retains the legacy
+    /// byte-identical replay guard for non-compilation callers.
+    public func apply(
+        instructions: [EntityUpdateInstruction],
+        date: String,
+        operationID: String
+    ) throws {
+        guard !instructions.isEmpty else { return }
+
+        let marker = compilationMarker(for: operationID)
+        let groups = resolveInstructionGroups(instructions)
+        var entitiesToIndex: [(type: String, slug: String, name: String)] = []
+
+        for group in groups {
+            guard let first = group.instructions.first else { continue }
+            let url = entityURL(type: group.entityType, slug: group.entitySlug)
+            let exists = FileManager.default.fileExists(atPath: url.path)
+
+            if exists {
+                var pageContent = try String(contentsOf: url, encoding: .utf8)
+                let canonicalName = FrontmatterParser.extractFieldInBlock("name", from: pageContent)
+                    ?? first.displayName
+                entitiesToIndex.append((
+                    type: group.entityType,
+                    slug: group.entitySlug,
+                    name: canonicalName
+                ))
+                guard !containsCompilationMarker(marker, in: pageContent) else { continue }
+
+                for instruction in group.instructions {
+                    pageContent = applyingInstruction(
+                        instruction,
+                        to: pageContent
+                    )
+                }
+                pageContent = appendingCompilationMarker(marker, to: pageContent)
+                try writeEntityFile(content: pageContent, to: url)
+            } else {
+                var pageContent = buildNewEntityPage(
+                    instruction: first,
+                    firstSeen: date,
+                    now: iso8601Now()
+                )
+                for instruction in group.instructions.dropFirst() {
+                    pageContent = applyingInstruction(
+                        instruction,
+                        to: pageContent
+                    )
+                }
+                pageContent = appendingCompilationMarker(marker, to: pageContent)
+                try writeEntityFile(content: pageContent, to: url)
+                entitiesToIndex.append((
+                    type: group.entityType,
+                    slug: group.entitySlug,
+                    name: first.displayName
+                ))
+            }
+        }
+
+        // Reconcile every resolved group, not only pages created in this
+        // attempt. A previous attempt may have atomically committed a page +
+        // marker and then failed while writing index.md; on retry the page is
+        // skipped by its marker, but the missing index entry still heals.
+        if !entitiesToIndex.isEmpty {
+            try updateIndex(newEntities: entitiesToIndex)
+        }
+    }
+
+    // MARK: - Compilation Operation Grouping
+
+    private struct ResolvedInstructionGroup {
+        let entityType: String
+        let entitySlug: String
+        var instructions: [EntityUpdateInstruction]
+    }
+
+    /// Resolves slugs before writing, then groups every instruction targeting
+    /// the same page. Pending groups participate in fuzzy matching so two
+    /// spelling variants for a brand-new entity still land in one atomic page
+    /// write, matching the legacy sequential resolution behavior.
+    private func resolveInstructionGroups(
+        _ instructions: [EntityUpdateInstruction]
+    ) -> [ResolvedInstructionGroup] {
+        var groups: [ResolvedInstructionGroup] = []
+
+        for instruction in instructions {
+            let diskResolvedSlug = resolveSlug(
+                proposed: instruction.entitySlug,
+                displayName: instruction.displayName,
+                type: instruction.entityType
+            )
+            let pendingIndex = groups.firstIndex {
+                $0.entityType == instruction.entityType
+                    && (
+                        $0.entitySlug == diskResolvedSlug
+                            || Self.isFuzzyMatch($0.entitySlug, diskResolvedSlug)
+                    )
+            }
+            let resolvedSlug = pendingIndex.map { groups[$0].entitySlug } ?? diskResolvedSlug
+            let resolvedInstruction = EntityUpdateInstruction(
+                entityType: instruction.entityType,
+                entitySlug: resolvedSlug,
+                section: instruction.section,
+                content: instruction.content,
+                displayName: instruction.displayName
+            )
+
+            if let pendingIndex {
+                groups[pendingIndex].instructions.append(resolvedInstruction)
+            } else {
+                groups.append(ResolvedInstructionGroup(
+                    entityType: instruction.entityType,
+                    entitySlug: resolvedSlug,
+                    instructions: [resolvedInstruction]
+                ))
+            }
+        }
+
+        return groups
+    }
+
+    private func compilationMarker(for operationID: String) -> String {
+        "<!-- daypage-compilation:\(operationID) -->"
+    }
+
+    private func containsCompilationMarker(_ marker: String, in content: String) -> Bool {
+        content.components(separatedBy: "\n").contains(marker)
+    }
+
+    private func appendingCompilationMarker(_ marker: String, to content: String) -> String {
+        var result = content
+        if !result.hasSuffix("\n") {
+            result.append("\n")
+        }
+        result.append("\n\(marker)\n")
+        return result
+    }
+
     // MARK: - Slug Resolution
 
     /// Resolves a proposed slug to a canonical one by:
@@ -274,38 +420,104 @@ public final class EntityPageService {
         instruction: EntityUpdateInstruction,
         date: String
     ) throws {
-        var pageContent = try String(contentsOf: url, encoding: .utf8)
+        let pageContent = try String(contentsOf: url, encoding: .utf8)
+
+        // Compilation retries can replay instructions that were successfully
+        // persisted before a later instruction failed. Treat an exact content
+        // block already present under the same section as a committed replay:
+        // do not append it again and, crucially, do not advance occurrence_count.
+        guard !containsInstructionContent(
+            in: pageContent,
+            section: instruction.section,
+            content: instruction.content
+        ) else { return }
+
+        let updatedContent = applyingInstruction(instruction, to: pageContent)
+        try writeEntityFile(content: updatedContent, to: url)
+    }
+
+    /// Applies one non-duplicate instruction to an in-memory page. Keeping
+    /// frontmatter and section updates pure lets compilation mode commit every
+    /// instruction for a page together with its operation marker atomically.
+    private func applyingInstruction(
+        _ instruction: EntityUpdateInstruction,
+        to pageContent: String
+    ) -> String {
+        var updatedContent = pageContent
 
         // 自愈历史 dropLast 产物：type: peopl → type: person
-        if pageContent.contains("\ntype: peopl\n") {
-            pageContent = pageContent.replacingOccurrences(
+        if updatedContent.contains("\ntype: peopl\n") {
+            updatedContent = updatedContent.replacingOccurrences(
                 of: "\ntype: peopl\n",
                 with: "\ntype: person\n"
             )
         }
 
         // 更新 frontmatter 字段
-        pageContent = updateFrontmatterField(
-            in: pageContent,
+        updatedContent = updateFrontmatterField(
+            in: updatedContent,
             key: "last_updated",
             value: iso8601Now()
         )
-        pageContent = incrementFrontmatterCount(
-            in: pageContent,
+        updatedContent = incrementFrontmatterCount(
+            in: updatedContent,
             key: "occurrence_count"
         )
 
         // 在段落下追加（或在末尾添加新段落）
-        pageContent = appendUnderSection(
-            content: pageContent,
+        updatedContent = appendUnderSection(
+            content: updatedContent,
             section: instruction.section,
             newContent: instruction.content
         )
 
-        try writeEntityFile(content: pageContent, to: url)
+        return updatedContent
     }
 
     // MARK: - Section Management
+
+    /// Returns true when the exact instruction content already exists as a
+    /// contiguous Markdown block inside the requested section. Matching by
+    /// lines (rather than substring) avoids treating "- coffee" as a replay of
+    /// "- coffee shop", while keeping the persisted Markdown format unchanged.
+    private func containsInstructionContent(
+        in pageContent: String,
+        section sectionHeading: String,
+        content instructionContent: String
+    ) -> Bool {
+        let lines = pageContent.components(separatedBy: "\n")
+        let targetLines = instructionContent
+            .components(separatedBy: "\n")
+            .drop(while: { $0.trimmingCharacters(in: .whitespaces).isEmpty })
+            .reversed()
+            .drop(while: { $0.trimmingCharacters(in: .whitespaces).isEmpty })
+            .reversed()
+
+        guard !targetLines.isEmpty,
+              let sectionIndex = lines.firstIndex(where: {
+                  $0.trimmingCharacters(in: .whitespaces) == sectionHeading
+              }) else { return false }
+
+        let level = headingLevel(of: sectionHeading)
+        var sectionEnd = sectionIndex + 1
+        while sectionEnd < lines.count {
+            let trimmed = lines[sectionEnd].trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("#"), headingLevel(of: trimmed) <= level {
+                break
+            }
+            sectionEnd += 1
+        }
+
+        let target = Array(targetLines)
+        guard sectionEnd - sectionIndex - 1 >= target.count else { return false }
+        let lastStart = sectionEnd - target.count
+        for start in (sectionIndex + 1) ... lastStart {
+            if Array(lines[start ..< start + target.count]) == target {
+                return true
+            }
+        }
+        return false
+    }
 
     /// 在 Markdown 内容中查找 `sectionHeading`，并在该段落
     /// 最后一段已有内容之后追加 `newContent`。
@@ -358,11 +570,17 @@ public final class EntityPageService {
             .appendingPathComponent("index.md")
 
         var indexContent: String
+        var needsWrite = false
         if FileManager.default.fileExists(atPath: indexURL.path) {
             do { indexContent = try String(contentsOf: indexURL, encoding: .utf8) }
-            catch { DayPageLogger.shared.error("EntityPageService: read index: \(error)"); indexContent = seedIndex() }
+            catch {
+                DayPageLogger.shared.error("EntityPageService: read index: \(error)")
+                indexContent = seedIndex()
+                needsWrite = true
+            }
         } else {
             indexContent = seedIndex()
+            needsWrite = true
         }
 
         // 按类型分组新实体
@@ -375,15 +593,23 @@ public final class EntityPageService {
             let sectionHeading = indexSectionHeading(for: type)
             for entity in entities {
                 let listItem = "- [[wiki/\(type)/\(entity.slug)|\(entity.name)]]"
+                let alreadyIndexed = indexContent
+                    .components(separatedBy: "\n")
+                    .contains { $0.trimmingCharacters(in: .whitespaces) == listItem }
+                guard !alreadyIndexed else { continue }
+
                 indexContent = appendUnderSection(
                     content: indexContent,
                     section: sectionHeading,
                     newContent: listItem
                 )
+                needsWrite = true
             }
         }
 
-        try RawStorage.atomicWrite(string: indexContent, to: indexURL)
+        if needsWrite {
+            try RawStorage.atomicWrite(string: indexContent, to: indexURL)
+        }
     }
 
     // MARK: - Frontmatter Helpers

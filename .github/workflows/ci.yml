@@ -6,6 +6,10 @@ on:
       - main
     paths-ignore:
       - "design/**"
+      - "docs/**"
+      - ".agents/**"
+      - ".codex/**"
+      - ".claude/skills/**"
       - "scripts/ralph/**"
       - "tasks/**"
       - "**.md"
@@ -18,6 +22,10 @@ on:
       - closed
     paths-ignore:
       - "design/**"
+      - "docs/**"
+      - ".agents/**"
+      - ".codex/**"
+      - ".claude/skills/**"
       - "scripts/ralph/**"
       - "tasks/**"
       - "**.md"
@@ -34,7 +42,7 @@ concurrency:
 
 jobs:
   unit-tests:
-    name: Swift Unit Tests (xcrun)
+    name: Swift Unit Tests
     runs-on: macos-15
     if: github.event_name != 'pull_request' || github.event.action != 'closed'
 
@@ -46,41 +54,10 @@ jobs:
         run: xcrun swift --version
 
       - name: Run all unit tests (fail-fast=false)
-        run: |
-          set +e
-          OVERALL=0
+        run: bash scripts/ci/run_script_tests.sh
 
-          run_test() {
-            local FILE="$1"
-            echo ""
-            echo "══════════════════════════════════════════"
-            echo "  Running: $FILE"
-            echo "══════════════════════════════════════════"
-            xcrun swift "$FILE"
-            local RC=$?
-            if [ $RC -ne 0 ]; then
-              echo "  ❌ FAILED: $FILE (exit $RC)"
-              OVERALL=1
-            else
-              echo "  ✅ PASSED: $FILE"
-            fi
-            return $RC
-          }
-
-          run_test scripts/tests/test_raw_storage.swift
-          run_test scripts/tests/test_entity_page.swift
-          run_test scripts/tests/test_compilation_parsing.swift
-          run_test scripts/tests/test_voice_transcript.swift
-
-          echo ""
-          echo "══════════════════════════════════════════"
-          if [ $OVERALL -eq 0 ]; then
-            echo "  ✅ All tests passed"
-          else
-            echo "  ❌ One or more tests failed"
-          fi
-          echo "══════════════════════════════════════════"
-          exit $OVERALL
+      - name: Run DayPageKit package tests
+        run: swift test --package-path DayPageKit
 
   secrets-audit:
     name: Secrets Hygiene Audit
@@ -225,42 +202,14 @@ jobs:
       # Same CI placeholder used by the build job. Required because the test
       # build links against the app target which references Secrets.*.
       - name: Ensure GeneratedSecrets.swift exists
-        run: |
-          mkdir -p DayPage/Config
-          cat > DayPage/Config/GeneratedSecrets.swift << 'SWIFT'
-          // CI placeholder — real values injected at runtime via .env
-          enum Secrets {
-              static let deepSeekApiKey: String = ""
-              static let deepSeekBaseURL: String = "https://api.deepseek.com/v1"
-              static let deepSeekModel: String = "deepseek-v4-pro"
-              static let openAIWhisperApiKey: String = ""
-              static let openWeatherApiKey: String = ""
-              static let supabaseURL: String = "https://placeholder.supabase.co"
-              static let supabaseAnonKey: String = ""
-              static let sentryDSN: String = ""
-              static let kubotGitHubToken: String = ""
-          }
-          SWIFT
-
-      - name: Write simulator picker script
-        run: |
-          printf '%s\n' \
-            'import json,sys,re' \
-            'd=json.load(sys.stdin)' \
-            'iphones=[(dev["name"],dev["udid"]) for devs in d["devices"].values() for dev in devs if dev.get("name","").startswith("iPhone") and dev.get("isAvailable",False)]' \
-            'iphones.sort(key=lambda x:[int(c) if c.isdigit() else c for c in re.split(r"(\d+)",x[0])])' \
-            'print(iphones[-1][1] if iphones else "")' \
-            > /tmp/pick_sim.py
+        run: bash scripts/ci/write_placeholder_secrets.sh
 
       - name: Run DayPageTests
         run: |
           set -o pipefail
-          SIM_UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 /tmp/pick_sim.py 2>/dev/null || true)
-          if [ -n "$SIM_UDID" ]; then
-            DEST="platform=iOS Simulator,id=$SIM_UDID"
-          else
-            DEST="platform=iOS Simulator,name=iPhone 16"
-          fi
+          DEST=$(xcrun simctl list devices available --json 2>/dev/null \
+            | python3 scripts/ci/select_simulator.py \
+                --format destination --fallback-name "iPhone 16")
           echo "Using simulator: $DEST"
           xcodebuild test \
             -scheme DayPage \
@@ -311,48 +260,17 @@ jobs:
             deriveddata-ci-${{ hashFiles('DayPage.xcodeproj/project.pbxproj') }}-
             deriveddata-ci-
 
-      # GeneratedSecrets.swift 已提交到仓库（包含占位值）
-      # CI 构建不需要真实 key，直接使用已提交版本即可
-      # 如果文件意外缺失，用空占位值生成
+      # CI builds use one deterministic, non-sensitive placeholder. Real
+      # credentials remain runtime-only and are never read by this workflow.
       - name: Ensure GeneratedSecrets.swift exists
-        run: |
-          # Always overwrite with a CI placeholder that satisfies generate_secrets.sh's
-          # validity check (grep for 'supabaseURL: String = "https://').
-          mkdir -p DayPage/Config
-          cat > DayPage/Config/GeneratedSecrets.swift << 'SWIFT'
-          // CI placeholder — real values injected at runtime via .env
-          enum Secrets {
-              static let deepSeekApiKey: String = ""
-              static let deepSeekBaseURL: String = "https://api.deepseek.com/v1"
-              static let deepSeekModel: String = "deepseek-v4-pro"
-              static let openAIWhisperApiKey: String = ""
-              static let openWeatherApiKey: String = ""
-              static let supabaseURL: String = "https://placeholder.supabase.co"
-              static let supabaseAnonKey: String = ""
-              static let sentryDSN: String = ""
-              static let kubotGitHubToken: String = ""
-          }
-          SWIFT
-
-      - name: Write simulator picker script
-        run: |
-          printf '%s\n' \
-            'import json,sys,re' \
-            'd=json.load(sys.stdin)' \
-            'iphones=[(dev["name"],dev["udid"]) for devs in d["devices"].values() for dev in devs if dev.get("name","").startswith("iPhone") and dev.get("isAvailable",False)]' \
-            'iphones.sort(key=lambda x:[int(c) if c.isdigit() else c for c in re.split(r"(\d+)",x[0])])' \
-            'print(iphones[-1][1] if iphones else "")' \
-            > /tmp/pick_sim.py
+        run: bash scripts/ci/write_placeholder_secrets.sh
 
       - name: Build (simulator, CODE_SIGNING_ALLOWED=NO)
         run: |
           set -o pipefail
-          SIM_UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 /tmp/pick_sim.py 2>/dev/null || true)
-          if [ -n "$SIM_UDID" ]; then
-            DEST="platform=iOS Simulator,id=$SIM_UDID"
-          else
-            DEST="platform=iOS Simulator,name=iPhone 16"
-          fi
+          DEST=$(xcrun simctl list devices available --json 2>/dev/null \
+            | python3 scripts/ci/select_simulator.py \
+                --format destination --fallback-name "iPhone 16")
           echo "Using simulator: $DEST"
           # NOTE 1: no `-sdk iphonesimulator` — a global -sdk override applies
           # to EVERY target, so the embedded DayPageWatch app got compiled
@@ -423,7 +341,8 @@ jobs:
 
       - name: Boot iPhone Simulator
         run: |
-          UDID=$(xcrun simctl list devices available --json 2>/dev/null | python3 -c "import json,sys,re; d=json.load(sys.stdin); iphones=sorted([(dev['name'],dev['udid']) for devs in d['devices'].values() for dev in devs if dev.get('name','').startswith('iPhone') and dev.get('isAvailable',False)], key=lambda x:[int(c) if c.isdigit() else c for c in re.split(r'(\d+)',x[0])]); print(iphones[-1][1] if iphones else '')" 2>/dev/null || true)
+          UDID=$(xcrun simctl list devices available --json 2>/dev/null \
+            | python3 scripts/ci/select_simulator.py --format udid)
           echo "Booting simulator UDID: $UDID"
           xcrun simctl boot "$UDID"
           echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"

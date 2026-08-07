@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.local/schemas/evidence.schema.json",
+  "title": "DayPage Agent Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "kind",
+    "command",
+    "cwd",
+    "started_at",
+    "finished_at",
+    "exit_code",
+    "result",
+    "artifact_paths",
+    "environment",
+    "notes"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["build", "test", "ui", "storage", "docs", "review"] },
+    "command": { "type": "string", "minLength": 1 },
+    "cwd": { "type": "string", "minLength": 1 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "exit_code": { "type": ["integer", "null"] },
+    "result": { "enum": ["pass", "fail", "blocked", "skipped"] },
+    "artifact_paths": { "type": "array", "items": { "type": "string" } },
+    "environment": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+    },
+    "notes": { "type": "string" }
+  }
+}

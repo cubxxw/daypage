@@ -1,92 +1,128 @@
-# DayPage — Claude Code Project Guidelines
+# DayPage Repository Constitution
 
-## Overview
+This is the durable, repository-wide contract for humans and coding agents. Keep it
+short and factual. Module-level `AGENTS.md` files may add local detail but must not
+weaken the safety, ownership, data, or release rules here.
 
-DayPage: a personal logging tool centered on daily raw data capture. Users dump, AI compiles into structured diary entries and a knowledge network each day. Target users: nomads / digital nomads.
+## Product and repository
 
-## Tech Stack
+DayPage captures raw daily signals and compiles them into Daily Pages, entity pages,
+and a personal knowledge graph. This is a multi-surface repository:
 
-### Client
+- `DayPage/`: SwiftUI iOS app; current navigation is a sidebar and Graph is implemented.
+- `DayPageMac/`, `DayPageWatch/`, `DayPageWidget/`: Apple platform companions.
+- `DayPageKit/`: Swift package and source of truth for shared models, storage, and services.
+- `DayPageTests/`: Xcode target tests; `DayPageKit/Tests/`: Swift package tests.
+- `web/`: Next.js web product; follow `web/AGENTS.md` and local framework docs.
+- `packages/mcp-server/`: TypeScript DayPage MCP server.
+- `agentry/`: Go product runtime. It is not the repository development-agent control plane.
+- `.agents/`: canonical development Agent Team roles, workflows, schemas, and skills.
 
-| Layer | Choice | Notes |
-|---|---|---|
-| Platform | **iOS 16.0+**, Swift 5 | Single Xcode target `DayPage.app`, no SPM dependencies |
-| UI | **SwiftUI** (pure) | `UITabBarAppearance` is the only UIKit touchpoint (`RootView.swift`) |
-| Navigation | **TabView** | Three tabs — Today / Archive / Graph (disabled, Post-MVP) |
-| State | `ObservableObject` + `@Published` + `@StateObject`, `@MainActor` services | No `@Observable` macro (Swift 5 constraint) |
-| Persistence | **File system** — YAML front-matter + Markdown | `vault/raw/YYYY-MM-DD.md`, multi-memo separated by `\n\n---\n\n`. Atomic writes via `FileManager.replaceItem`. No Core Data / SwiftData |
-| YAML / Markdown | Hand-written parser in `Models/Memo.swift` | No external Markdown library |
-| Voice recording | **AVFoundation** `AVAudioRecorder` → M4A | Stored under `vault/raw/assets/` |
-| Speech-to-text | **OpenAI Whisper API** (`whisper-1`) | `VoiceService.swift`; transcript saved to `Attachment.transcript` |
-| Camera / photos | **PhotosUI** + `PHPicker` | EXIF extraction (aperture, shutter, ISO, focal length, GPS, timestamp); originals saved, thumbnails for UI |
-| Location | **CoreLocation** + reverse geocoding | `LocationService.swift` |
-| Weather | **OpenWeatherMap API** (free tier) | 10-min cache, `zh_cn` locale (`WeatherService.swift`) |
-| Fonts | Space Grotesk / Inter / JetBrains Mono (TTF in bundle) | Registered via `DSFonts.registerAll()` at app launch |
+Read [docs/README.md](docs/README.md) for current documentation routing. Treat old
+PRDs, plans, screenshots, and audit reports as historical evidence unless an index
+marks them current.
 
-### AI Compilation Engine
+## Source-of-truth order
 
-| Feature | Choice | Notes |
-|---|---|---|
-| Provider | **Aliyun DashScope** (OpenAI-compatible) | `CompilationService.swift`, model `qwen3.5-plus`, base URL `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| API key | `Config/GeneratedSecrets.swift` (auto-generated from env, not committed) | Never hardcode in source |
-| Schedule | **BGTaskScheduler** (`BGAppRefreshTask`) | Identifier `com.daypage.daily-compilation`, 02:00 local daily, with backfill + local notification (`BackgroundCompilationService.swift`) |
-| Input | Text only — no raw audio / image bytes sent | ~2k–5k tokens per day for 20 memos |
+When instructions conflict, use this order:
 
-## Project Structure
+1. Current user and platform instructions.
+2. This constitution, then a closer module `AGENTS.md` for local rules.
+3. Accepted architecture decisions and the current PRD linked from `docs/README.md`.
+4. Executable code, tests, schemas, and checked-in configuration.
+5. Historical documents and archived artifacts.
 
-```
-DayPage/
-  App/              RootView, DayPageApp, Fonts, Typography
-  Features/
-    Today/          TodayView + TodayViewModel (268 lines)
-    Archive/        ArchiveView (655 lines, calendar + list)
-    Graph/          GraphView (18-line placeholder — Post-MVP, see PRD NG-3)
-  Models/           Memo, Attachment, YAML parser
-  Services/         RawStorage, Location, Weather, Photo, Voice, Compilation, BackgroundCompilation
-  Config/           GeneratedSecrets (gitignored)
-```
+Do not copy volatile architecture facts into host adapters. Update the owning current
+document and link to it.
 
-**Pipeline**: Today (raw input) → AI compilation → Daily Page (structured diary) → Entity Pages → Graph (Post-MVP knowledge network).
+## Core invariants
 
-## Coding Conventions
+- User vault data is local-first and file-based. Do not delete, rewrite, or migrate it
+  without an explicit migration plan, compatibility tests, and user authorization.
+- Raw memo files remain `vault/raw/YYYY-MM-DD.md`, with YAML front matter and Markdown
+  records separated by `\n\n<!-- daypage-memo-separator -->\n\n`; legacy
+  `\n\n---\n\n` files remain read-compatible. Assets remain under `vault/raw/assets/`.
+- Shared model/storage/service behavior belongs in `DayPageKit` unless an Apple target
+  genuinely requires an adapter.
+- Secrets belong in ignored local files, keychain, or environment variables. Never
+  commit API keys, auth state, personal vault content, transcripts, or runtime evidence.
+- Preserve iOS 16 compatibility in shared/iOS code unless an approved decision changes it.
+- No external dependency, schema migration, or persistence-format change without discussion.
+- No force unwraps in production paths. Prefer typed errors, `guard`, and explicit recovery.
 
-- SwiftUI views: value types; extract subviews when a `body` exceeds ~80 lines
-- Services: `@MainActor final class`, singletons where shared state is required
-- View models: `@MainActor final class: ObservableObject` with `@Published`
-- `MARK: -` section comments for navigation
-- No force-unwraps in production paths; prefer `guard let` / `throws`
-- No external dependencies without discussion — prefer Apple frameworks
-- For design-related issues, they should be deeply designed and discussed clearly with me. Then, submit a GitHub issue first. Use the appropriate branch to solve this issue. Finally, after testing and verification, create a PR. Remember to link this issue according to the PR guidelines.
+## Agent Team protocol
 
-## UI Design
+Use `.agents/manifest.yaml` to discover roles and workflows. The lead owns the task
+graph and integration; specialists own bounded paths. Parallelize only independent
+work that benefits from separate context.
 
-The design (Stitch project `DayPage Today Flow` / ID `6404909232718143042`) is snapshotted into the repo. **Read local files first** when implementing — do not call `mcp__stitch__*`:
+Before delegating or editing:
 
-- `design/stitch/screenshots/*.png` — layout, color, visual hierarchy
-- `design/stitch/html/*.html` — exact spacing, font sizes, color values (read classes and inline styles as reference; translate to SwiftUI)
+1. Establish acceptance criteria, non-goals, risks, and verification gates.
+2. Assign non-overlapping `owned_paths` and explicit `forbidden_paths`.
+3. Inspect the dirty worktree and preserve all changes not owned by the task.
+4. Record material assumptions and decisions in the handoff contract.
 
-Screen mapping:
+Workers must not edit outside their owned paths, revert another worker, or silently
+resolve cross-owner conflicts. Use `.agents/templates/handoff.md` and
+`.agents/schemas/handoff.schema.json` for non-trivial handoffs. Return evidence and
+residual risk, not just “done.”
 
-| Asset filename | Screen |
-|---|---|
-| `today-flow` | Today Tab main flow |
-| `voice-recording` | Voice recording overlay |
-| `daily-page` | Post-compilation diary page |
-| `archive-calendar` | Archive calendar view |
-| `archive-list` | Archive list view |
+## Implementation workflow
 
-Graph Tab has **no design** (Post-MVP, PRD NG-3) — keep the placeholder.
+- Start from evidence: trace the current path, tests, relevant current docs, and local
+  design sources before proposing architecture.
+- Feature, design, architecture, and broad refactor work requires a GitHub issue before
+  implementation. Use `gh` for GitHub operations.
+- Design work requires deep discussion and agreement, then issue -> scoped branch ->
+  implementation -> Simulator/browser verification -> PR linked to the issue.
+- Architecture changes require an ADR under `docs/architecture/decisions/`.
+- Keep changes minimal and behavior-preserving unless changed behavior is accepted.
+- Use `rg`/`rg --files` for search and `apply_patch` for manual edits.
+- Never use `git add .` or `git add -A`. Stage only reviewed owned paths.
+- Do not commit, push, open/merge a PR, tag, release, deploy, or write to remote services
+  unless the current task explicitly authorizes that exact side effect.
+- Release/TestFlight is a separate workflow with explicit authorization; it is never an
+  automatic tail step of feature, fix, refactor, or verification work.
+- Never run destructive cleanup against a workspace, vault, simulator container, branch,
+  worktree, database, or cloud environment without resolving the exact target and approval.
 
-**Re-sync**: after design changes, run `mcp__stitch__get_screen` (screen ID list in `design/stitch/README.md`) and overwrite the corresponding files under `design/stitch/`.
+## Coding conventions
 
-## Testing
+- SwiftUI views are value types. Extract coherent subviews when `body` becomes hard to audit.
+- Shared services use clear actor isolation; UI-facing services/view models are normally
+  `@MainActor final class` with observable state where appropriate.
+- Keep ownership and notification names centralized; search before introducing another.
+- Use `MARK: -` sections where they improve navigation.
+- Follow existing module test style: Swift Testing/XCTest, Vitest/Playwright, Node test, or Go.
+- For Next.js work, read the version-matched docs under `web/node_modules/next/dist/docs/`
+  before relying on remembered APIs.
 
-No test target exists yet. When adding tests, create a `DayPageTests` target using **Swift Testing** (iOS 16+ supports it via the `Testing` package on Xcode 16+) or XCTest if the project stays on older Xcode.
+## Verification
 
-Before marking any task complete:
-1. Build the `DayPage` scheme (`xcodebuild -scheme DayPage build`)
-2. Run any existing tests
-3. For storage-related changes, inspect the actual `.md` file written under `vault/raw/` (use `get_app_container` to locate the sandbox) and verify YAML front-matter + Markdown structure
-4. For UI changes, launch the app in Simulator and verify visually — SwiftUI preview alone is not sufficient
+Run the smallest complete gate set for touched paths, then the integration gate when
+crossing a boundary. The engineering facade is documented in
+`docs/engineering/testing.md`.
 
-## Imported Claude Cowork project instructions
+- Repository contracts: `make doctor`
+- Full local checks: `make check`
+- Swift package: `swift test --package-path DayPageKit`
+- iOS code: build the `DayPage` scheme and run affected `DayPageTests` on Simulator.
+- iOS UI: launch in Simulator and verify the affected flow; preview-only is insufficient.
+- Storage: inspect actual generated Markdown/YAML in an isolated test vault.
+- Web: lint, type-check, focused unit tests, and affected Playwright flows.
+- MCP server: type-check and tests in `packages/mcp-server`.
+- Agentry: `go test ./...`, `go vet ./...`, and `go build ./...` from `agentry/`.
+- Design tokens: run the token drift check when token sources or generated outputs change.
+
+Do not claim a gate passed unless you ran it and captured the command/result. If a gate
+cannot run, report why, what was run instead, and the residual risk.
+
+## Completion and review
+
+A change is complete only when implementation, required tests, independent review,
+current docs/ADR updates, and a structured handoff agree. Reviews prioritize correctness,
+data safety, security/privacy, regressions, concurrency, and missing tests over style.
+
+Keep generated build output, `.agents/**/runs/`, screenshots containing private data,
+absolute personal paths, and credentials out of version control.

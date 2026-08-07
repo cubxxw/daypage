@@ -88,7 +88,7 @@ public final class CompilationService: ObservableObject {
         stage = .extracting
         compilationProgress = .extracting
         let dailyURL = dailyPageURL(for: dateString)
-        let (memos, rawContent, sourceHash, storedHash) =
+        let (memos, rawContent, sourceHash, storedHash, existingDailyRevision) =
             try await Task.detached(priority: .userInitiated) {
                 let memos: [Memo]
                 do {
@@ -103,8 +103,14 @@ public final class CompilationService: ObservableObject {
                 let hash = Self.sourceHash(of: memos)
                 let stored = (try? String(contentsOf: dailyURL, encoding: .utf8))
                     .flatMap { Self.extractSourceHash(from: $0) }
-                return (memos, rawContent, hash, stored)
+                let revision = Self.dailyPageRevision(at: dailyURL)
+                return (memos, rawContent, hash, stored, revision)
             }.value
+        let entityOperationID = Self.entityOperationID(
+            sourceHash: sourceHash,
+            force: force,
+            existingDailyRevision: existingDailyRevision
+        )
 
         // Issue #814 cost guard: when the substantive memo content is
         // unchanged since the last compile, skip the LLM round-trip
@@ -162,7 +168,8 @@ public final class CompilationService: ObservableObject {
             trigger: trigger,
             startTime: startTime,
             memoCount: memos.count,
-            sourceHash: sourceHash
+            sourceHash: sourceHash,
+            entityOperationID: entityOperationID
         )
 
         stage = .done
@@ -230,6 +237,45 @@ public final class CompilationService: ObservableObject {
             }
         }
         return dailyText
+    }
+
+    /// Stable idempotency key for entity-page writes.
+    ///
+    /// Normal compilation is keyed only by substantive raw memo content.
+    /// An explicit force compile is a new user intent, so it also includes the
+    /// Daily Page revision observed before the attempt. If entity writes
+    /// succeed but the Daily Page write fails, that file revision is unchanged
+    /// and retrying remains idempotent. Once the Daily Page is replaced, its
+    /// revision changes and the next explicit force compile can apply fresh
+    /// entity updates for the same raw source.
+    nonisolated static func entityOperationID(
+        sourceHash: String,
+        force: Bool,
+        existingDailyRevision: String
+    ) -> String {
+        guard force else { return sourceHash }
+        return "\(sourceHash):force:\(existingDailyRevision)"
+    }
+
+    /// APFS-backed Daily Page revision. `Date` stores its timestamp as a
+    /// `Double`; using the bit pattern retains sub-second precision instead of
+    /// rounding it into a formatted date string. The inode is included because
+    /// an atomic replacement always installs a new filesystem item even if a
+    /// filesystem preserves the prior item's modification metadata. A
+    /// missing/unreadable file has one stable sentinel so retries before the
+    /// first Daily Page write match.
+    nonisolated static func dailyPageRevision(at url: URL) -> String {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let modifiedAt = attributes[.modificationDate] as? Date else {
+            return "missing"
+        }
+        let modificationBits = String(
+            modifiedAt.timeIntervalSinceReferenceDate.bitPattern,
+            radix: 16
+        )
+        let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value
+        let inodeRevision = inode.map { String($0, radix: 16) } ?? "unknown"
+        return "\(modificationBits)-\(inodeRevision)"
     }
 
     // MARK: - Step 3: Call AI
@@ -390,15 +436,28 @@ public final class CompilationService: ObservableObject {
     // MARK: - Step 5: Save Results
 
     /// Persists the compiled daily page, entity updates, hot cache, and log entry.
-    private func saveResults(
+    func saveResults(
         _ parsed: ParsedCompilationOutput,
         dateString: String,
         trigger: String,
         startTime: Date,
         memoCount: Int,
-        sourceHash: String
+        sourceHash: String,
+        entityOperationID: String
     ) throws {
         let dailyURL = dailyPageURL(for: dateString)
+
+        // The source hash is the durable "this compilation completed" marker.
+        // Apply throwable entity updates first so a partially-applied compile
+        // can be retried instead of being incorrectly skipped as unchanged.
+        // EntityPageService.apply is replay-safe, so a retry after a later
+        // entity instruction failed will not duplicate earlier instructions.
+        try EntityPageService.shared.apply(
+            instructions: parsed.entityInstructions,
+            date: dateString,
+            operationID: entityOperationID
+        )
+
         // Issue #814: stamp the source hash into the frontmatter so the next
         // compile request can prove "nothing changed" without an LLM call.
         let dailyText = Self.injectSourceHash(sourceHash, into: parsed.dailyPageText)
@@ -411,7 +470,6 @@ public final class CompilationService: ObservableObject {
             throw CompilationError.fileSystemError(error.localizedDescription)
         }
 
-        try EntityPageService.shared.apply(instructions: parsed.entityInstructions, date: dateString)
         let memoUpdateResult = applyMemoUpdates(parsed.memoUpdates, dateString: dateString)
         if memoUpdateResult.failed > 0 {
             lastMemoUpdateFailures = memoUpdateResult.failed
@@ -444,7 +502,7 @@ public final class CompilationService: ObservableObject {
     ///   write threw. When > 0, a warning-level breadcrumb is recorded so
     ///   we can track partial-success rate in production rather than
     ///   reporting full success in the UI.
-    private func applyMemoUpdates(
+    func applyMemoUpdates(
         _ updates: [MemoUpdateInstruction],
         dateString: String
     ) -> (updated: Int, failed: Int) {
@@ -455,64 +513,52 @@ public final class CompilationService: ObservableObject {
 
         let rawURL = RawStorage.fileURL(for: date)
         var failedUpdates: [URL] = []
-
-        var memos: [Memo]
-        do { memos = try RawStorage.read(for: date) }
-        catch {
-            DayPageLogger.shared.error("applyMemoUpdates: read failed: \(error)")
-            // Read failure makes every requested update fail; surface the
-            // raw URL so the breadcrumb shows the affected day-file.
-            failedUpdates = Array(repeating: rawURL, count: updates.count)
-            SentryReporter.breadcrumb(
-                category: "compilation",
-                level: .warning,
-                message: "applyMemoUpdates partial failure (read): count=\(failedUpdates.count) files=\(failedUpdates.map(\.lastPathComponent))"
-            )
-            return (0, failedUpdates.count)
-        }
-        guard !memos.isEmpty else { return (0, 0) }
-
         var changedCount = 0
-        for update in updates {
-            guard let idx = memos.firstIndex(where: { $0.id == update.memoID }) else { continue }
-            var memo = memos[idx]
-            var thisMemoChanged = false
-            if let mood = update.mood, !mood.isEmpty {
-                memo.mood = mood
-                thisMemoChanged = true
-            }
-            if !update.entityMentions.isEmpty {
-                let merged = Array(Set(memo.entityMentions + update.entityMentions)).sorted()
-                if merged != memo.entityMentions {
-                    memo.entityMentions = merged
-                    thisMemoChanged = true
-                }
-            }
-            if let note = update.marginNote, !note.isEmpty, note != memo.marginNote {
-                memo.marginNote = note
-                thisMemoChanged = true
-            }
-            memos[idx] = memo
-            if thisMemoChanged { changedCount += 1 }
-        }
 
-        guard changedCount > 0 else { return (0, 0) }
-        let newContent = memos.map { $0.toMarkdown() }.joined(separator: RawStorage.memoSeparator)
         do {
-            try RawStorage.atomicWrite(string: newContent, to: rawURL)
+            try RawStorage.mutate(for: date) { existing in
+                guard !existing.isEmpty else { return nil }
+                var memos = existing
+
+                for update in updates {
+                    guard let idx = memos.firstIndex(where: { $0.id == update.memoID }) else { continue }
+                    var memo = memos[idx]
+                    var thisMemoChanged = false
+                    if let mood = update.mood, !mood.isEmpty, mood != memo.mood {
+                        memo.mood = mood
+                        thisMemoChanged = true
+                    }
+                    if !update.entityMentions.isEmpty {
+                        let merged = Array(Set(memo.entityMentions + update.entityMentions)).sorted()
+                        if merged != memo.entityMentions {
+                            memo.entityMentions = merged
+                            thisMemoChanged = true
+                        }
+                    }
+                    if let note = update.marginNote, !note.isEmpty, note != memo.marginNote {
+                        memo.marginNote = note
+                        thisMemoChanged = true
+                    }
+                    memos[idx] = memo
+                    if thisMemoChanged { changedCount += 1 }
+                }
+
+                return changedCount > 0 ? memos : nil
+            }
         } catch {
-            DayPageLogger.shared.error("applyMemoUpdates: failed to write raw file: \(error)")
-            // The batched write covers every changed memo, so on failure
-            // every "changed" memo is also failed. Record one URL per
-            // failed memo so the count in the breadcrumb matches.
-            failedUpdates = Array(repeating: rawURL, count: changedCount)
+            DayPageLogger.shared.error("applyMemoUpdates: mutate failed: \(error)")
+            // When the transform ran, the batched write covers every changed
+            // memo. If it never ran (read failure), all requested updates are
+            // considered failed, preserving the existing reporting contract.
+            let failureCount = changedCount > 0 ? changedCount : updates.count
+            failedUpdates = Array(repeating: rawURL, count: failureCount)
         }
 
         if !failedUpdates.isEmpty {
             SentryReporter.breadcrumb(
                 category: "compilation",
                 level: .warning,
-                message: "applyMemoUpdates partial failure (write): count=\(failedUpdates.count) files=\(failedUpdates.map(\.lastPathComponent))"
+                message: "applyMemoUpdates partial failure (mutate): count=\(failedUpdates.count) files=\(failedUpdates.map(\.lastPathComponent))"
             )
             return (updated: 0, failed: failedUpdates.count)
         }

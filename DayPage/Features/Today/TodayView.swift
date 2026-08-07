@@ -279,15 +279,9 @@ struct TodayView: View {
     /// to scroll to the top anchor after a new memo is added.
     @State private var timelineScrollProxy: ScrollViewProxy? = nil
 
-    // US-005: Tracks timeline scroll offset to activate the glass header bar.
-    // Becomes negative as the user scrolls down; < -8 triggers the frosted glass.
-    //
-    // Perf: NEVER read this value from the view body — every scroll frame would
-    // then invalidate the 3.8k-line TodayView and drop frames. Consumers read
-    // the derived, threshold-bucketed booleans below (`isTimelineScrolled`,
-    // `showScrollToTopButton`, `scrollProgressBucket`), which change O(1)
-    // times per scroll instead of O(60Hz).
-    @State private var timelineScrollOffset: CGFloat = 0
+    // US-005: Thresholded timeline scroll state. The raw offset is deliberately
+    // not stored: assigning it to @State on every frame invalidates this large
+    // view even when no rendered threshold has changed.
     /// True once the timeline has scrolled past 8pt — activates the glass
     /// header bar. Flips at most twice per scroll gesture.
     @State private var isTimelineScrolled: Bool = false
@@ -3140,7 +3134,7 @@ struct TodayView: View {
                         // quietly recedes as the finger travels — opacity/scale
                         // driven by the same bucketed offset the header glass
                         // uses (never the raw 60Hz value; see the
-                        // `timelineScrollOffset` property doc).
+                        // thresholded scroll state above).
                         orbHero
                             .opacity(heroFadeOpacity)
                             .scaleEffect(heroFadeScale, anchor: .top)
@@ -3304,10 +3298,8 @@ struct TodayView: View {
     /// PreferenceKey minY convention every threshold below was written for.
     ///
     /// Only threshold-bucketed state is stored so the view body invalidates
-    /// O(1) times per scroll instead of O(60Hz) — the raw value goes into
-    /// `timelineScrollOffset`, which no body path may read (see property doc).
+    /// O(1) times per scroll instead of O(60Hz).
     private func handleScrollOffset(_ value: CGFloat) {
-        timelineScrollOffset = value
         let scrolled = value < -8
         if scrolled != isTimelineScrolled { isTimelineScrolled = scrolled }
         let showTop = value < -240

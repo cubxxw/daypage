@@ -1,10 +1,81 @@
-.PHONY: tokens-build tokens-check
+SHELL := /bin/bash
+
+PYTHON ?= python3
+PNPM ?= pnpm
+SCHEME ?= DayPage
+PROJECT ?= DayPage.xcodeproj
+SIMULATOR_FALLBACK ?= iPhone 16
+DERIVED_DATA ?= build/DD
+
+.PHONY: \
+	doctor check check-agent check-scripts check-kit check-web check-mcp \
+	check-agentry check-localization check-tokens check-ios build-ios \
+	ci-secrets simulator-destination tokens-build tokens-check
+
+# Developer preflight: repository contracts plus the available local toolchain.
+doctor:
+	$(PYTHON) scripts/agent/doctor.py --root . --environment
+
+# Portable, non-Simulator merge gates. Use the scoped targets while iterating.
+check: check-agent check-scripts check-kit check-web check-mcp check-agentry check-localization check-tokens
+
+check-agent:
+	$(PYTHON) scripts/agent/doctor.py --root .
+	$(PYTHON) -m unittest discover -s scripts/agent -p 'test_*.py'
+
+check-scripts:
+	bash scripts/ci/run_script_tests.sh
+
+check-kit:
+	swift test --package-path DayPageKit
+
+check-web:
+	$(PNPM) web:lint
+	$(PNPM) web:typecheck
+
+check-mcp:
+	$(PNPM) --filter daypage-mcp-server test
+
+check-agentry:
+	cd agentry && go test ./...
+	cd agentry && go vet ./...
+	cd agentry && go build ./...
+
+check-localization:
+	bash scripts/check_localization_parity.sh
 
 # Regenerate web CSS + iOS Swift tokens from design-tokens/tokens.json.
 tokens-build:
 	node --experimental-strip-types design-tokens/generators/to-css.ts
 	node --experimental-strip-types design-tokens/generators/to-swift.ts
 
+check-tokens: tokens-check
+
 # CI guard: regenerate and fail if the working tree is dirty.
 tokens-check: tokens-build
 	git diff --exit-code -- web/src/app/globals.css DayPage/App/DSTokens.swift
+
+# Direct CI helpers; ci-secrets always writes a non-sensitive placeholder.
+ci-secrets:
+	bash scripts/ci/write_placeholder_secrets.sh
+
+simulator-destination:
+	@xcrun simctl list devices available --json \
+		| $(PYTHON) scripts/ci/select_simulator.py --format destination --fallback-name "$(SIMULATOR_FALLBACK)"
+
+check-ios:
+	@test -f DayPage/Config/GeneratedSecrets.swift || bash scripts/ci/write_placeholder_secrets.sh
+	@DEST="$$(xcrun simctl list devices available --json \
+		| $(PYTHON) scripts/ci/select_simulator.py --format destination --fallback-name "$(SIMULATOR_FALLBACK)")"; \
+	echo "Using simulator: $$DEST"; \
+	xcodebuild test -project "$(PROJECT)" -scheme "$(SCHEME)" \
+		-destination "$$DEST" -configuration Debug CODE_SIGNING_ALLOWED=NO
+
+build-ios:
+	@test -f DayPage/Config/GeneratedSecrets.swift || bash scripts/ci/write_placeholder_secrets.sh
+	@DEST="$$(xcrun simctl list devices available --json \
+		| $(PYTHON) scripts/ci/select_simulator.py --format destination --fallback-name "$(SIMULATOR_FALLBACK)")"; \
+	echo "Using simulator: $$DEST"; \
+	xcodebuild -project "$(PROJECT)" -scheme "$(SCHEME)" \
+		-destination "$$DEST" CODE_SIGNING_ALLOWED=NO \
+		COMPILER_CONTENT_PROTECTION=NO -derivedDataPath "$(DERIVED_DATA)" build
