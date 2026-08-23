@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DayPage · 回执 Artifact 三态</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EDE7DC; --ink:#221E18; --ink-2:#4B4238; --muted:#A5967F; --brown:#8A6F4E;
+    --accent:#C0631F; --accent-soft:#F0E4D6; --hair:#E7DECF; --faded:#ECE4D6;
+    --card:#FFFFFF; --card-sh:0 6px 20px rgba(70,50,25,.06);
+    --ok:#5B8A5A; --ok-soft:#E7F0E4;
+    --serif:'Newsreader',Georgia,'Songti SC',serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px; margin:0 auto; padding:48px 24px 90px}
+  h1{font-family:var(--serif); font-weight:600; font-size:32px; margin:0 0 12px; letter-spacing:-.01em}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 12px}
+  .lede{font-size:16.5px; color:var(--ink-2); max-width:70ch; margin:0}
+  .mono{font-family:var(--mono)}
+
+  /* axis strip */
+  .axis{display:flex; flex-wrap:wrap; gap:0; margin:28px 0 6px; border:1px solid var(--hair); border-radius:14px; overflow:hidden; background:#FBF7F0}
+  .axis .seg{flex:1; min-width:210px; padding:14px 16px; border-right:1px solid var(--hair)}
+  .axis .seg:last-child{border-right:none}
+  .axis .k{font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+  .axis .t{font-family:var(--serif); font-size:16px; font-weight:600; margin:3px 0 3px}
+  .axis .d{font-size:12.5px; color:var(--ink-2)}
+  .axis .seg.a .t{color:var(--brown)} .axis .seg.b .t{color:var(--ink)} .axis .seg.c .t{color:var(--accent)}
+  .axisnote{font-family:var(--mono); font-size:11px; color:var(--muted); margin:6px 2px 0}
+
+  .stage{display:flex; flex-wrap:wrap; gap:34px; margin-top:36px; align-items:flex-start; justify-content:center}
+  .col{display:flex; flex-direction:column; align-items:center; width:318px}
+  .col .lbl{font-family:var(--mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase; margin-bottom:14px; padding:5px 12px; border-radius:999px}
+  .lbl.a{background:#EAE0CF; color:var(--brown)} .lbl.b{background:#E4EAE2; color:var(--ok)} .lbl.c{background:var(--accent); color:#fff}
+  .cap{margin-top:16px; width:300px}
+  .cap h3{font-family:var(--serif); font-size:17px; margin:0 0 5px; font-weight:600}
+  .cap p{font-size:13px; color:var(--ink-2); margin:0}
+  .cap .hl{color:var(--accent); font-weight:600}
+
+  /* phone */
+  .phone{width:318px; height:668px; background:#17140F; border-radius:46px; padding:11px; box-shadow:0 3px 8px rgba(0,0,0,.14),0 30px 56px rgba(50,35,18,.24); flex:none; position:relative}
+  .screen{width:100%; height:100%; border-radius:36px; overflow:hidden; position:relative; display:flex; flex-direction:column; background:linear-gradient(180deg,#F7F3EC 0%,#F1EBE1 100%)}
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%); width:96px; height:27px; background:#17140F; border-radius:16px; z-index:30}
+  .sb{height:46px; flex:none; display:flex; align-items:flex-end; justify-content:space-between; padding:0 24px 6px; font-size:13px; font-weight:600}
+  .sb .rt{display:flex; gap:6px; align-items:center; font-size:12px}
+  .batt{background:#E6B84B; color:#3a2f10; font-size:9px; font-weight:700; border-radius:3px; padding:0 3px}
+  .hdr{display:flex; align-items:center; justify-content:space-between; padding:4px 18px 12px; flex:none}
+  .circ{width:34px; height:34px; border-radius:50%; background:#EFE7DA; display:flex; align-items:center; justify-content:center; color:var(--brown)}
+  .hdr .d{font-family:var(--serif); font-size:20px; font-weight:500}
+  .feed{flex:1; overflow-y:auto; padding:2px 16px 26px}
+  .feed::-webkit-scrollbar{width:0}
+
+  .sess{display:flex; align-items:center; gap:10px; margin:6px 4px 12px; font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--brown)}
+  .sess .ln{flex:1; height:1px; background:var(--hair)} .sess .ct{color:var(--muted)}
+
+  /* source memo (page-like, borderless) */
+  .src{padding:2px 4px 14px; border-bottom:1px solid var(--hair); margin-bottom:14px}
+  .src .body{font-size:15px; color:var(--ink); line-height:1.6}
+  .src .tm{font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:8px}
+
+  /* ambient receipt chip */
+  .receipt{margin-top:11px}
+  .chip{display:inline-flex; align-items:center; gap:8px; border:1px dashed var(--hair); background:rgba(192,99,31,.05); color:var(--brown); border-radius:9px; padding:6px 11px; font-family:var(--mono); font-size:10.5px; cursor:pointer; user-select:none}
+  .chip .arw{color:var(--accent)}
+  .chip .prog{display:inline-flex; align-items:center; gap:5px}
+  .chip .bar{width:34px; height:4px; border-radius:2px; background:#E7DECF; overflow:hidden; position:relative}
+  .chip .bar i{position:absolute; left:0; top:0; bottom:0; width:33%; background:var(--accent)}
+  .chip .caret{color:var(--muted); transition:transform .2s}
+  .chip.open .caret{transform:rotate(180deg)}
+
+  /* expanded provenance trail */
+  .trail{display:none; margin-top:10px; padding:12px 12px 12px 14px; background:#FBF7F0; border:1px solid var(--hair); border-radius:12px}
+  .chip.open + .trail{display:block}
+  .trail .tt{font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:9px}
+  .node{display:flex; gap:10px; position:relative; padding-bottom:11px}
+  .node:last-of-type{padding-bottom:2px}
+  .node .rail{width:14px; flex:none; display:flex; flex-direction:column; align-items:center}
+  .node .dot{width:9px; height:9px; border-radius:50%; border:2px solid var(--accent); background:#fff; margin-top:3px}
+  .node .dot.done{background:var(--ok); border-color:var(--ok)}
+  .node .dot.src{background:var(--brown); border-color:var(--brown)}
+  .node .line{flex:1; width:2px; background:var(--hair); margin:2px 0}
+  .node .c{font-size:12.5px; color:var(--ink-2); line-height:1.45}
+  .node .c b{color:var(--ink)}
+  .node .c .s{font-family:var(--mono); font-size:9.5px; color:var(--muted); display:block; margin-top:1px}
+  .acts{display:flex; gap:8px; margin-top:6px}
+  .act{font-family:var(--mono); font-size:10px; padding:6px 10px; border-radius:8px; border:1px solid var(--hair); color:var(--ink-2)}
+  .act.warn{color:var(--accent); border-color:#E5CDB6}
+
+  /* plain memo (no receipt) */
+  .vrow{display:flex; align-items:center; gap:11px; padding:12px 4px; border-bottom:1px solid var(--hair)}
+  .play{width:30px; height:30px; border-radius:50%; background:var(--accent-soft); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:11px; flex:none}
+  .vrow .one{flex:1; font-size:13.5px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .vrow .tm{font-family:var(--mono); font-size:10px; color:var(--muted)}
+
+  /* ACTIVITY timeline */
+  .subhdr{padding:0 4px 12px; border-bottom:1px solid var(--hair); margin-bottom:6px}
+  .subhdr .h{font-family:var(--serif); font-size:19px; font-weight:600}
+  .subhdr .s{font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:.06em; margin-top:2px}
+  .arow{display:flex; gap:11px; padding:13px 4px; border-bottom:1px solid var(--hair)}
+  .arow .at{font-family:var(--mono); font-size:10px; color:var(--muted); width:38px; flex:none; padding-top:2px}
+  .arow .ag{width:26px; height:26px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; font-size:12px}
+  .ag.todo{background:var(--accent-soft); color:var(--accent)} .ag.site{background:#E9E9F5; color:#4B4DA6}
+  .ag.compile{background:#E4F1EE; color:#0E7C6B} .ag.notify{background:#EEE9E0; color:var(--brown)} .ag.done{background:var(--ok-soft); color:var(--ok)}
+  .arow .ax{flex:1}
+  .arow .ax .m{font-size:13px; color:var(--ink)}
+  .arow .ax .sub{font-family:var(--mono); font-size:9.5px; color:var(--muted); margin-top:3px}
+  .arow .ax .sub .lk{color:var(--accent)}
+  .apill{font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:999px; align-self:flex-start; margin-top:2px}
+  .apill.live{background:var(--ok-soft); color:var(--ok)} .apill.wait{background:#F5EAD9; color:var(--brown)}
+
+  /* INTERRUPT */
+  .dim{position:absolute; inset:0; background:rgba(30,22,12,.28); z-index:10}
+  .notice{position:absolute; left:14px; right:14px; bottom:16px; z-index:12; background:#fff; border-radius:22px; padding:16px; box-shadow:0 -8px 40px rgba(40,25,10,.22); border:1px solid var(--hair)}
+  .notice .flag{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); display:flex; align-items:center; gap:6px; margin-bottom:11px}
+  .preview{border:1px solid var(--hair); border-radius:12px; overflow:hidden; margin-bottom:12px}
+  .prev-bar{background:#F3EEE6; padding:6px 9px; display:flex; gap:5px; align-items:center; border-bottom:1px solid var(--hair)}
+  .prev-bar i{width:8px; height:8px; border-radius:50%; background:#D9CFBE}
+  .prev-bar .u{font-family:var(--mono); font-size:9px; color:var(--muted); margin-left:6px}
+  .prev-img{height:96px; background:linear-gradient(135deg,#2A3A52,#5C7A9E); position:relative}
+  .prev-img .cap2{position:absolute; left:12px; bottom:10px; color:#fff; font-family:var(--serif); font-size:15px; text-shadow:0 1px 4px rgba(0,0,0,.4)}
+  .prev-img .moon{position:absolute; right:16px; top:14px; width:24px; height:24px; border-radius:50%; background:#F4EBD0; box-shadow:0 0 20px #F4EBD0}
+  .notice .nt{font-family:var(--serif); font-size:17px; font-weight:600; margin-bottom:3px}
+  .notice .ns{font-size:12.5px; color:var(--ink-2); margin-bottom:14px}
+  .notice .ns b{color:var(--accent)}
+  .btns{display:flex; gap:9px}
+  .btn{flex:1; text-align:center; padding:11px; border-radius:12px; font-size:13.5px; font-weight:600}
+  .btn.primary{background:var(--accent); color:#fff}
+  .btn.ghost{background:#F5F0E8; color:var(--ink-2); border:1px solid var(--hair)}
+  .notice .meta{font-family:var(--mono); font-size:9.5px; color:var(--muted); text-align:center; margin-top:10px}
+
+  /* faint feed behind interrupt */
+  .ghost{padding:2px 4px}
+  .ghost .g{height:52px; background:rgba(255,255,255,.5); border-radius:16px; margin-bottom:11px}
+
+  /* principles */
+  .princ{max-width:1000px; margin:44px auto 0; display:grid; grid-template-columns:repeat(2,1fr); gap:12px}
+  @media(max-width:700px){.princ{grid-template-columns:1fr}}
+  .pc{background:#FBF7F0; border:1px solid var(--hair); border-radius:13px; padding:14px 16px}
+  .pc .n{font-family:var(--mono); font-size:10px; color:var(--accent); letter-spacing:.06em}
+  .pc .t{font-size:14px; color:var(--ink-2); margin-top:5px}
+  .pc .t b{color:var(--ink)}
+
+  footer{max-width:1000px; margin:40px auto 0; padding-top:22px; border-top:1px solid var(--hair); color:var(--muted); font-size:13.5px}
+  footer b{color:var(--ink-2)}
+  .historical-note{max-width:1000px;margin:18px 0 0;padding:14px 16px;border:1px solid var(--hair);border-radius:10px;background:rgba(255,255,255,.45);color:var(--muted);font-size:13px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">DayPage · Receipt Artifacts</p>
+  <h1>动作类 artifact:回执怎么显示</h1>
+  <p class="lede">核心判据一根轴:<b>权重 = 你必须对它做多少。</b> 纯 FYI 近乎隐形,需要审计去时间线,需要你拍板才占显位。三态如下——第一屏的回执 chip <b>可以点开</b>看溯源链。</p>
+  <p class="historical-note"><b>历史设计探索。</b>不是当前 Artifact 模型或实现要求。地点、转写、站点与外部动作均为匿名化示例,不来自用户 vault。</p>
+
+  <div class="axis">
+    <div class="seg a"><div class="k">FYI · 只是发生了</div><div class="t">① Ambient chip</div><div class="d">贴在源卡上的一行,默认态,绝大多数回执就该只是这个</div></div>
+    <div class="seg b"><div class="k">审计 · 想看才看</div><div class="t">② Activity 时间线</div><div class="d">专门的「动态」surface,列出所有 effect,不进主日记流</div></div>
+    <div class="seg c"><div class="k">决定 · 需你行动</div><div class="t">③ Interrupt</div><div class="d">只有要你确认/拍板时才占显位,可 dismiss、有 TTL</div></div>
+  </div>
+  <p class="axisnote">只有碰到外部世界的 effect 才有回执 · 编译出内容(daily / 实体 / insight)是隐形的,直接变成 feed 里的内容,不进这套</p>
+
+  <div class="stage">
+
+    <!-- 1: ambient chip in feed -->
+    <div class="col">
+      <div class="lbl a">① 贴源卡 · 可点开</div>
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="sb"><span>20:27</span><span class="rt">5Ga <span class="batt">15</span></span></div>
+          <div class="hdr"><div class="circ">☰</div><div class="d">Jul 22</div><div class="circ">⌕</div></div>
+          <div class="feed">
+            <div class="sess">下午<span class="ln"></span><span class="ct">2 条</span></div>
+
+            <div class="src">
+              <div class="body">和 A 聊了播客可行性,记得整理成报告大纲</div>
+              <div class="tm">15·27 · 文字</div>
+              <div class="receipt">
+                <div class="chip" onclick="this.classList.toggle('open')">
+                  <span class="arw">⤷</span> 已建 3 待办 · 滴答
+                  <span class="prog"><span class="bar"><i></i></span>1/3</span>
+                  <span class="caret">⌄</span>
+                </div>
+                <div class="trail">
+                  <div class="tt">溯源链 · 这条 memo 触发了什么</div>
+                  <div class="node"><div class="rail"><div class="dot src"></div><div class="line"></div></div><div class="c"><b>源</b> · 这条 memo<span class="s">15·27 · 「报告大纲」</span></div></div>
+                  <div class="node"><div class="rail"><div class="dot"></div><div class="line"></div></div><div class="c"><b>daily-todo</b> 抽取 3 项<span class="s">skill · prompt 档 · 幂等</span></div></div>
+                  <div class="node"><div class="rail"><div class="dot done"></div><div class="line"></div></div><div class="c"><b>dispatch-ticktick</b> 已同步 · 1/3 完成<span class="s">回读滴答 · 上次同步 20:00</span></div></div>
+                  <div class="node"><div class="rail"><div class="dot"></div></div><div class="c"><b>通知</b> 已发<span class="s">20:00 · ambient</span></div></div>
+                  <div class="acts"><span class="act warn">撤销同步</span><span class="act">重新生成</span><span class="act">打开滴答</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vrow">
+              <span class="play">▶</span>
+              <span class="one">傍晚和朋友去了海边小岛…</span>
+              <span class="tm">00:34</span>
+            </div>
+            <div style="padding:12px 4px; font-size:14.5px; color:var(--ink); border-bottom:1px solid var(--hair)">我觉得我挺渣的,去一个城市暧昧一下,然后又抽离<div class="tm" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:7px">10·44 · 文字</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><h3>回执住在它来的地方</h3><p>不做独立卡抢 feed 位——长成源卡的<span class="hl">一条小尾巴</span>。点开才展溯源链 + 撤销/重来。</p></div>
+    </div>
+
+    <!-- 2: activity timeline -->
+    <div class="col">
+      <div class="lbl b">② 动态 · 审计</div>
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="sb"><span>20:27</span><span class="rt">5Ga <span class="batt">15</span></span></div>
+          <div class="hdr"><div class="circ">‹</div><div class="d" style="font-size:18px">动态</div><div class="circ">⋯</div></div>
+          <div class="feed">
+            <div class="subhdr"><div class="h">Activity</div><div class="s">只列碰了外部世界的 effect · 可选审计 · 非必经</div></div>
+            <div class="arow"><span class="at">20:00</span><span class="ag todo">✓</span><span class="ax"><div class="m">建 3 条待办 → 滴答</div><div class="sub">来自 <span class="lk">「报告大纲」</span> · 1/3 完成</div></span><span class="apill live">LIVE</span></div>
+            <div class="arow"><span class="at">19:30</span><span class="ag site">◈</span><span class="ax"><div class="m">生成游记站点 · 海边小岛那晚</div><div class="sub">来自 <span class="lk">3 条语音</span> · 待你确认发布</div></span><span class="apill wait">待发布</span></div>
+            <div class="arow"><span class="at">20:00</span><span class="ag notify">◔</span><span class="ax"><div class="m">通知已发 · 今日 3 条待办</div><div class="sub">ambient · 无需回应</div></span></div>
+            <div class="arow"><span class="at">昨天</span><span class="ag done">↺</span><span class="ax"><div class="m">回写 2 条待办完成</div><div class="sub">滴答 → vault · 状态同步</div></span></div>
+            <div style="margin:14px 2px 2px; padding:11px 13px; background:#F3EEE6; border:1px dashed var(--hair); border-radius:11px; font-size:11.5px; color:var(--brown); line-height:1.55">内容不进这里 —— <b style="color:var(--ink)">daily · 实体 · insight</b> 是编译出的内容,<b style="color:var(--accent)">下滑主流的日卡一步直达</b>,不用来这找。</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><h3>只装外部 effect · 可选</h3><p>只列碰了滴答/站点/通知的动作。<span class="hl">读 daily 不走这</span>——下滑主流日卡直达,一步。</p></div>
+    </div>
+
+    <!-- 3: interrupt -->
+    <div class="col">
+      <div class="lbl c">③ 需决定 · Interrupt</div>
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="sb"><span>20:27</span><span class="rt">5Ga <span class="batt">15</span></span></div>
+          <div class="hdr"><div class="circ">☰</div><div class="d">Jul 22</div><div class="circ">⌕</div></div>
+          <div class="feed ghost"><div class="g"></div><div class="g"></div><div class="g" style="height:80px"></div><div class="g"></div></div>
+          <div class="dim"></div>
+          <div class="notice">
+            <div class="flag">✦ 需要你拍板 · 对外动作</div>
+            <div class="preview">
+              <div class="prev-bar"><i></i><i></i><i></i><span class="u">daypage.site/haiou-island</span></div>
+              <div class="prev-img"><div class="moon"></div><div class="cap2">海边小岛的那个晚上</div></div>
+            </div>
+            <div class="nt">给你生成了海边小岛那晚的游记站点</div>
+            <div class="ns">要发布吗?<b>只有你确认才对外</b>。</div>
+            <div class="btns"><span class="btn ghost">先存着</span><span class="btn primary">发布</span></div>
+            <div class="meta">来自 3 条语音 · 幂等可重来 · 今日内有效</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><h3>只有决定才配打断</h3><p>草稿待审、站点待发布——<span class="hl">对外/动作类永不自动落位</span>,给显位 + 明确 CTA,可 dismiss。</p></div>
+    </div>
+
+  </div>
+
+  <div class="princ">
+    <div class="pc"><div class="n">贴源 · anchored</div><div class="t"><b>回执 provenance-linked 到触发它的 memo/命令</b>,做成 chip 尾巴,不漂浮成独立卡。</div></div>
+    <div class="pc"><div class="n">活状态 · live</div><div class="t"><b>反映不快照</b>:回读滴答显示 1/3、站点显示 live;文件存外部 id,状态靠 index,失败则优雅降级。</div></div>
+    <div class="pc"><div class="n">幂等 · idempotent</div><div class="t"><b>每晚重跑就地更新同一枚 chip</b>,不刷屏出第 N 张回执;带 source-id,可撤销/重来。</div></div>
+    <div class="pc"><div class="n">安静 · quiet</div><div class="t"><b>effect 要被感到,不要被宣告</b>。默认 ①,别把安静日记变成聒噪仪表盘。</div></div>
+  </div>
+
+  <footer>
+    <p><b>一句话:</b>回执不是内容,是收据——所以它<b>贴着源卡当 chip、兜底进 Activity 时间线、只有要你决定时才 interrupt</b>。这三态就是上一轮 surface/variant/resolver 的直接应用:chip variant 锚源卡 + 一个 Activity surface + 偶尔一个高优先 bid。</p>
+    <p>方向 OK 的话,①(源卡 chip + 溯源链)最该先落进 <span class="mono">TodayView</span> 的 memo 卡。要我把 <span class="mono">Artifact</span> 里 <span class="mono">kind: receipt</span> 的字段(provenance · externalRef · state · lifecycle)连同渲染 variant 一起写成类型草案吗?</p>
+  </footer>
+</div>
+</body>
+</html>

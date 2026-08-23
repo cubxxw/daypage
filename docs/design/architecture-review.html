@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DayPage 架构设计评审 · 暂存区 · Skills · 存储 · Feed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBFAF7; --surface:#FFFFFF; --ink:#1C1B19; --ink-2:#4A473F; --muted:#8B877C;
+    --line:#E7E3DA; --line-2:#D8D3C7;
+    --teal:#0E7C6B; --teal-tint:#E4F1EE; --teal-ink:#0A5648;
+    --amber:#B5652C; --amber-tint:#F6E9DD; --amber-ink:#7E4318;
+    --indigo:#4B4DA6; --indigo-tint:#E9E9F5; --indigo-ink:#33356F;
+    --slate:#5C6672; --slate-tint:#ECEFF2;
+    --radius:14px; --shadow:0 1px 2px rgba(28,27,25,.04),0 8px 24px rgba(28,27,25,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Inter","Space Grotesk",-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:16px; line-height:1.72; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:900px; margin:0 auto; padding:56px 24px 96px}
+  h1,h2,h3{font-family:"Space Grotesk","Inter",sans-serif; line-height:1.25; letter-spacing:-.01em}
+  .mono{font-family:"JetBrains Mono",monospace}
+
+  /* Header */
+  header.doc{border-bottom:1px solid var(--line); padding-bottom:28px; margin-bottom:8px}
+  .eyebrow{font-family:"JetBrains Mono",monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); margin:0 0 12px}
+  h1{font-size:34px; margin:0 0 14px; font-weight:600}
+  .lede{font-size:18px; color:var(--ink-2); margin:0; max-width:66ch}
+  .meta{display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:20px; font-family:"JetBrains Mono",monospace; font-size:12.5px; color:var(--muted)}
+  .meta b{color:var(--ink-2); font-weight:500}
+
+  /* Sections */
+  section{margin-top:52px; scroll-margin-top:24px}
+  .kicker{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--muted); letter-spacing:.1em}
+  h2{font-size:24px; margin:6px 0 6px; font-weight:600}
+  h2 .num{color:var(--line-2); margin-right:10px; font-weight:500}
+  .sub{color:var(--ink-2); margin:0 0 22px; max-width:70ch}
+  p{margin:0 0 16px}
+  strong{color:var(--ink); font-weight:600}
+  .accent-t{color:var(--teal-ink)} .accent-a{color:var(--amber-ink)} .accent-i{color:var(--indigo-ink)}
+
+  /* Thesis banner */
+  .thesis{background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:var(--radius); padding:26px 28px; box-shadow:var(--shadow)}
+  .thesis .big{font-family:"Space Grotesk",sans-serif; font-size:22px; font-weight:600; margin:0 0 10px; line-height:1.4}
+  .thesis p:last-child{margin-bottom:0}
+
+  /* Layered diagram */
+  .diagram{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow)}
+  .layer{border:1px solid var(--line-2); border-radius:12px; padding:16px 18px; margin:0}
+  .layer + .arrowY{display:flex; justify-content:center; align-items:center; color:var(--muted); height:30px; font-size:18px}
+  .layer .lbl{font-family:"JetBrains Mono",monospace; font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:8px}
+  .layer .note{color:var(--muted); font-size:13px; font-family:"Inter",sans-serif; text-transform:none; letter-spacing:0}
+  .chips{display:flex; flex-wrap:wrap; gap:8px}
+  .chip{font-family:"JetBrains Mono",monospace; font-size:12.5px; background:#fff; border:1px solid var(--line-2); border-radius:999px; padding:5px 12px; color:var(--ink-2)}
+  .layer.in{background:var(--amber-tint); border-color:#EAD3BE} .layer.in .lbl{color:var(--amber-ink)} .layer.in .chip{border-color:#E3C5AC}
+  .layer.contract{background:#fff; border-color:var(--line-2)} .layer.contract .lbl{color:var(--ink)}
+  .layer.transform{background:var(--teal-tint); border-color:#CBE4DE} .layer.transform .lbl{color:var(--teal-ink)} .layer.transform .chip{border-color:#BFDDD6}
+  .layer.out{background:var(--indigo-tint); border-color:#D2D2ED} .layer.out .lbl{color:var(--indigo-ink)} .layer.out .chip{border-color:#CACAE6}
+  .layer.db{background:var(--slate-tint); border-color:#D5DBE0; border-style:dashed} .layer.db .lbl{color:var(--slate)}
+  .sidecar{display:flex; gap:12px; align-items:stretch}
+  .sidecar .main{flex:1}
+  .sidecar .side{width:38%; display:flex; align-items:center; justify-content:center; text-align:center}
+  .rebuild{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--muted); writing-mode:horizontal-tb}
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block}
+  .dot.a{background:var(--amber)} .dot.t{background:var(--teal)} .dot.i{background:var(--indigo)} .dot.s{background:var(--slate)}
+
+  /* Family cards */
+  .grid3{display:grid; grid-template-columns:1fr; gap:16px}
+  @media(min-width:720px){.grid3{grid-template-columns:repeat(3,1fr)}}
+  .fam{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow)}
+  .fam h3{font-size:16px; margin:0 0 4px}
+  .fam .tag{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase}
+  .fam.t{border-top:3px solid var(--teal)} .fam.t .tag{color:var(--teal-ink)}
+  .fam.a{border-top:3px solid var(--amber)} .fam.a .tag{color:var(--amber-ink)}
+  .fam.i{border-top:3px solid var(--indigo)} .fam.i .tag{color:var(--indigo-ink)}
+  .fam p{font-size:14.5px; color:var(--ink-2); margin:8px 0 0}
+  .fam code{font-family:"JetBrains Mono",monospace; font-size:12.5px; background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:var(--teal-ink)}
+
+  /* Callout / decision block */
+  .decision{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow)}
+  .decision .head{padding:14px 20px; background:var(--teal-tint); border-bottom:1px solid #CBE4DE; font-weight:600; color:var(--teal-ink); font-family:"Space Grotesk",sans-serif; display:flex; align-items:center; gap:10px}
+  .decision .body{padding:20px}
+  .decision .body p:last-child{margin-bottom:0}
+  .badge{font-family:"JetBrains Mono",monospace; font-size:11px; padding:2px 8px; border-radius:6px; background:#fff; border:1px solid #CBE4DE; color:var(--teal-ink)}
+
+  /* Table */
+  table{width:100%; border-collapse:collapse; margin:18px 0 0; font-size:14.5px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden}
+  th,td{text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-family:"JetBrains Mono",monospace; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--bg)}
+  tr:last-child td{border-bottom:none}
+  td .pill{font-family:"JetBrains Mono",monospace; font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap}
+  .pill.file{background:var(--amber-tint); color:var(--amber-ink)}
+  .pill.db{background:var(--slate-tint); color:var(--slate)}
+
+  /* Feed mock */
+  .home{display:grid; grid-template-columns:1fr; gap:16px}
+  @media(min-width:720px){.home{grid-template-columns:1fr 1fr}}
+  .zone{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
+  .zone .ztag{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); display:flex; justify-content:space-between; margin-bottom:12px}
+  .zone.today .ztag{color:var(--amber-ink)}
+  .zone.stream .ztag{color:var(--teal-ink)}
+  .capture{border:1.5px dashed var(--line-2); border-radius:10px; padding:12px 14px; color:var(--muted); font-size:14px; margin-bottom:12px}
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; background:#fff}
+  .card:last-child{margin-bottom:0}
+  .card .ct{font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; margin-bottom:5px}
+  .card .cx{font-size:14px; color:var(--ink-2)}
+  .ct.daily{color:var(--teal-ink)} .ct.entity{color:var(--indigo-ink)} .ct.onthis{color:var(--amber-ink)} .ct.todo{color:var(--slate)} .ct.insight{color:var(--teal-ink)}
+  .zend{text-align:center; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--line-2); margin-top:6px}
+
+  /* Roadmap */
+  .road{position:relative; margin-top:8px; padding-left:26px}
+  .road::before{content:""; position:absolute; left:7px; top:6px; bottom:6px; width:2px; background:var(--line)}
+  .phase{position:relative; margin-bottom:20px}
+  .phase::before{content:""; position:absolute; left:-24px; top:4px; width:14px; height:14px; border-radius:50%; background:#fff; border:2.5px solid var(--teal)}
+  .phase.now::before{background:var(--teal)}
+  .phase h4{margin:0 0 4px; font-size:15.5px; font-family:"Space Grotesk",sans-serif; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+  .phase h4 .p{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--muted)}
+  .phase h4 .flag{font-family:"JetBrains Mono",monospace; font-size:10px; padding:1px 7px; border-radius:5px; background:var(--amber-tint); color:var(--amber-ink)}
+  .phase p{margin:0; font-size:14.5px; color:var(--ink-2)}
+
+  /* Lists inside prose */
+  ul.clean{list-style:none; padding:0; margin:6px 0 16px}
+  ul.clean li{position:relative; padding-left:22px; margin-bottom:9px; color:var(--ink-2)}
+  ul.clean li::before{content:"→"; position:absolute; left:0; color:var(--teal); font-family:"JetBrains Mono",monospace}
+  ul.clean li b{color:var(--ink)}
+
+  /* Open questions */
+  .oq{background:var(--surface); border:1px dashed var(--line-2); border-radius:var(--radius); padding:8px 22px}
+  .oq details{border-bottom:1px solid var(--line); padding:12px 0}
+  .oq details:last-child{border-bottom:none}
+  .oq summary{cursor:pointer; font-weight:600; font-family:"Space Grotesk",sans-serif; font-size:15px; color:var(--ink); list-style:none; display:flex; gap:10px; align-items:center}
+  .oq summary::before{content:"?"; font-family:"JetBrains Mono",monospace; color:var(--amber-ink); background:var(--amber-tint); border-radius:6px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; flex:none}
+  .oq summary::-webkit-details-marker{display:none}
+  .oq details p{margin:10px 0 2px 32px; font-size:14.5px; color:var(--ink-2)}
+
+  footer.doc{margin-top:64px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px}
+  footer.doc .mono{color:var(--ink-2)}
+  .historical-note{margin:20px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--muted);font-size:13px;line-height:1.6}
+  a{color:var(--teal-ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <p class="eyebrow">DayPage · Architecture Design Review</p>
+    <h1>暂存区、Skills、存储与 Feed</h1>
+    <p class="lede">把捕获与编译解耦,让手机只做轻量记录,让 AI 能力以可插拔的 skill 形式生长——这份文档整合我们几轮讨论的结论,供评审。</p>
+    <div class="meta">
+      <span><b>Date</b> 2026-07-22</span>
+      <span><b>Scope</b> 产品架构 / 存储 / 显示</span>
+      <span><b>Status</b> 待评审 (Draft for review)</span>
+      <span><b>后续流程</b> Issue → 评审 → ADR（如涉及架构）→ 实现</span>
+    </div>
+    <p class="historical-note"><b>历史设计探索。</b>这不是当前架构或实现计划。示例均已匿名化，仅用于评审；当前要求以 docs/README.md、GitHub issue、已接受 ADR、代码与测试为准。</p>
+  </header>
+
+  <!-- 0. Thesis -->
+  <section id="thesis">
+    <p class="kicker">00 · 核心原则</p>
+    <h2>它只做暂存,不做第二大脑</h2>
+    <div class="thesis">
+      <p class="big">「暂存 vs 第二大脑」不是一次产品分叉,而是「用户开了哪些 transform skill」的一个配置。</p>
+      <p>暂存区在中间:多入口零阻塞地把碎片写进来,不 block AI。想要清爽的人,把编译/抽取全部关掉,它就是一个极快的 fleeting inbox;想要沉淀的人,把 transform 管道打开,它才「长成」第二大脑。这样一来,你上次苦恼的<strong>「编译 wiki 管理成本高」</strong>被彻底化解——没被 promote 的条目自然衰减进 archive,你永远不必去 curate。</p>
+    </div>
+  </section>
+
+  <!-- 1. Layered architecture -->
+  <section id="arch">
+    <p class="kicker">01 · 分层架构</p>
+    <h2><span class="num">A.</span>暂存区居中,skills 是接管子</h2>
+    <p class="sub">整套地基是「文件 = 契约 = API」。三类管道分别负责「进来」「内部转化」「出去」,数据库作为可重建的旁路索引挂在契约层下面。</p>
+
+    <div class="diagram">
+      <div class="layer in">
+        <div class="lbl"><span class="dot a"></span>IN-PIPES · 多入口捕获 <span class="note">只写 raw · 零阻塞 · 捕获=安全默认,命令需显式触发</span></div>
+        <div class="chips"><span class="chip">iOS App</span><span class="chip">微信 bot</span><span class="chip">语音</span><span class="chip">分享 sheet</span><span class="chip">MCP client</span></div>
+      </div>
+      <div class="arrowY">↓&nbsp;&nbsp;capture / command</div>
+
+      <div class="layer contract">
+        <div class="sidecar">
+          <div class="main">
+            <div class="lbl"><span class="dot s" style="background:#1C1B19"></span>CONTRACT · 暂存 Vault <span class="note">Source of Truth · 可移植 · 人可读</span></div>
+            <div class="chips"><span class="chip">YAML front-matter + Markdown</span><span class="chip">vault/raw</span><span class="chip">vault/derived</span><span class="chip">vault/daily · weekly …</span></div>
+          </div>
+          <div class="side"><span class="rebuild">⇄ re-index<br>(可重建)</span></div>
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="layer db">
+        <div class="lbl"><span class="dot s"></span>DERIVED INDEX · SQLite <span class="note">永不同步 · 删了可从 vault 重建</span></div>
+        <div class="chips"><span class="chip">FTS5 全文</span><span class="chip">vector / embedding</span><span class="chip">entity · edge 图</span><span class="chip">feed 物化 · 已读态</span></div>
+      </div>
+      <div class="arrowY">↓</div>
+
+      <div class="layer transform">
+        <div class="lbl"><span class="dot t"></span>TRANSFORM-PIPES · 可选 · 内部 <span class="note">开关决定「暂存」还是「第二大脑」</span></div>
+        <div class="chips"><span class="chip">抽取 → 卡片 / 实体</span><span class="chip">编译 → wiki rollup(日→周→月 金字塔)</span></div>
+      </div>
+      <div class="arrowY">↓</div>
+
+      <div class="layer out">
+        <div class="lbl"><span class="dot i"></span>OUT-PIPES · 暂存 → 世界 <span class="note">对外动作前二次确认 · 幂等</span></div>
+        <div class="chips"><span class="chip">派发 → 滴答 / Apple 提醒</span><span class="chip">发布 → 站点 / 博客</span><span class="chip">导出 → Notion</span></div>
+      </div>
+    </div>
+    <p style="margin-top:16px">关键在于:<strong>微信 bot 不是新东西</strong>,它只是暂存区的又一个 MCP 客户端,和 iOS app 完全对等。整套是 <span class="accent-t">MCP 进、MCP 出</span>,skills 当胶水。</p>
+  </section>
+
+  <!-- 2. Skill families -->
+  <section id="skills">
+    <p class="kicker">02 · 三类 Skill 家族</p>
+    <h2><span class="num">B.</span>AI 能力的三种形状</h2>
+    <p class="sub">不要把日/周/月编译写成几个并列的 Swift service。它们是同一种 skill 的参数化——用声明式 recipe 表达差异。</p>
+    <div class="grid3">
+      <div class="fam t">
+        <span class="tag">编译类 · Compile</span>
+        <h3>时间窗 → 叙事 wiki</h3>
+        <p>日 / 周 / 月 / 年。差异只有四个:<b>输入层级 · 时间窗 · prompt 模板 · 落盘路径</b>(+ dedup key)。raw→daily→weekly 是<b>金字塔 rollup</b>,上层编译下层,而非每层重扫 raw。抽象成 <code>recipe</code> manifest。</p>
+      </div>
+      <div class="fam a">
+        <span class="tag">抽取/富化类 · Extract</span>
+        <h3>内容 → 类型化卡片</h3>
+        <p>现有 entity、mood,未来 book / expense / place / workout……<b>这才是「针对卡片灵活扩展的 skills」</b>。加一种卡片 = 加一个抽取 skill,不动主干。</p>
+      </div>
+      <div class="fam i">
+        <span class="tag">派发/发布类 · Dispatch</span>
+        <h3>暂存 → 外部世界</h3>
+        <p><b>生成器</b>(<code>daily-todo</code>)与 <b>sink</b>(<code>dispatch-ticktick</code> / <code>-reminders</code>)拆开:一个生成器、多个收件端,用户在配置里选。每个 task 带稳定 source id → <b>重跑是 update 不是重复</b>。</p>
+      </div>
+    </div>
+    <p style="margin-top:18px"><strong>输入 = 捕获 + 命令</strong>,靠一个意图路由统一:默认永远是<span class="accent-a">捕获</span>(拿不准就存);只有明确到不会误判的输入才路由到<span class="accent-t">命令</span>(编译 / 派发 / 发布)或问答。对外部 app 的写操作,首次必须二次确认——微信自由文本场景尤其重要。</p>
+  </section>
+
+  <!-- 3. Storage decision -->
+  <section id="storage">
+    <p class="kicker">03 · 存储决策</p>
+    <h2><span class="num">C.</span>文件是真相,数据库是可重建索引</h2>
+    <p class="sub">元信息的访问模式和正文完全不同,但不能动「文件=契约」的地基。答案是分清主从的混合方案。</p>
+
+    <div class="decision">
+      <div class="head"><span class="badge">DECISION</span> 文件 = Source of Truth · SQLite = 派生索引 · 只有文件同步</div>
+      <div class="body">
+        <p>杀手级好处在你的多端/游牧场景:<strong>只有文件同步,数据库永不同步。</strong> 每台设备从同步下来的 vault 各自重建自己的 SQLite。于是<span class="accent-t">永远没有数据库合并冲突</span>,只需要 merge Markdown——而 Markdown 天生 diff 友好,同步复杂度直接砍半。</p>
+        <p style="margin-bottom:0">这与仓库宪法中的本地优先、文件为真相原则并不冲突:SQLite 在此仅是<strong>待讨论的缓存层提案</strong>,不是已接受的持久化决定。graph 可考虑 <span class="mono">entity / mention / edge</span> 等派生表,但必须经 issue 与 ADR 评审。</p>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th style="width:34%">数据</th><th style="width:22%">存放</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>date · source · mood · entityMentions · tags · <span class="mono">source_hash</span> · 派发引用</td><td><span class="pill file">文件 YAML</span></td><td>权威、该随内容走、人可编辑</td></tr>
+        <tr><td>倒排 / FTS 全文索引</td><td><span class="pill db">SQLite</span></td><td>为查询而生,可从 vault 重建</td></tr>
+        <tr><td>entity↔memo 邻接 · 图的边</td><td><span class="pill db">SQLite</span></td><td>graph 视图查询,派生</td></tr>
+        <tr><td>embedding / 向量</td><td><span class="pill db">SQLite</span></td><td>大、二进制、频繁 churn,别进文件;重算即可</td></tr>
+        <tr><td>已读态 · feed 排序物化 · on-this-day 预计算</td><td><span class="pill db">SQLite</span></td><td>易变、设备本地、可丢</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:16px"><strong>一句话划线:</strong> 权威的进文件,易变 / 派生 / 为性能的进 DB。写入永远单向——<span class="accent-t">先写文件,再 re-index</span>,绝不产生「只在 DB 里、又很重要」的状态。</p>
+  </section>
+
+  <!-- 4. Feed / display -->
+  <section id="feed">
+    <p class="kicker">04 · 显示与 Feed</p>
+    <h2><span class="num">D.</span>刷的是编译产物,不是 raw</h2>
+    <p class="sub">你自己 dump 的原始记录没必要回头再刷。值得刷的是被转化后的东西——feed 就是 transform-pipe 输出的渲染层,这也给 AI 编译找到了归宿。</p>
+
+    <div class="home">
+      <div class="zone today">
+        <div class="ztag"><span>上区 · 今天 / Write-first</span><span>现在 · 热</span></div>
+        <div class="capture">＋ 随手记一条…（捕获框,零阻塞）</div>
+        <div class="card"><div class="ct todo">memo · 09:12</div><div class="cx">和 A 聊了播客可行性,记得整理成报告大纲</div></div>
+        <div class="card" style="border-style:dashed;color:var(--muted)"><div class="ct daily">daily · 编译中</div><div class="cx" style="color:var(--muted)">今晚整理 → 落地后原地 materialize</div></div>
+      </div>
+      <div class="zone stream">
+        <div class="ztag"><span>下区 · 流 / Resurfacing</span><span>值得再看什么</span></div>
+        <div class="card"><div class="ct onthis">on this day · 去年今日</div><div class="cx">一条被遗忘的 idea 重新浮现</div></div>
+        <div class="card"><div class="ct entity">entity card</div><div class="cx">「播客」实体:近 30 天 6 次提及,已连成一条线</div></div>
+        <div class="card"><div class="ct insight">insight</div><div class="cx">你这周反复回到「暂存 vs 第二大脑」这个主题</div></div>
+        <div class="card"><div class="ct todo">todo → 滴答</div><div class="cx">已生成今日 3 项 · 长按看溯源</div></div>
+        <div class="zend">— 到底了 · 一个会结束的日记是诚实的 —</div>
+      </div>
+    </div>
+
+    <ul class="clean" style="margin-top:20px">
+      <li><b>双区主页:</b>上区「今天」写优先(捕获框 + 今日新 memo + 编译好落下的当日卡片);下区「流」是重现式刷面。热在上,冷/反思在下——对应暂存哲学的温度分层。</li>
+      <li><b>排序不是「最新在前」,而是「此刻值得再看什么」</b>。冷启动别上 ML:<span class="mono">recency 衰减 + on-this-day + 未读</span> 三个信号就够。</li>
+      <li><b>别假装无限。</b>让流有尽头。指标别盯 time-in-app,盯「关 App 时是否觉得重新连上了什么」——这是你自己的内容,奖赏是重新连接,不是新鲜刺激。</li>
+      <li><b>分型卡片、统一设计语言</b>(用你已有的 Space Grotesk / Inter);长按卡片看<b>溯源</b>——这张卡是哪几条 raw 喂出来的,能跳回暂存。AI 编译的东西,溯源就是信任。</li>
+      <li><b>Q3 与 Q4 在此接上:</b>数据库存在的最大理由,就是让这个重现式 feed 跑得快、排得动。<span class="accent-t">feed = 文件真相之上、DB 索引之上的一层视图。</span></li>
+    </ul>
+  </section>
+
+  <!-- 5. Invariants -->
+  <section id="invariants">
+    <p class="kicker">05 · 必须保留的不变量</p>
+    <h2><span class="num">E.</span>抽象不能破坏的三条</h2>
+    <ul class="clean">
+      <li><b><span class="mono">source_hash</span> 去重内建进 skill 引擎:</b>刻意排除 mood/entityMentions 的逻辑必须保留,否则一抽象就退回无限重编环。引擎要有「哪些输入参与 hash」的概念。</li>
+      <li><b>离线优先的张力:</b>capture 本地即时、可离线;compile 需 API,最终一致。捕获永不被 AI 阻塞。</li>
+      <li><b>FeatureFlags 复用:</b>「哪些 transform / 卡片 skill 对哪个用户开」正好走已有的 <span class="mono">FeatureFlags</span> + <span class="mono">FeatureFlagStore</span>,Settings「实验功能」自动列出。</li>
+    </ul>
+  </section>
+
+  <!-- 6. Roadmap -->
+  <section id="roadmap">
+    <p class="kicker">06 · 务实路径</p>
+    <h2><span class="num">F.</span>别现在重写 v1.0</h2>
+    <p class="sub">这是 v2 的形状。分阶段落地,每一步都可独立交付,且不打断上架。</p>
+    <div class="road">
+      <div class="phase now">
+        <h4><span class="p">Phase 0 · 现在</span>不动主体 <span class="flag">v1.0 上架优先</span></h4>
+        <p>专注 App Store 提交(截图 / App Privacy / 登录 / ICP)。架构演进不阻塞发布。</p>
+      </div>
+      <div class="phase">
+        <h4><span class="p">Phase 1</span>纯内部重构</h4>
+        <p>把 <span class="mono">CompilationService</span> / <span class="mono">WeeklyCompilation</span> 内部收敛成声明式 <span class="mono">recipe</span> 抽象;把 vault 明确定义为稳定契约。对外行为不变,零风险。</p>
+      </div>
+      <div class="phase">
+        <h4><span class="p">Phase 2</span>SQLite 派生索引 + 双区 Feed</h4>
+        <p>引入可重建的 SQLite 索引(FTS5,后续 vector);主页改造成「今天 / 流」双区,流渲染编译卡片。</p>
+      </div>
+      <div class="phase">
+        <h4><span class="p">Phase 3</span>daypage-vault MCP + PoC</h4>
+        <p>做 MCP(<span class="mono">list_raw · read_raw · write_compiled · list_entities</span>),用一个 <span class="mono">daily-compile</span> skill 在 Claude Code / codex 里跑通同一个 vault——验证「手机只捕获、编译可插拔」。</p>
+      </div>
+      <div class="phase">
+        <h4><span class="p">Phase 4</span>Out-pipes + 会话入口</h4>
+        <p><span class="mono">daily-todo</span> 生成器 + <span class="mono">dispatch-ticktick / -reminders</span> sink;微信(公众号 / 企业微信合规通道)作为会话捕获+命令入口。</p>
+      </div>
+      <div class="phase">
+        <h4><span class="p">Phase 5</span>Skill registry + 开放扩展点</h4>
+        <p>内置精选 skill 给普通用户;把 <b>MCP + 文件</b>作为开放扩展点,留给极客自己加 skill。同一底座同时接住小白与 Claude Code 玩家。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Open questions -->
+  <section id="open">
+    <p class="kicker">07 · 待定 / 需你拍板</p>
+    <h2><span class="num">G.</span>开放问题</h2>
+    <div class="oq">
+      <details>
+        <summary>编译 runtime 落在端上还是服务端?</summary>
+        <p>skill 的<em>定义</em>可优雅抽象,但<em>执行 runtime</em> 总得存在。单机用户的日编译在哪触发?端上瘦运行器(取代 BGTask)vs 服务端 cron——影响成本、离线性、隐私。</p>
+      </details>
+      <details>
+        <summary>微信合规通道的具体限额?</summary>
+        <p>个人号 hook 会封,须走公众号 / 企业微信;被动回复有超时、主动推送有窗口限制,慢编译只能异步回。<strong>需要我查一下当前最新的接口限额再定交互。</strong></p>
+      </details>
+      <details>
+        <summary>已读态要不要跨端?</summary>
+        <p>目前建议 DB-only、设备本地、可丢。若你要「一端读过另一端也标记」,就得把已读态提升为需同步的状态——要么进文件,要么单独一条轻同步通道。取舍:一致性 vs 简单。</p>
+      </details>
+    </div>
+  </section>
+
+  <footer class="doc">
+    <p class="mono">DayPage · Architecture Design Review · 2026-07-22 · Draft for review</p>
+    <p>若重新选择此方向,应先创建范围明确的 GitHub issue；涉及存储、依赖或持久化边界的部分还需 ADR。本文仅保留当时的探索过程。</p>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -28,8 +28,8 @@ current PRD is adopted and linked here.
 ## Historical material
 
 Top-level `docs/PRD-vNext.md`, dated research/audits, `docs/plans/`, `tasks/`, `archive/`,
-screenshots, and design explorations preserve rationale and evidence. They are not
-automatically current requirements.
+screenshots, and [design explorations](design/README.md) preserve rationale and evidence.
+They are not automatically current requirements.
 
 When implementation changes a documented boundary, update the owning current document
 and add or supersede an ADR; do not silently rewrite historical documents.
