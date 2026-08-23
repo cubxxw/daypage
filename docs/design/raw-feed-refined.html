@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DayPage · Raw Feed 精修对照</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EDE7DC; --ink:#221E18; --ink-2:#4B4238; --muted:#A5967F; --brown:#8A6F4E;
+    --accent:#C0631F; --accent-soft:#F0E4D6; --hair:#E7DECF; --faded:#ECE4D6;
+    --card:#FFFFFF; --card-sh:0 6px 20px rgba(70,50,25,.06);
+    --serif:'Newsreader',Georgia,'Songti SC',serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1200px; margin:0 auto; padding:48px 24px 90px}
+  h1{font-family:var(--serif); font-weight:600; font-size:32px; margin:0 0 12px; letter-spacing:-.01em}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0 0 12px}
+  .lede{font-size:16.5px; color:var(--ink-2); max-width:66ch; margin:0}
+  .mono{font-family:var(--mono)}
+
+  .stage{display:flex; flex-wrap:wrap; gap:36px; margin-top:40px; align-items:flex-start; justify-content:center}
+  .col{display:flex; flex-direction:column; align-items:center}
+  .col .tag{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:14px; padding:5px 12px; border-radius:999px}
+  .tag.now{background:#E7DECF; color:var(--brown)}
+  .tag.new{background:var(--accent); color:#fff}
+
+  /* phone */
+  .phone{width:318px; height:660px; background:#17140F; border-radius:46px; padding:11px; box-shadow:0 3px 8px rgba(0,0,0,.14),0 30px 56px rgba(50,35,18,.24); flex:none; position:relative}
+  .screen{width:100%; height:100%; border-radius:36px; overflow:hidden; position:relative; display:flex; flex-direction:column;
+    background:linear-gradient(180deg,#F7F3EC 0%,#F1EBE1 100%)}
+  .island{position:absolute; top:13px; left:50%; transform:translateX(-50%); width:96px; height:27px; background:#17140F; border-radius:16px; z-index:30}
+  .sb{height:46px; flex:none; display:flex; align-items:flex-end; justify-content:space-between; padding:0 24px 6px; font-size:13px; font-weight:600}
+  .sb .rt{display:flex; gap:6px; align-items:center; font-size:12px}
+  .batt{background:#E6B84B; color:#3a2f10; font-size:9px; font-weight:700; border-radius:3px; padding:0 3px}
+
+  .hdr{display:flex; align-items:center; justify-content:space-between; padding:4px 18px 12px; flex:none}
+  .circ{width:34px; height:34px; border-radius:50%; background:#EFE7DA; display:flex; align-items:center; justify-content:center; color:var(--brown)}
+  .hdr .d{font-family:var(--serif); font-size:20px; font-weight:500}
+
+  .banner{margin:0 16px 14px; background:rgba(255,255,255,.5); border:1px solid var(--hair); border-radius:14px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; flex:none}
+  .banner .l{font-family:var(--mono); font-size:10.5px; letter-spacing:.09em; color:var(--brown); display:flex; align-items:center; gap:7px}
+  .banner .l::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--accent)}
+  .banner .r{font-family:var(--mono); font-size:10.5px; letter-spacing:.09em; color:var(--accent)}
+
+  .feed{flex:1; overflow-y:auto; padding:2px 16px 96px}
+  .feed::-webkit-scrollbar{width:0}
+
+  /* current: equal-weight cards */
+  .m-card{background:var(--card); border-radius:20px; padding:15px 16px; margin-bottom:13px; box-shadow:var(--card-sh)}
+  .m-card .body{font-size:15px; color:var(--ink); line-height:1.62}
+  .m-card .meta{font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:11px; display:flex; align-items:center; gap:6px}
+  .vhead{display:flex; align-items:center; gap:11px; margin-bottom:10px}
+  .play{width:38px; height:38px; border-radius:50%; background:var(--accent-soft); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:13px; flex:none}
+  .play.sm{width:30px; height:30px; font-size:11px}
+  .wave{flex:1; height:26px; background:repeating-linear-gradient(90deg,#C9B79C 0 2px,transparent 2px 6px); -webkit-mask:linear-gradient(90deg,#000,#000); opacity:.55; border-radius:3px}
+  .dur{font-family:var(--mono); font-size:11px; color:var(--muted)}
+  .quote{font-size:15px; color:var(--ink-2); line-height:1.6}
+  .quote .qm{font-family:var(--serif); color:var(--muted)}
+  .fade{color:var(--muted); -webkit-mask:linear-gradient(180deg,#000 40%,transparent)}
+
+  /* refined: session divider */
+  .sess{display:flex; align-items:center; gap:10px; margin:14px 4px 12px; font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--brown)}
+  .sess .ln{flex:1; height:1px; background:var(--hair)}
+  .sess .ct{color:var(--muted)}
+
+  /* refined: hero pull-quote (borderless, page-like) */
+  .hero{padding:4px 4px 16px; border-bottom:1px solid var(--hair); margin-bottom:14px}
+  .hero .q{font-family:var(--serif); font-size:21px; line-height:1.5; color:var(--ink); font-weight:500}
+  .hero .qmk{font-family:var(--serif); font-size:30px; color:var(--accent); line-height:0; vertical-align:-6px; margin-right:2px}
+  .hero .foot{display:flex; align-items:center; gap:10px; margin-top:12px}
+  .voicechip{display:inline-flex; align-items:center; gap:6px; background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:4px 11px 4px 5px; font-family:var(--mono); font-size:10.5px}
+  .voicechip .p{width:19px; height:19px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-size:9px}
+  .hero .tm{font-family:var(--mono); font-size:10.5px; color:var(--muted)}
+
+  /* refined: collapsed voice row (compact, page-like) */
+  .vrow{display:flex; align-items:center; gap:11px; padding:11px 4px; border-bottom:1px solid var(--hair); cursor:pointer}
+  .vrow .txt{flex:1; min-width:0}
+  .vrow .one{font-size:13.5px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .vrow .tm{font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:2px}
+  .vrow .exp{font-family:var(--mono); font-size:10px; color:var(--accent); flex:none}
+  .vfull{font-size:13.5px; color:var(--ink-2); line-height:1.6; padding:2px 4px 12px 45px; border-bottom:1px solid var(--hair); display:none}
+  .vrow.open + .vfull{display:block}
+  .vrow.open .exp{color:var(--muted)}
+
+  .mtext{padding:11px 4px; border-bottom:1px solid var(--hair); font-size:14.5px; color:var(--ink)}
+  .mtext .tm{font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:7px}
+
+  /* seam: on this day */
+  .seam{background:linear-gradient(180deg,#FBF6EE,#F6EEE1); border:1px solid var(--hair); border-radius:16px; padding:13px 15px; margin:18px 0 14px; position:relative}
+  .seam .lbl{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); margin-bottom:6px}
+  .seam .sx{font-size:13.5px; color:var(--ink-2); font-family:var(--serif); line-height:1.5}
+
+  /* section + day card (compiled = card) */
+  .section{display:flex; align-items:baseline; justify-content:space-between; margin:22px 2px 12px}
+  .section .h{font-family:var(--serif); font-size:19px; font-weight:600}
+  .section .by{font-family:var(--mono); font-size:10px; letter-spacing:.12em; color:var(--muted)}
+  .day{background:var(--card); border-radius:20px; padding:16px; margin-bottom:12px; box-shadow:var(--card-sh); position:relative; overflow:hidden}
+  .day .dow{font-family:var(--mono); font-size:11px; letter-spacing:.08em; color:var(--brown)}
+  .day .dow b{color:var(--ink); font-size:15px; font-weight:600; margin-left:6px; font-family:var(--serif)}
+  .day .dt{font-size:15px; color:var(--ink); margin:9px 0 12px; line-height:1.5}
+  .day .cnt{font-family:var(--mono); font-size:10px; letter-spacing:.08em; color:var(--muted)}
+  .day .big{position:absolute; right:12px; top:2px; font-family:var(--serif); font-size:66px; color:var(--faded); font-weight:500; line-height:1}
+
+  /* capture bar */
+  .capbar{position:absolute; left:14px; right:14px; bottom:14px; height:56px; background:rgba(250,245,237,.92); backdrop-filter:blur(8px); border:1px solid var(--hair); border-radius:20px; display:flex; align-items:center; gap:12px; padding:0 12px; z-index:20}
+  .capbar .plus{color:var(--brown); font-size:20px}
+  .capbar .sid{flex:1; font-family:var(--serif); font-size:16px; color:var(--muted); display:flex; align-items:center; gap:8px}
+  .capbar .bar{width:2px; height:18px; background:var(--accent)}
+  .capbar .mic{width:44px; height:44px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:17px; box-shadow:0 4px 12px rgba(192,99,31,.35)}
+  .capbar .spk{color:var(--brown); font-size:15px}
+
+  /* annotations legend */
+  .legend{width:320px; background:#FBF7F0; border:1px solid var(--hair); border-radius:18px; padding:20px 22px; box-shadow:var(--card-sh)}
+  .legend h3{font-family:var(--serif); font-size:18px; margin:0 0 4px}
+  .legend .sub{font-size:12.5px; color:var(--muted); margin:0 0 16px}
+  .lg{display:flex; gap:11px; padding:11px 0; border-bottom:1px solid var(--hair)}
+  .lg:last-child{border-bottom:none}
+  .lg .num{width:22px; height:22px; border-radius:50%; background:var(--accent); color:#fff; font-family:var(--mono); font-size:11px; display:flex; align-items:center; justify-content:center; flex:none; margin-top:1px}
+  .lg .t{font-size:13.5px; color:var(--ink-2)}
+  .lg .t b{color:var(--ink)}
+  .badge{display:inline-flex; width:17px; height:17px; border-radius:50%; background:var(--accent); color:#fff; font-family:var(--mono); font-size:9.5px; align-items:center; justify-content:center; vertical-align:middle; margin-left:5px}
+
+  .try{font-family:var(--mono); font-size:10.5px; color:var(--accent); text-align:center; margin-top:10px}
+
+  footer{margin-top:56px; padding-top:22px; border-top:1px solid var(--hair); color:var(--muted); font-size:13.5px; max-width:72ch}
+  footer b{color:var(--ink-2)}
+  /* woven daily inline */
+  .foldmark{text-align:center; font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; color:var(--muted); margin:20px 0 14px; display:flex; align-items:center; gap:10px}
+  .foldmark::before,.foldmark::after{content:""; flex:1; height:1px; background:var(--hair)}
+  .dayunit{margin-bottom:18px}
+  .dayhead{display:flex; align-items:baseline; gap:9px; margin-bottom:8px}
+  .dayhead .dl{font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink)}
+  .dayhead .dc{font-family:var(--mono); font-size:9.5px; color:var(--muted); letter-spacing:.03em}
+  .woven{font-family:var(--serif); font-size:15px; line-height:1.72; color:var(--ink-2); padding-left:13px; border-left:2px solid var(--accent)}
+  .woven .wm{display:inline-block; font-family:var(--mono); font-size:8.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:1px 6px; margin-right:7px; vertical-align:2px}
+  .woven .link{color:var(--accent); border-bottom:1px solid var(--accent-soft)}
+  .woven.short{border-left-color:#E3D3BE; color:var(--muted); font-size:14px}
+  .rawtog{display:inline-block; font-family:var(--mono); font-size:10.5px; color:var(--brown); margin:10px 0 0 13px; cursor:pointer; user-select:none}
+  .rawtog .cr{display:inline-block; transition:transform .2s}
+  .rawtog.open .cr{transform:rotate(180deg)}
+  .rawwrap{display:none; margin:6px 0 0 13px}
+  .rawtog.open + .rawwrap{display:block}
+  .rawm{padding:8px 0; border-bottom:1px solid var(--hair); font-size:13px; color:var(--ink-2)}
+  .rawm:last-child{border-bottom:none}
+  .rawm .rt{font-family:var(--mono); font-size:9.5px; color:var(--muted); margin-right:7px}
+  .rawm .mic{color:var(--accent)}
+  .oneday{display:flex; gap:11px; align-items:baseline; padding:10px 2px; border-bottom:1px solid var(--hair); font-size:13.5px; color:var(--ink-2)}
+  .oneday .od{font-family:var(--mono); font-size:10.5px; color:var(--brown); width:36px; flex:none}
+  .oneday .u{color:var(--muted)}
+  .historical-note{margin:18px 0 0;padding:14px 16px;border:1px solid var(--hair);border-radius:10px;background:rgba(255,255,255,.45);color:var(--muted);font-size:13px;line-height:1.6}
+  @media(max-width:760px){.legend{width:318px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">DayPage · Raw Feed Refinement</p>
+  <h1>「今天段」raw 怎么优雅地刷</h1>
+  <p class="lede">对照你的真机:左=现在的等权重墙,右=精修版。整条流是<b>一份连续文档</b>:今天 raw → 往下每个已结束的天,编译 wiki 直接铺在流里(刷即是读),越老越压缩。右边的语音条、和每天的<b>「原始 N 条」都可点开</b>。</p>
+  <p class="historical-note"><b>历史设计探索。</b>不是当前 Today/Archive 要求。地点、转写和日记内容均为匿名化示例,不来自用户 vault。</p>
+
+  <div class="stage">
+
+    <!-- CURRENT -->
+    <div class="col">
+      <div class="tag now">现在 · 等权重墙</div>
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="sb"><span>20:27</span><span class="rt">5Ga <span class="batt">15</span></span></div>
+          <div class="hdr"><div class="circ">☰</div><div class="d">Jul 22</div><div class="circ">⌕</div></div>
+          <div class="banner"><span class="l">SYNC ACROSS DEVICES</span><span class="r">SIGN IN&nbsp;&nbsp;✕</span></div>
+          <div class="feed" style="padding-bottom:20px">
+            <div class="m-card">
+              <div class="body">我发现推进这个项目最难的不是想法本身,而是如何在不同约束之间做出清晰取舍</div>
+              <div class="meta">15·27</div>
+            </div>
+            <div class="m-card">
+              <div class="vhead"><span class="play">▶</span><span class="wave"></span><span class="dur">00:12</span></div>
+              <div class="quote"><span class="qm">"</span> 推进这个项目最难的不是想法本身,而是如何做出清晰取舍。</div>
+              <div class="meta">15·27 · 🎙</div>
+            </div>
+            <div class="m-card">
+              <div class="vhead"><span class="play">▶</span><span class="wave"></span><span class="dur">00:34</span></div>
+              <div class="quote"><span class="qm">"</span> 傍晚和朋友去了海边小岛,人不多,我们在岸边看了一会儿月亮。</div>
+              <div class="meta">15·23 · 🎙</div>
+            </div>
+            <div class="m-card">
+              <div class="vhead"><span class="play">▶</span><span class="wave"></span><span class="dur">00:31</span></div>
+              <div class="quote fade"><span class="qm">"</span> 我今天也在星巴克,然后今天也遇到一个人,还在角落里面在工作,然后我现在也很好奇……</div>
+            </div>
+          </div>
+          <div class="capbar"><span class="plus">+</span><span class="sid"><span class="bar"></span>Set it down…</span><span class="mic">🎙</span><span class="spk">✦</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REFINED -->
+    <div class="col">
+      <div class="tag new">精修 · 有节奏</div>
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="sb"><span>20:27</span><span class="rt">5Ga <span class="batt">15</span></span></div>
+          <div class="hdr"><div class="circ">☰</div><div class="d">Jul 22</div><div class="circ">⌕</div></div>
+          <div class="banner"><span class="l">SYNC ACROSS DEVICES</span><span class="r">SIGN IN&nbsp;&nbsp;✕</span></div>
+          <div class="feed">
+
+            <!-- session: 下午 -->
+            <div class="sess">今天 · 下午<span class="ln"></span><span class="ct">3 条 · 还没编译</span></div>
+
+            <!-- hero pull-quote + merged voice -->
+            <div class="hero">
+              <div class="q"><span class="qmk">"</span>推进项目最难的不是想法本身,而是如何在约束之间做出清晰取舍。</div>
+              <div class="foot">
+                <span class="voicechip"><span class="p">▶</span>原声 00:12</span>
+                <span class="tm">15·27 · 文字+语音已合并</span>
+              </div>
+            </div>
+
+            <!-- collapsed voice rows -->
+            <div class="vrow" onclick="this.classList.toggle('open')">
+              <span class="play sm">▶</span>
+              <span class="txt"><span class="one">傍晚和朋友去了海边小岛,人不多…</span><span class="tm">00:34 · 15·23</span></span>
+              <span class="exp">展开</span>
+            </div>
+            <div class="vfull">傍晚和朋友去了海边小岛,人不多,我们在岸边看了一会儿月亮。</div>
+
+            <div class="vrow" onclick="this.classList.toggle('open')">
+              <span class="play sm">▶</span>
+              <span class="txt"><span class="one">我今天也在星巴克,然后今天也遇到一个人…</span><span class="tm">00:31 · 15·20</span></span>
+              <span class="exp">展开</span>
+            </div>
+            <div class="vfull">我今天也在星巴克,然后今天也遇到一个人,还在角落里面在工作,然后我现在也很好奇,不知道工作到什么时候。感觉这个产品做得很迷茫,我真的很不懂。</div>
+
+            <!-- session: 上午 -->
+            <div class="sess">今天 · 上午<span class="ln"></span><span class="ct">1 条</span></div>
+            <div class="mtext">我觉得我挺渣的,去一个城市或者国家暧昧一下,然后又抽离<div class="tm">10·44 · 文字</div></div>
+
+            <!-- transition into woven past -->
+            <div class="foldmark">已结束的天 · 刷即是读</div>
+
+            <div class="section"><span class="h">This week</span><span class="by">BY DAY</span></div>
+
+            <!-- 07.20 full woven inline -->
+            <div class="dayunit">
+              <div class="dayhead"><span class="dl">周一 · 7月20</span><span class="dc">☁ 广州 · 🙂</span></div>
+              <div class="woven"><span class="wm">编织</span>示例城市的一天,从熟悉的味道开始。傍晚和朋友去了<span class="link">海边小岛</span>,人不多,晚上在那里看月亮;夜里也想了些关于<span class="link">项目</span>取舍与约束的事。</div>
+              <div class="rawtog" onclick="this.classList.toggle('open')">原始 2 条 <span class="cr">⌄</span></div>
+              <div class="rawwrap">
+                <div class="rawm"><span class="rt">23·10 <span class="mic">🎙</span></span>海边小岛人不多,晚上看月亮…</div>
+                <div class="rawm"><span class="rt">20·05 <span class="mic">🎙</span></span>项目难的是约束之间的取舍</div>
+              </div>
+            </div>
+
+            <!-- last week: 越老越压缩 -->
+            <div class="section"><span class="h">Last week</span><span class="by">BY DAY</span></div>
+            <div class="dayunit">
+              <div class="dayhead"><span class="dl">周日 · 7月19</span><span class="dc">4 条</span></div>
+              <div class="woven short"><span class="wm">编织</span>在广州的深夜与清晨,安心来自熟悉与美食。</div>
+            </div>
+            <div class="oneday"><span class="od">07·17</span><span class="u">9 条 · 未命名</span></div>
+            <div class="oneday"><span class="od">07·15</span>凌晨在山咀头路录下两段语音,思索父母作为贵人的因果与感恩。</div>
+
+          </div>
+          <div class="capbar"><span class="plus">+</span><span class="sid"><span class="bar"></span>Set it down…</span><span class="mic">🎙</span><span class="spk">✦</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="legend">
+      <h3>改了什么</h3>
+      <p class="sub">同样的记录,右边少滚一半,眼睛有落点。</p>
+      <div class="lg"><span class="num">1</span><div class="t"><b>折叠长转写</b> — 语音默认一行 + 「展开」,不再整段铺满。<b>最大收益。</b></div></div>
+      <div class="lg"><span class="num">2</span><div class="t"><b>分权重</b> — 短而有劲的念头升级成衬线引用块当锚点;其余压平。</div></div>
+      <div class="lg"><span class="num">3</span><div class="t"><b>session 聚簇 + 去重</b> — 一阵记录收成一簇;近重复的文字+语音<b>合并</b>成一条(原声挂成小胶囊)。</div></div>
+      <div class="lg"><span class="num">4</span><div class="t"><b>时段脊柱</b> — 「下午 / 上午」把当天内部切段,给滚动方向感。</div></div>
+      <div class="lg"><span class="num">5</span><div class="t"><b>raw / 编译分语言</b> — raw 无边框、像手稿;编译日卡=卡片。一扫就知谁写的。</div></div>
+      <div class="lg"><span class="num">6</span><div class="t"><b>编译日记 inline 融入</b> — 已结束的天,wiki 叙事直接铺在流里(刷即是读),原始收进「原始 N 条」一键展开;越老越压缩成一行。</div></div>
+      <p class="try">▶ 点右边样机里的语音条试试折叠 / 展开</p>
+    </div>
+
+  </div>
+
+  <footer>
+    <p><b>核心判断:</b>整条 feed 是一份连续文档——<b>今天 raw(全量,还没编译)→ 往下每个已结束的天,编译 wiki 直接铺在流里(刷即是读)→ 越老越压缩成一行</b>。原始永远收在「原始 N 条」一键可展,编译是镜头不是替代。daily 从"点进去的一页"变成"刷到的一段"。</p>
+    <p>方向 OK 的话,最先落地:①折叠转写 + ③session 聚簇(今天段),以及这里的 <b>woven 日记 inline 变体</b>(过去段)。要我把它们转成对着 <span class="mono">TodayView / ArchiveView</span> 的 SwiftUI 草案吗?</p>
+  </footer>
+</div>
+</body>
+</html>

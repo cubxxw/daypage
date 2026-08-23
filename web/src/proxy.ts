@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { checkAuthRateLimit } from "@/lib/auth-ratelimit";
 
-// Next.js 16 root middleware. Three responsibilities, in order:
+// Next.js 16 request proxy. Three responsibilities, in order:
 //
 //   1. Refresh the Supabase session cookie (inlined from
 //      lib/supabase/middleware.ts — we need the resolved `user` here too to
@@ -11,11 +11,18 @@ import { checkAuthRateLimit } from "@/lib/auth-ratelimit";
 //      in dev — see lib/auth-ratelimit.ts).
 //   3. Redirect anonymous traffic away from authenticated app routes.
 //
-// Replaces the NextAuth-flavoured `proxy.ts` that used to wrap `auth()`. Order
+// Replaces the NextAuth-flavoured proxy that used to wrap `auth()`. Order
 // matters: we MUST return the same `response` object that the Supabase cookie
 // writer mutated, otherwise rotated cookies are dropped.
 
-const APP_PATHS = ["/home", "/add", "/chat", "/wiki", "/inbox"] as const;
+const APP_PATHS = [
+  "/home",
+  "/add",
+  "/chat",
+  "/wiki",
+  "/inbox",
+  "/memory-demo",
+] as const;
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -25,7 +32,7 @@ function getClientIp(req: NextRequest): string {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const start = Date.now();
   const { pathname } = request.nextUrl;
 

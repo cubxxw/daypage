@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DayPage · 产品交互形态样机</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F2ED; --app:#FBFAF7; --surface:#FFFFFF; --ink:#1C1B19; --ink-2:#4A473F; --muted:#8B877C;
+    --line:#E7E3DA; --line-2:#D8D3C7;
+    --teal:#0E7C6B; --teal-tint:#E4F1EE; --teal-ink:#0A5648;
+    --amber:#B5652C; --amber-tint:#F6E9DD; --amber-ink:#7E4318;
+    --indigo:#4B4DA6; --indigo-tint:#E9E9F5; --indigo-ink:#33356F;
+    --slate:#5C6672; --slate-tint:#ECEFF2;
+    --wx:#EDEDED; --wx-bubble:#95EC69;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Inter","Space Grotesk",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.6}
+  .wrap{max-width:1180px; margin:0 auto; padding:52px 24px 90px}
+  h1,h2,h3,h4{font-family:"Space Grotesk","Inter",sans-serif; letter-spacing:-.01em}
+  .mono{font-family:"JetBrains Mono",monospace}
+
+  header.doc{margin-bottom:10px}
+  .eyebrow{font-family:"JetBrains Mono",monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); margin:0 0 12px}
+  h1{font-size:32px; margin:0 0 12px; font-weight:600}
+  .lede{font-size:17px; color:var(--ink-2); max-width:64ch; margin:0}
+
+  /* principles strip */
+  .principles{display:flex; flex-wrap:wrap; gap:10px; margin:24px 0 8px}
+  .pri{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 14px; font-size:13px; color:var(--ink-2); display:flex; align-items:center; gap:8px}
+  .pri b{color:var(--ink); font-weight:600}
+  .pri .k{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:5px}
+  .k.a{background:var(--amber-tint);color:var(--amber-ink)} .k.t{background:var(--teal-tint);color:var(--teal-ink)}
+  .k.i{background:var(--indigo-tint);color:var(--indigo-ink)} .k.s{background:var(--slate-tint);color:var(--slate)}
+
+  /* gallery layout */
+  .gallery{display:flex; flex-wrap:wrap; gap:40px 34px; margin-top:40px; align-items:flex-start; justify-content:center}
+  .cell{width:300px; display:flex; flex-direction:column}
+  .cap{margin-top:16px}
+  .cap .n{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--teal); letter-spacing:.08em}
+  .cap h3{font-size:16px; margin:4px 0 5px; font-weight:600}
+  .cap p{font-size:13.5px; color:var(--ink-2); margin:0}
+  .cap p .hl{color:var(--teal-ink); font-weight:600}
+
+  /* phone frame */
+  .phone{width:300px; height:620px; background:#141310; border-radius:44px; padding:11px; box-shadow:0 2px 6px rgba(0,0,0,.12),0 26px 50px rgba(28,27,25,.22); position:relative; flex:none}
+  .screen{width:100%; height:100%; background:var(--app); border-radius:34px; overflow:hidden; position:relative; display:flex; flex-direction:column}
+  .island{position:absolute; top:12px; left:50%; transform:translateX(-50%); width:92px; height:26px; background:#141310; border-radius:16px; z-index:20}
+  .statusbar{height:44px; flex:none; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 5px; font-size:12px; font-weight:600; color:var(--ink)}
+  .statusbar .r{display:flex; gap:5px; align-items:center; font-size:11px}
+
+  .appbar{padding:6px 18px 10px; flex:none}
+  .appbar .row1{display:flex; align-items:center; justify-content:space-between}
+  .brand{font-family:"Space Grotesk",sans-serif; font-weight:700; font-size:19px; letter-spacing:-.02em}
+  .date{font-size:12px; color:var(--muted); font-family:"JetBrains Mono",monospace}
+  .avatar{width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--indigo))}
+
+  /* segmented */
+  .seg{display:flex; background:var(--slate-tint); border-radius:10px; padding:3px; margin:8px 18px 0; flex:none}
+  .seg button{flex:1; border:none; background:transparent; font-family:"Inter",sans-serif; font-size:13px; font-weight:600; color:var(--muted); padding:7px 0; border-radius:8px; cursor:pointer; transition:.15s}
+  .seg button.on{background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+  .scroll{flex:1; overflow-y:auto; padding:12px 18px 20px}
+  .scroll::-webkit-scrollbar{width:0}
+
+  /* capture box */
+  .capbox{background:#fff; border:1.5px solid var(--line-2); border-radius:16px; padding:13px 14px; box-shadow:0 4px 14px rgba(28,27,25,.05)}
+  .capbox .ph{color:var(--muted); font-size:14px}
+  .captools{display:flex; gap:14px; margin-top:12px; padding-top:11px; border-top:1px solid var(--line)}
+  .captools span{font-size:12px; color:var(--ink-2); display:flex; align-items:center; gap:4px}
+  .ic{width:17px;height:17px;display:inline-block;vertical-align:-3px}
+
+  .lane{font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:16px 2px 8px; display:flex; align-items:center; gap:7px}
+  .lane .ln{flex:1; height:1px; background:var(--line)}
+
+  /* memo / cards */
+  .memo{background:#fff; border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:9px}
+  .memo .t{font-size:10.5px; color:var(--muted); font-family:"JetBrains Mono",monospace; margin-bottom:4px; display:flex; justify-content:space-between}
+  .memo .x{font-size:13.5px; color:var(--ink-2)}
+  .voice{display:flex; align-items:center; gap:8px}
+  .wave{flex:1; height:20px; background:repeating-linear-gradient(90deg,var(--teal) 0 2px,transparent 2px 5px); opacity:.5; border-radius:3px}
+  .play{width:22px;height:22px;border-radius:50%;background:var(--teal-tint);color:var(--teal-ink);display:flex;align-items:center;justify-content:center;font-size:10px;flex:none}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:13px; padding:12px 13px; margin-bottom:10px; position:relative}
+  .card .ct{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.05em; text-transform:uppercase; margin-bottom:6px; display:flex; align-items:center; gap:6px}
+  .card .cx{font-size:13.5px; color:var(--ink-2)}
+  .card .cx b{color:var(--ink)}
+  .tagd{width:7px;height:7px;border-radius:50%;flex:none}
+  .ct.daily{color:var(--teal-ink)} .ct.daily .tagd{background:var(--teal)}
+  .ct.entity{color:var(--indigo-ink)} .ct.entity .tagd{background:var(--indigo)}
+  .ct.onthis{color:var(--amber-ink)} .ct.onthis .tagd{background:var(--amber)}
+  .ct.insight{color:var(--teal-ink)} .ct.insight .tagd{background:var(--teal)}
+  .ct.todo{color:var(--slate)} .ct.todo .tagd{background:var(--slate)}
+  .card .link{color:var(--teal-ink); border-bottom:1px solid var(--teal-tint)}
+  .card .chipmini{display:inline-block; font-family:"JetBrains Mono",monospace; font-size:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:1px 6px; margin:2px 3px 0 0; color:var(--ink-2)}
+  .zend{text-align:center; font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--line-2); margin:6px 0 2px}
+  .hint{font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted); text-align:center; padding:8px; background:var(--bg); border-radius:9px; margin-top:6px}
+
+  /* command flow */
+  .routerchip{display:inline-flex; align-items:center; gap:6px; font-family:"JetBrains Mono",monospace; font-size:10px; background:var(--teal-tint); color:var(--teal-ink); border-radius:999px; padding:4px 10px; margin-bottom:10px}
+  .userline{background:var(--ink); color:#fff; border-radius:14px 14px 4px 14px; padding:9px 13px; font-size:13.5px; margin:0 0 12px auto; max-width:82%; width:fit-content}
+  .todoitem{display:flex; gap:9px; align-items:flex-start; padding:7px 0; border-bottom:1px dashed var(--line)}
+  .todoitem:last-child{border-bottom:none}
+  .box{width:16px;height:16px;border:1.6px solid var(--slate);border-radius:5px;flex:none;margin-top:2px}
+  .todoitem .tx{font-size:13px;color:var(--ink-2)}
+  .sheet{position:absolute; left:8px; right:8px; bottom:8px; background:#fff; border:1px solid var(--line-2); border-radius:18px; padding:15px 15px 16px; box-shadow:0 -6px 30px rgba(28,27,25,.16); z-index:15}
+  .sheet .sh-t{font-family:"Space Grotesk",sans-serif; font-weight:600; font-size:14px; margin-bottom:3px}
+  .sheet .sh-s{font-size:11.5px; color:var(--muted); margin-bottom:12px}
+  .sinkrow{display:flex; gap:8px; margin-bottom:12px}
+  .sink{flex:1; border:1.4px solid var(--line-2); border-radius:11px; padding:9px; text-align:center; font-size:12px; color:var(--ink-2)}
+  .sink.on{border-color:var(--teal); background:var(--teal-tint); color:var(--teal-ink); font-weight:600}
+  .sink .em{font-size:16px; display:block; margin-bottom:2px}
+  .btnrow{display:flex; gap:9px}
+  .btn{flex:1; text-align:center; padding:10px; border-radius:11px; font-size:13px; font-weight:600}
+  .btn.primary{background:var(--teal); color:#fff}
+  .btn.ghost{background:var(--bg); color:var(--ink-2); border:1px solid var(--line)}
+  .idem{font-family:"JetBrains Mono",monospace; font-size:9.5px; color:var(--muted); text-align:center; margin-top:9px}
+
+  /* daily page */
+  .dp-title{font-family:"Space Grotesk",sans-serif; font-size:22px; font-weight:600; margin:2px 0 3px}
+  .dp-meta{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px}
+  .dp-chip{font-size:10.5px; font-family:"JetBrains Mono",monospace; background:#fff; border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--ink-2)}
+  .dp-body{font-size:13.5px; color:var(--ink-2); line-height:1.75}
+  .dp-body .link{color:var(--teal-ink); border-bottom:1px solid var(--teal-tint); font-weight:500}
+  .prov{margin-top:16px; background:var(--bg); border:1px dashed var(--line-2); border-radius:11px; padding:11px 12px}
+  .prov .pt{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--amber-ink); text-transform:uppercase; letter-spacing:.06em; margin-bottom:7px; display:flex; align-items:center; gap:6px}
+  .prov .pm{font-size:11.5px; color:var(--muted); padding:3px 0}
+
+  /* entity / graph */
+  .ent-h{display:flex; align-items:center; gap:10px; margin-bottom:4px}
+  .ent-badge{width:34px;height:34px;border-radius:9px;background:var(--indigo-tint);color:var(--indigo-ink);display:flex;align-items:center;justify-content:center;font-size:17px;flex:none}
+  .ent-name{font-family:"Space Grotesk",sans-serif;font-size:19px;font-weight:600}
+  .ent-sub{font-size:11px;color:var(--muted);font-family:"JetBrains Mono",monospace}
+  .graphbox{background:#fff;border:1px solid var(--line);border-radius:13px;padding:8px;margin:12px 0}
+  .timeline{display:flex;align-items:flex-end;gap:4px;height:44px;padding:6px 2px 0}
+  .timeline i{flex:1;background:var(--indigo);opacity:.75;border-radius:2px 2px 0 0}
+  .rel{font-size:12px;color:var(--ink-2)}
+  .rel .link{color:var(--indigo-ink);border-bottom:1px solid var(--indigo-tint)}
+
+  /* wechat */
+  .wx-bar{background:#EDEDED;border-bottom:1px solid #DADADA;padding:8px 14px;text-align:center;font-size:14px;font-weight:600;color:#111;flex:none;position:relative}
+  .wx-bar .back{position:absolute;left:12px;top:8px;color:#576B95;font-size:16px}
+  .wx-body{flex:1;overflow-y:auto;padding:14px 12px;background:#EDEDED}
+  .wx-body::-webkit-scrollbar{width:0}
+  .wx-time{text-align:center;font-size:10px;color:#9a9a9a;margin:4px 0 12px}
+  .wx-row{display:flex;gap:8px;margin-bottom:14px}
+  .wx-row.me{flex-direction:row-reverse}
+  .wx-ava{width:32px;height:32px;border-radius:6px;flex:none;background:linear-gradient(135deg,var(--teal),var(--indigo))}
+  .wx-ava.me{background:#7C7C7C}
+  .wx-bub{max-width:76%;background:#fff;border-radius:6px;padding:9px 11px;font-size:13px;color:#111;position:relative;line-height:1.55}
+  .wx-bub.me{background:var(--wx-bubble)}
+  .wx-sys{font-size:10.5px;color:#8a8a8a;margin-top:5px;font-family:"JetBrains Mono",monospace}
+  .wx-input{background:#F7F7F7;border-top:1px solid #DADADA;padding:9px 12px;display:flex;gap:8px;align-items:center;flex:none}
+  .wx-field{flex:1;background:#fff;border-radius:6px;height:30px;border:1px solid #E2E2E2}
+
+  footer.doc{margin-top:60px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:13.5px; max-width:70ch}
+  footer.doc b{color:var(--ink-2)}
+  .historical-note{margin:20px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.5);color:var(--muted);font-size:13px;line-height:1.6}
+  svg.ic{fill:none;stroke:currentColor;stroke-width:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <p class="eyebrow">DayPage · Interaction Mockups</p>
+    <h1>产品交互形态</h1>
+    <p class="lede">把架构落成手感:一个暂存区,一条意图路由,冷热分区的主页。下面是核心交互屏——点样机一可切换双区。</p>
+    <p class="historical-note"><b>历史交互探索。</b>不是当前产品要求或最终视觉。人物、地点、对话和指标均为匿名化示例,不来自用户 vault。</p>
+    <div class="principles">
+      <div class="pri"><span class="k a">默认</span><b>捕获优先</b>·拿不准就存,零阻塞</div>
+      <div class="pri"><span class="k t">显式</span><b>命令才编译/派发</b>·不误判</div>
+      <div class="pri"><span class="k i">出站</span><b>对外动作先确认</b>·幂等不重复</div>
+      <div class="pri"><span class="k s">布局</span><b>热在上·冷/反思在下</b></div>
+    </div>
+  </header>
+
+  <div class="gallery">
+
+    <!-- PHONE 1: two-zone home (interactive) -->
+    <div class="cell">
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span class="r">旅途 · 示例城 ☁ 24°</span></div>
+          <div class="appbar">
+            <div class="row1"><span class="brand">DayPage</span><span class="avatar"></span></div>
+            <div class="date">周三 · 7月22 · Day 214 游牧中</div>
+          </div>
+          <div class="seg">
+            <button id="tab-today" class="on" onclick="showZone('today')">今天</button>
+            <button id="tab-stream" onclick="showZone('stream')">流</button>
+          </div>
+
+          <!-- Today zone -->
+          <div class="scroll" id="zone-today">
+            <div class="capbox">
+              <div class="ph">＋ 随手记一条…</div>
+              <div class="captools">
+                <span><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/></svg>键盘</span>
+                <span><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>语音</span>
+                <span><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.4"/></svg>相机</span>
+                <span><svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Z"/><circle cx="12" cy="11" r="2"/></svg>位置</span>
+              </div>
+            </div>
+            <div class="lane">今日 · RAW · 暂存<span class="ln"></span>3</div>
+            <div class="memo"><div class="t"><span>09:12</span><span>手输</span></div><div class="x">和 A 聊了播客可行性,记得整理成报告大纲</div></div>
+            <div class="memo"><div class="t"><span>10:30 · 语音 0:48</span><span>Whisper</span></div><div class="x voice"><span class="play">▶</span><span class="wave"></span></div><div class="x" style="margin-top:6px">"三期测试内容够不够撑起选题库…"</div></div>
+            <div class="memo"><div class="t"><span>13:05 · 📷</span><span>咖啡馆·手记</span></div><div class="x">白板照片 + "订阅模型 vs 广告"</div></div>
+            <div class="hint">今晚 02:00 自动编译昨天 · 不打断你</div>
+          </div>
+
+          <!-- Stream zone -->
+          <div class="scroll" id="zone-stream" style="display:none">
+            <div class="lane">重现 · 值得再看什么<span class="ln"></span></div>
+            <div class="card"><div class="ct onthis"><span class="tagd"></span>on this day · 去年今日</div><div class="cx">你写过"想做一档关于游牧的播客"——今天又回到它了</div></div>
+            <div class="card"><div class="ct entity"><span class="tagd"></span>entity · 知识卡</div><div class="cx"><b>播客</b> · 近 30 天 6 次提及,已连成一条线<div><span class="chipmini">报告</span><span class="chipmini">A</span><span class="chipmini">选题库</span></div></div></div>
+            <div class="card"><div class="ct insight"><span class="tagd"></span>insight</div><div class="cx">你这周反复回到「暂存 vs 第二大脑」这个主题,要不要单开一页?</div></div>
+            <div class="card"><div class="ct daily"><span class="tagd"></span>daily · 7月21日</div><div class="cx">编译好的一天:见了 A、定了报告结构、跑步 5km…</div></div>
+            <div class="card"><div class="ct todo"><span class="tagd"></span>todo → 滴答 · 已发 3 项</div><div class="cx">长按看溯源 · 来自今天 2 条 raw</div></div>
+            <div class="zend">— 到底了 · 一个会结束的日记是诚实的 —</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="n">01 · HOME</div>
+        <h3>双区主页 · 可切换 ↑</h3>
+        <p><span class="hl">今天</span>是写优先的暂存面,<span class="hl">流</span>是重现式的刷面。热在上、冷在下——点上面的分段控件试试。</p>
+      </div>
+    </div>
+
+    <!-- PHONE 2: command + dispatch confirm -->
+    <div class="cell">
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span class="r">旅途 · 示例城 ☁ 24°</span></div>
+          <div class="appbar"><div class="row1"><span class="brand" style="font-size:16px">← 对话 / 命令</span><span class="date">意图路由</span></div></div>
+          <div class="scroll">
+            <div class="userline">整理今天的待办发到滴答</div>
+            <div class="routerchip">◆ 识别为命令 · 非捕获</div>
+            <div class="card">
+              <div class="ct todo"><span class="tagd"></span>daily-todo · 从 3 条 raw 抽取</div>
+              <div style="margin-top:4px">
+                <div class="todoitem"><span class="box"></span><span class="tx">整理播客可行性报告大纲</span></div>
+                <div class="todoitem"><span class="box"></span><span class="tx">找 A 要三期测试选题清单</span></div>
+                <div class="todoitem"><span class="box"></span><span class="tx">对比订阅 vs 广告模型</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="sheet">
+            <div class="sh-t">发送到哪里?</div>
+            <div class="sh-s">首次对外写入需确认 · 之后可记住</div>
+            <div class="sinkrow">
+              <div class="sink on"><span class="em">✓</span>滴答清单</div>
+              <div class="sink"><span class="em">􀉉</span>Apple 提醒</div>
+            </div>
+            <div class="btnrow"><div class="btn ghost">取消</div><div class="btn primary">确认发送</div></div>
+            <div class="idem">每项带 source-id · 重跑是更新,不重复创建</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="n">02 · COMMAND</div>
+        <h3>命令 + 派发确认</h3>
+        <p>路由把它判为<span class="hl">命令</span>而非捕获 → 生成待办 → <span class="hl">对外发送前二次确认</span>。生成器与 sink 解耦:一个生成、多处可发。</p>
+      </div>
+    </div>
+
+    <!-- PHONE 3: compiled daily page -->
+    <div class="cell">
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span class="r">旅途 · 示例城 ☁ 24°</span></div>
+          <div class="appbar"><div class="row1"><span class="brand" style="font-size:16px">← Daily Page</span><span class="date">已编译</span></div></div>
+          <div class="scroll">
+            <div class="dp-title">7 月 21 日</div>
+            <div class="dp-meta">
+              <span class="dp-chip">📍 示例城·湖畔</span><span class="dp-chip">☁ 22°</span><span class="dp-chip">🙂 专注</span><span class="dp-chip">Day 213</span>
+            </div>
+            <div class="dp-body">
+              上午和 <span class="link">示例同事</span> 深聊了做<span class="link">播客</span>的可行性,基本敲定先用「三期测试」验证选题库能不能撑起来。下午把<span class="link">报告</span>结构理了一遍——核心分歧还是<span class="link">订阅模型</span>与广告之间的取舍。傍晚沿湖跑了一段,想通了暂存区不必做成第二大脑这件事。
+            </div>
+            <div class="prov">
+              <div class="pt"><svg class="ic" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M4 7h16M4 12h16M4 17h10"/></svg>溯源 · 由 3 条 raw 编译</div>
+              <div class="pm">· 09:12 手输 · 和 A 聊了播客…</div>
+              <div class="pm">· 10:30 语音 · 三期测试…</div>
+              <div class="pm">· 13:05 照片 · 订阅 vs 广告</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="n">03 · COMPILE</div>
+        <h3>编译后的结构化一天</h3>
+        <p>raw 被编译成叙事日记,实体自动连成<span class="hl">可点链接</span>。底部<span class="hl">溯源</span>=这页由哪几条 raw 生成,一键跳回暂存——AI 编译的东西,溯源就是信任。</p>
+      </div>
+    </div>
+
+    <!-- PHONE 4: entity / graph -->
+    <div class="cell">
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span class="r">旅途 · 示例城 ☁ 24°</span></div>
+          <div class="appbar"><div class="row1"><span class="brand" style="font-size:16px">← Entity</span><span class="date">知识网络</span></div></div>
+          <div class="scroll">
+            <div class="ent-h"><span class="ent-badge">🎙</span><div><div class="ent-name">播客</div><div class="ent-sub">6 mentions · 近 30 天</div></div></div>
+            <div class="timeline"><i style="height:20%"></i><i style="height:0"></i><i style="height:35%"></i><i style="height:15%"></i><i style="height:0"></i><i style="height:55%"></i><i style="height:30%"></i><i style="height:80%"></i><i style="height:100%"></i></div>
+            <div class="graphbox">
+              <svg viewBox="0 0 260 150" style="width:100%">
+                <line x1="130" y1="75" x2="55" y2="35" stroke="#D2D2ED" stroke-width="1.5"/>
+                <line x1="130" y1="75" x2="55" y2="120" stroke="#D2D2ED" stroke-width="1.5"/>
+                <line x1="130" y1="75" x2="205" y2="40" stroke="#D2D2ED" stroke-width="1.5"/>
+                <line x1="130" y1="75" x2="210" y2="115" stroke="#D2D2ED" stroke-width="1.5"/>
+                <circle cx="55" cy="35" r="15" fill="#E9E9F5" stroke="#4B4DA6" stroke-width="1.2"/>
+                <circle cx="55" cy="120" r="13" fill="#E9E9F5" stroke="#4B4DA6" stroke-width="1.2"/>
+                <circle cx="205" cy="40" r="13" fill="#E9E9F5" stroke="#4B4DA6" stroke-width="1.2"/>
+                <circle cx="210" cy="115" r="12" fill="#E9E9F5" stroke="#4B4DA6" stroke-width="1.2"/>
+                <circle cx="130" cy="75" r="22" fill="#4B4DA6"/>
+                <text x="130" y="79" font-size="10" fill="#fff" text-anchor="middle" font-family="JetBrains Mono">播客</text>
+                <text x="55" y="38" font-size="8" fill="#33356F" text-anchor="middle" font-family="JetBrains Mono">A</text>
+                <text x="55" y="123" font-size="8" fill="#33356F" text-anchor="middle" font-family="JetBrains Mono">报告</text>
+                <text x="205" y="43" font-size="8" fill="#33356F" text-anchor="middle" font-family="JetBrains Mono">选题库</text>
+                <text x="210" y="118" font-size="7.5" fill="#33356F" text-anchor="middle" font-family="JetBrains Mono">订阅</text>
+              </svg>
+            </div>
+            <div class="lane">出现在<span class="ln"></span></div>
+            <div class="rel" style="line-height:2"><span class="link">7月21日</span> · <span class="link">7月18日</span> · <span class="link">7月11日</span> · <span class="link">周报·W29</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="n">04 · GRAPH</div>
+        <h3>实体页 / 知识网络</h3>
+        <p>抽取类 skill 把碎片连成实体:<span class="hl">提及时间线 + 邻接图 + 出现的页面</span>。碎片结构化、成图——正是 wiki 的价值所在。</p>
+      </div>
+    </div>
+
+    <!-- PHONE 5: wechat entry -->
+    <div class="cell">
+      <div class="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <div class="statusbar"><span>9:41</span><span class="r">微信</span></div>
+          <div class="wx-bar"><span class="back">‹</span>DayPage 助手</div>
+          <div class="wx-body">
+            <div class="wx-time">上午 9:12</div>
+            <div class="wx-row me"><span class="wx-ava me"></span><div class="wx-bub me">想到播客可以先做 3 期测试再决定要不要长期做</div></div>
+            <div class="wx-row"><span class="wx-ava"></span><div><div class="wx-bub">已存入今天 ✓<div class="wx-sys">暂存 · 未编译 · 撤销</div></div></div></div>
+            <div class="wx-time">下午 6:40</div>
+            <div class="wx-row me"><span class="wx-ava me"></span><div class="wx-bub me">把这周关于播客的思路整理发我</div></div>
+            <div class="wx-row"><span class="wx-ava"></span><div><div class="wx-bub">在整理,好了推给你…<div class="wx-sys">命令 · 异步 · 走客服消息回</div></div></div></div>
+            <div class="wx-row"><span class="wx-ava"></span><div><div class="wx-bub">本周「播客」6 条,收敛成 3 点:①三期测试验证选题库 ②订阅 vs 广告未决 ③需要 A 的清单。要生成报告草稿吗?</div></div></div>
+          </div>
+          <div class="wx-input"><div class="wx-field"></div><span style="font-size:11px;color:#576B95">＋</span></div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="n">05 · CONVERSATION</div>
+        <h3>微信入口 = 又一个客户端</h3>
+        <p>和 App <span class="hl">对等地</span>读写同一个 vault。捕获即时确认,慢编译<span class="hl">异步回</span>。走公众号 / 企业微信合规通道——个人号 hook 会封。</p>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="doc">
+    <p><b>这是可评审的样机,不是最终视觉。</b>目的是让你对交互形态先有反应:双区是否成立?命令的显式触发够不够自然?微信入口值不值得排进 Phase 4?</p>
+    <p>你点一下就知道手感对不对。方向 OK 的话,我可以挑其中一屏(建议先做「双区主页」)转成真实 SwiftUI,对着你的 <span class="mono">RootView / TodayView</span> 落地;或先把这套交互写进 Phase 2 的实现说明。</p>
+  </footer>
+
+</div>
+<script>
+  function showZone(z){
+    var t=document.getElementById('zone-today'), s=document.getElementById('zone-stream');
+    var bt=document.getElementById('tab-today'), bs=document.getElementById('tab-stream');
+    if(z==='today'){t.style.display='block';s.style.display='none';bt.classList.add('on');bs.classList.remove('on');}
+    else{t.style.display='none';s.style.display='block';bs.classList.add('on');bt.classList.remove('on');}
+  }
+</script>
+</body>
+</html>
