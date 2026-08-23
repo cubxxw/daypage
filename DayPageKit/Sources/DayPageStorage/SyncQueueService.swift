@@ -81,9 +81,15 @@ public final class SyncQueueService: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    private init(defaults: UserDefaults = .standard) {
+    private let usesVaultOutbox: Bool
+
+    private init(defaults: UserDefaults = .standard, usesVaultOutbox: Bool = true) {
         self.defaults = defaults
+        self.usesVaultOutbox = usesVaultOutbox
         restoreFromDisk()
+        if usesVaultOutbox, FileManager.default.fileExists(atPath: SyncOutboxStore.outboxURL.path) {
+            reloadFromOutbox()
+        }
         observeNetwork()
     }
 
@@ -91,7 +97,7 @@ public final class SyncQueueService: ObservableObject {
     /// fresh instance bound to a throwaway `UserDefaults(suiteName:)` so
     /// state can't bleed across test cases. Not for production use.
     public static func makeForTesting(defaults: UserDefaults) -> SyncQueueService {
-        SyncQueueService(defaults: defaults)
+        SyncQueueService(defaults: defaults, usesVaultOutbox: false)
     }
 
     // MARK: - Public mutation API
@@ -112,6 +118,44 @@ public final class SyncQueueService: ObservableObject {
             oldestPendingDate = Date()
         }
         persistToDisk()
+        Task { @MainActor [weak self] in
+            await self?.flushIfOnline()
+        }
+    }
+
+    /// Reload UI state from the durable Vault sidecar. UserDefaults remains a
+    /// backwards-compatible display cache; it is no longer the source of
+    /// truth for cloud acknowledgements.
+    public func reloadFromOutbox() {
+        guard usesVaultOutbox,
+              let operations = try? SyncOutboxStore.pendingOperations() else { return }
+        pendingMemoIDs = Set(operations.map { $0.memoID.uuidString })
+        memoSizes = [:]
+        for operation in operations {
+            memoSizes[operation.memoID.uuidString] = max(0, operation.sizeBytes)
+        }
+        totalBytes = memoSizes.values.reduce(0, +)
+        oldestPendingDate = operations.map(\.modifiedAt).min()
+        persistToDisk()
+    }
+
+    /// Full Vault reconciliation runs off the main actor so a large archive
+    /// never delays app launch or first paint.
+    public func reconcileVault() async {
+        guard usesVaultOutbox else { return }
+        do {
+            try await Task.detached(priority: .utility) {
+                try SyncOutboxStore.reconcileVault()
+            }.value
+            reloadFromOutbox()
+            await flushIfOnline()
+        } catch {
+            SentryReporter.breadcrumb(
+                category: "syncqueue",
+                level: .warning,
+                message: "outbox reconciliation failed: \(error)"
+            )
+        }
     }
 
     /// Mark a memo as successfully synced. Removes the ID from the set
@@ -190,9 +234,17 @@ public final class SyncQueueService: ObservableObject {
         guard NetworkMonitor.shared.isOnline,
               !isFlushingNow,
               !isEmpty else { return }
-        isFlushingNow = true
-        defer { isFlushingNow = false }
         NotificationCenter.default.post(name: .syncQueueFlushRequested, object: nil)
+    }
+
+    func beginFlush() -> Bool {
+        guard !isFlushingNow else { return false }
+        isFlushingNow = true
+        return true
+    }
+
+    func endFlush() {
+        isFlushingNow = false
     }
 
     // MARK: - Network observation

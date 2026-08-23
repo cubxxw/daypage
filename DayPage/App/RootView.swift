@@ -57,6 +57,8 @@ struct RootView: View {
                 // (RC1). Only act when we're in auth phase or already signed in.
                 if hasSession {
                     if phase == .auth { phase = .ready }
+                    installSessionBackedSyncUploader()
+                    Task { await SyncQueueService.shared.flushIfOnline() }
                 } else {
                     let skipped = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
                     if phase == .ready && !skipped { phase = .auth }
@@ -75,14 +77,34 @@ struct RootView: View {
                 // .onAppear calls hit the already-initialised shared instance.
                 _ = SyncQueueObserver.shared
 
-                // #785: install the real iOS→web uploader when the user has
-                // configured a web endpoint + API key under Settings → 同步.
-                // When unconfigured this leaves the Noop double in place so the
-                // queue still drains locally instead of pretending forever.
-                SyncQueueObserver.shared.installConfiguredUploader()
+                installSessionBackedSyncUploader()
+                Task { await SyncQueueService.shared.reconcileVault() }
             }
             .preferredColorScheme(resolvedColorScheme)
             .tint(appSettings.accentColor.color)
+    }
+
+    /// The normal sync path follows the user's Supabase login session. No
+    /// manually copied personal token or service-role credential is involved.
+    private func installSessionBackedSyncUploader() {
+        guard let supabaseURL = URL(string: Secrets.supabaseURL),
+              !Secrets.supabaseAnonKey.isEmpty else {
+            SyncQueueObserver.shared.setUploader(NoopRemoteUploader())
+            return
+        }
+        SyncQueueObserver.shared.setUploader(SupabaseSyncUploader(
+            supabaseURL: supabaseURL,
+            anonKey: Secrets.supabaseAnonKey,
+            accessTokenProvider: {
+                try await MainActor.run {
+                    guard let token = AuthService.shared.session?.accessToken,
+                          !token.isEmpty else {
+                        throw MemoSyncError.unauthorized
+                    }
+                    return token
+                }
+            }
+        ))
     }
 
     @ViewBuilder

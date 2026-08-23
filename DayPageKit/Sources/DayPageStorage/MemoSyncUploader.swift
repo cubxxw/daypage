@@ -165,6 +165,13 @@ public struct MemoSyncUploader: RemoteUploader {
         self.transport = transport
     }
 
+    public func upload(operation: SyncOutboxOperation) async throws -> Int {
+        guard operation.kind == .upsert else {
+            throw MemoSyncError.rejected(reason: "legacy API-key sync cannot acknowledge deletes")
+        }
+        return try await upload(memoID: operation.memoID.uuidString)
+    }
+
     public func upload(memoID: String) async throws -> Int {
         guard let endpoint = SyncSettings.bulkEndpoint,
               let apiKey = SyncSettings.apiKey, !apiKey.isEmpty else {

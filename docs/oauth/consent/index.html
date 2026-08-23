@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://esm.sh; style-src 'unsafe-inline'; connect-src https://gcukhewnszjrwfzhxctn.supabase.co wss://gcukhewnszjrwfzhxctn.supabase.co https://esm.sh; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Authorize DayPage Cloud MCP</title>
+  <style>
+    :root{font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2a1f18;background:#f7f1e7}*{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#fffaf2 0,#f7f1e7 48%,#efe4d3 100%)}
+    main{width:min(100%,600px);background:rgba(255,253,248,.96);border:1px solid rgba(124,45,18,.16);border-radius:28px;padding:32px;box-shadow:0 30px 80px rgba(74,41,22,.14)}
+    .mark{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:#7c2d12;color:white;font-size:24px}.kicker{margin:20px 0 6px;color:#9a5d3d;font-size:12px;font-weight:700;letter-spacing:.14em}
+    h1{margin:0;font-size:clamp(30px,6vw,44px);letter-spacing:-.04em}p{line-height:1.55;color:#675248}.muted{font-size:13px;color:#8a7468}.hidden{display:none!important}
+    form,.stack{display:grid;gap:14px;margin-top:24px}label{display:grid;gap:7px;font-size:13px;font-weight:650}input[type=email],input[type=password]{width:100%;border:1px solid #d9c7b8;border-radius:13px;padding:13px 14px;font:inherit;background:white;color:#2a1f18}
+    button{border:0;border-radius:13px;padding:13px 16px;font:inherit;font-weight:700;cursor:pointer;transition:transform .15s ease,opacity .15s ease}button:hover{transform:translateY(-1px)}button:disabled{cursor:wait;opacity:.6}.primary{background:#7c2d12;color:#fff}.secondary{background:#efe4d8;color:#4f3526}.ghost{background:transparent;color:#7c2d12;border:1px solid #dccabb}
+    .client{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:22px;padding:16px;border-radius:16px;background:#f6ede3}.client span{display:block;color:#8a7468;font-size:12px}.client strong{font-size:17px}
+    fieldset{border:0;padding:0;margin:22px 0 0;display:grid;gap:10px}legend{font-weight:750;margin-bottom:10px}.choice{display:flex;gap:12px;align-items:flex-start;padding:15px;border:1px solid #e1d2c5;border-radius:15px;background:#fff}.choice input{margin-top:4px}.choice small{display:block;color:#806b60;margin-top:4px;line-height:1.4}
+    .actions{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:22px}.scopes{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}.scopes code{padding:5px 8px;border-radius:8px;background:#efe7de;font-size:11px}
+    .notice{padding:12px 14px;border-radius:12px;background:#f3e5dd;color:#7c2d12;font-size:13px;margin-top:16px}.success{background:#e6f2e7;color:#315f39}details{margin-top:16px}.footer{margin-top:22px;padding-top:18px;border-top:1px solid #eaded2;font-size:12px;color:#927d70}
+    @media(max-width:520px){main{padding:24px;border-radius:22px}.actions{grid-template-columns:1fr}.actions .ghost{order:2}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="mark" aria-hidden="true">◇</div><p class="kicker">DAYPAGE · AUTHORIZATION</p>
+  <section id="loading"><h1>Preparing a private connection…</h1><p>Checking your DayPage session and the requesting app.</p></section>
+  <section id="login" class="hidden">
+    <h1>Sign in to DayPage</h1><p>Authorize an agent using the same account that owns your synced DayPage data.</p>
+    <button id="apple" class="secondary" type="button">Continue with Apple</button>
+    <form id="email-form"><label>Email address<input id="email" type="email" autocomplete="email" required placeholder="you@example.com"></label><button class="primary" type="submit">Send magic link</button></form>
+    <details><summary class="muted">Staging acceptance account</summary><div class="stack"><label>Email<input id="dev-email" type="email" autocomplete="username" placeholder="Staging account"></label><label>Password<input id="dev-password" type="password" autocomplete="current-password" placeholder="Password"></label><button id="dev-login" class="ghost" type="button">Sign in to staging</button></div></details>
+  </section>
+  <section id="consent" class="hidden">
+    <h1 id="title">Connect app</h1><p>Only data already synced to your DayPage account is covered. Your local Vault stays on your devices.</p>
+    <div class="client"><div><span>Requesting app</span><strong id="client-name"></strong></div><span id="account"></span></div>
+    <fieldset><legend>Choose DayPage access</legend><label class="choice"><input type="radio" name="permission" value="read_only" checked><span><strong>Read only</strong><small>Search and read synced memos and compiled pages. Recommended.</small></span></label><label class="choice"><input type="radio" name="permission" value="read_write"><span><strong>Read and add memos</strong><small>Also lets the app create cloud memos. Existing memos cannot be deleted through MCP.</small></span></label></fieldset>
+    <div id="scopes" class="scopes"></div><div class="actions"><button id="allow" class="primary" type="button">Allow connection</button><button id="deny" class="ghost" type="button">Deny</button></div>
+    <p class="muted">You can revoke this connection in DayPage Settings. Every MCP call validates this app, user, audience, and grant.</p>
+  </section>
+  <div id="message" class="notice hidden" role="status"></div><p class="footer">Staging · OAuth 2.1 + PKCE · DayPage Cloud MCP</p>
+</main>
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
+  const supabaseUrl = "https://gcukhewnszjrwfzhxctn.supabase.co";
+  const publishableKey = "sb_publishable_bE_AwZrkhj6ypsEX0p6Cgw_LaRQ1M91";
+  const consentUrl = "https://getyak.github.io/daypage/oauth/consent/";
+  const supabase = createClient(supabaseUrl, publishableKey, { auth: { flowType: "pkce", persistSession: true, detectSessionInUrl: true } });
+  const authorizationId = new URL(location.href).searchParams.get("authorization_id");
+  const ids = ["loading","login","consent","message","client-name","account","title","scopes","allow","deny","apple","dev-login","dev-email","dev-password","email-form","email"];
+  const elements = Object.fromEntries(ids.map(id => [id, document.getElementById(id)])); let details = null;
+  const show = name => ["loading","login","consent"].forEach(id => elements[id].classList.toggle("hidden",id!==name));
+  const message = (text,success=false) => { elements.message.textContent=text; elements.message.classList.toggle("success",success); elements.message.classList.remove("hidden"); };
+  const busy = value => document.querySelectorAll("button").forEach(button => button.disabled=value);
+  const callback = () => consentUrl+"?authorization_id="+encodeURIComponent(authorizationId||"");
+  async function load(){
+    if(!authorizationId||authorizationId.length>200){show("login");message("The OAuth authorization request is missing or invalid.");busy(true);return}
+    const {data:{session}}=await supabase.auth.getSession();if(!session){show("login");return}
+    const result=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);if(result.error||!result.data){show("login");message(result.error?.message||"This authorization request is no longer available.");return}
+    if(!("authorization_id" in result.data)){location.assign(result.data.redirect_url);return}details=result.data;
+    elements["client-name"].textContent=details.client.name||"External app";elements.account.textContent=details.user.email||"DayPage user";elements.title.textContent="Connect "+(details.client.name||"app");
+    elements.scopes.replaceChildren(...details.scope.split(/\s+/).filter(Boolean).map(scope=>{const code=document.createElement("code");code.textContent=scope;return code}));show("consent")
+  }
+  elements["email-form"].addEventListener("submit",async event=>{event.preventDefault();busy(true);const {error}=await supabase.auth.signInWithOtp({email:elements.email.value.trim(),options:{emailRedirectTo:callback(),shouldCreateUser:true}});busy(false);message(error?error.message:"Magic link sent. Open it on this device to continue.",!error)});
+  elements.apple.addEventListener("click",async()=>{busy(true);const {error}=await supabase.auth.signInWithOAuth({provider:"apple",options:{redirectTo:callback()}});if(error){busy(false);message(error.message)}});
+  elements["dev-login"].addEventListener("click",async()=>{busy(true);const {error}=await supabase.auth.signInWithPassword({email:elements["dev-email"].value.trim(),password:elements["dev-password"].value});if(error){busy(false);message(error.message);return}await load();busy(false)});
+  elements.allow.addEventListener("click",async()=>{if(!details)return;busy(true);const canWrite=document.querySelector('input[name="permission"]:checked')?.value==="read_write";const now=new Date().toISOString();const {error:grantError}=await supabase.from("mcp_client_grants").upsert({user_id:details.user.id,client_id:details.client.id,can_read:true,can_write:canWrite,updated_at:now,revoked_at:null},{onConflict:"user_id,client_id"});if(grantError){busy(false);message("DayPage permission could not be saved.");return}const {data,error}=await supabase.auth.oauth.approveAuthorization(details.authorization_id,{skipBrowserRedirect:true});if(error||!data?.redirect_url){await supabase.from("mcp_client_grants").update({revoked_at:now,updated_at:now}).eq("user_id",details.user.id).eq("client_id",details.client.id);busy(false);message("OAuth authorization could not be completed.");return}location.assign(data.redirect_url)});
+  elements.deny.addEventListener("click",async()=>{if(!details)return;busy(true);const {data,error}=await supabase.auth.oauth.denyAuthorization(details.authorization_id,{skipBrowserRedirect:true});if(error||!data?.redirect_url){busy(false);message("OAuth denial could not be completed.");return}location.assign(data.redirect_url)});await load();
+</script>
+</body>
+</html>

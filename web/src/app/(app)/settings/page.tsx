@@ -7,6 +7,7 @@ import { TelegramSection } from "./TelegramSection";
 import { WebhookSection } from "./WebhookSection";
 import { ClipperSection } from "./ClipperSection";
 import { EvolutionSection } from "./EvolutionSection";
+import { McpConnectionsSection } from "./McpConnectionsSection";
 
 export const metadata = {
   title: "Settings · DayPage",
@@ -37,6 +38,7 @@ export default async function SettingsPage() {
         <TelegramSection />
         <WebhookSection />
         <ClipperSection />
+        <McpConnectionsSection />
         <ApiKeysSection />
       </div>
     </>

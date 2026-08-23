@@ -66,7 +66,7 @@ function SuccessView({ email, onReset }: { email: string; onReset: () => void })
   );
 }
 
-export function EmailSignInForm() {
+export function EmailSignInForm({ callbackUrl = "/today" }: { callbackUrl?: string }) {
   const [state, formAction, isPending] = useActionState(sendMagicLink, INITIAL);
 
   if (state.status === "sent") {
@@ -80,6 +80,7 @@ export function EmailSignInForm() {
 
   return (
     <form action={formAction} className="login-email-form" noValidate>
+      <input type="hidden" name="callbackUrl" value={callbackUrl} />
       <div className="login-field">
         <label htmlFor="login-email" className="login-field__label">
           Email address

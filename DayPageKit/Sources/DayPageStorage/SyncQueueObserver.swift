@@ -18,26 +18,19 @@
 
 import Foundation
 
-/// Pluggable contract for the actual cloud upload. Returns the byte size
-/// reported back from the remote so `markSynced` can decrement the queue's
-/// running totalBytes accurately. Real implementations will translate
-/// memoID → Supabase row + handle conflict resolution; the placeholder
-/// just sleeps briefly to mimic latency.
+/// Pluggable contract for uploading one durable outbox operation. The exact
+/// operation ID must be echoed by the server before the observer removes it.
 public protocol RemoteUploader: Sendable {
-    func upload(memoID: String) async throws -> Int
+    func upload(operation: SyncOutboxOperation) async throws -> Int
 }
 
-/// Placeholder uploader used until the Supabase sync service lands.
-/// Returns size=0; SyncQueueService now remembers per-memo byte sizes
-/// from enqueue time so the return value is informational only and the
-/// totalBytes tally still drains correctly. Sleeps ~300ms per memo so
-/// the spinner + "正在同步…" banner stay visible long enough to be
-/// perceived — the previous 200ms sometimes drained the queue inside a
-/// single frame, leaving the user wondering whether anything happened.
+/// Fail-closed fallback used before an authenticated Supabase session exists.
+/// It must never remove an outbox operation or imply that data reached cloud.
 public struct NoopRemoteUploader: RemoteUploader {
-    public func upload(memoID: String) async throws -> Int {
-        try await Task.sleep(nanoseconds: 300_000_000)
-        return 0
+    public init() {}
+
+    public func upload(operation: SyncOutboxOperation) async throws -> Int {
+        throw MemoSyncError.notConfigured
     }
 }
 
@@ -48,9 +41,8 @@ public final class SyncQueueObserver {
     private var observer: NSObjectProtocol?
     private var isFlushing = false
 
-    /// Injected by whoever wires up the real Supabase uploader (probably
-    /// `DayPageApp` once that lands). Until then the Noop double drains
-    /// the queue so the UI doesn't lie about backlog forever.
+    /// Injected by the app after it has a Supabase session. The unconfigured
+    /// uploader always fails closed and therefore can never falsely drain data.
     private var uploader: RemoteUploader = NoopRemoteUploader()
 
     private init() {
@@ -73,10 +65,8 @@ public final class SyncQueueObserver {
     }
 
     /// #785: pick the right uploader based on the user's sync configuration.
-    /// When a web endpoint + API key are present, install the real
-    /// `MemoSyncUploader`; otherwise fall back to the Noop double so the
-    /// pending banner still drains locally without pretending data reached the
-    /// server. Call this at launch and whenever Settings changes the config.
+    /// Legacy API-key bridge retained for existing dogfood installs. New app
+    /// sessions install `SupabaseSyncUploader` directly from RootView.
     public func installConfiguredUploader() {
         if SyncSettings.isConfigured {
             self.uploader = MemoSyncUploader()
@@ -94,26 +84,16 @@ public final class SyncQueueObserver {
         isFlushing = true
         defer { isFlushing = false }
 
-        let pending = SyncQueueService.shared.pendingMemoIDs
-        guard !pending.isEmpty else { return }
+        guard let operations = try? SyncOutboxStore.pendingOperations(),
+              !operations.isEmpty,
+              SyncQueueService.shared.beginFlush() else { return }
+        defer { SyncQueueService.shared.endFlush() }
 
-        // R8: give the "正在同步…" banner enough time to actually appear
-        // before we start draining. The banner reads
-        // SyncQueueService.isFlushingNow indirectly through the network
-        // observer chain, and on fast paths the queue used to empty
-        // before SwiftUI had finished its first frame. 5s aligns with
-        // the iOS HIG "noticeable progress" budget — the user gets to
-        // see *something*, but it's still short enough that no one will
-        // call it broken.
-        try? await Task.sleep(nanoseconds: 5_000_000_000)
-
-        for memoID in pending {
+        for operation in operations {
             do {
-                // Return value is ignored — the queue tracks per-memo
-                // bytes from enqueue time. Real uploaders may still
-                // return their own size for telemetry.
-                _ = try await uploader.upload(memoID: memoID)
-                SyncQueueService.shared.markSynced(memoID: memoID)
+                _ = try await uploader.upload(operation: operation)
+                try SyncOutboxStore.acknowledge(operationID: operation.operationID)
+                SyncQueueService.shared.reloadFromOutbox()
             } catch {
                 // Network/server problem — stop this pass so we don't
                 // burn through retries pointlessly. The next online
@@ -121,7 +101,7 @@ public final class SyncQueueObserver {
                 SentryReporter.breadcrumb(
                     category: "syncqueue",
                     level: .warning,
-                    message: "upload failed for \(memoID): \(error)"
+                    message: "upload failed for \(operation.memoID): \(error)"
                 )
                 break
             }

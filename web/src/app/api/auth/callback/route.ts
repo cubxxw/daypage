@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/auth/safe-next";
 
 // OAuth + magic-link callback. Supabase appends `?code=...` after the user
 // confirms (Apple PKCE flow or email link click); we exchange it for a session
@@ -9,19 +10,10 @@ import { createClient } from "@/lib/supabase/server";
 // URLs (http://evil.com), protocol-relative URLs (//evil.com), and anything
 // that doesn't start with a single "/" — otherwise `next` becomes an open
 // redirect an attacker can use to phish credentials. Default to /home.
-function safeNext(raw: string | null): string {
-  if (!raw) return "/home";
-  // Must be a path rooted at "/" but not "//" (protocol-relative) or "/\".
-  if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) {
-    return "/home";
-  }
-  return raw;
-}
-
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = safeNext(url.searchParams.get("next"));
+  const next = safeNextPath(url.searchParams.get("next"));
   const errorDescription = url.searchParams.get("error_description");
 
   if (errorDescription) {

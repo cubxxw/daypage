@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { EmailSignInForm } from "./EmailSignInForm";
 import { LoginSubmitButton } from "./LoginSubmitButton";
+import { safeNextPath } from "@/lib/auth/safe-next";
 
 export const metadata = {
   title: "Sign in — DayPage",
@@ -30,11 +31,11 @@ const FEATURES = [
 // magic-link confirmation or OAuth completes. Reads the actual request host so
 // it works in dev (localhost:3000) and any preview/prod deploy without needing
 // a separate env var.
-async function emailRedirectTo(): Promise<string> {
+async function emailRedirectTo(next: string): Promise<string> {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
-  return `${proto}://${host}/api/auth/callback?next=/home`;
+  return `${proto}://${host}/api/auth/callback?next=${encodeURIComponent(next)}`;
 }
 
 export default async function LoginPage({
@@ -42,7 +43,8 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string; callbackUrl?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, callbackUrl } = await searchParams;
+  const next = safeNextPath(callbackUrl, "/home");
   const errorMsg = error
     ? (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.Default)
     : null;
@@ -152,7 +154,7 @@ export default async function LoginPage({
             action={async () => {
               "use server";
               const supabase = await createClient();
-              const redirectTo = await emailRedirectTo();
+              const redirectTo = await emailRedirectTo(next);
               const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: "apple",
                 options: { redirectTo },
@@ -185,7 +187,7 @@ export default async function LoginPage({
           </div>
 
           {/* Email magic link */}
-          <EmailSignInForm />
+          <EmailSignInForm callbackUrl={next} />
 
           {/* Dev/E2E-only shortcut — Supabase password sign-in against the seeded
               dev@daypage.local user. Enabled in dev by default and in prod builds
@@ -206,10 +208,11 @@ export default async function LoginPage({
                 if (error) {
                   redirect(`/login?error=${encodeURIComponent(error.message)}`);
                 }
-                redirect("/home");
+                redirect(next);
               }}
               className="login-dev"
             >
+              <input type="hidden" name="callbackUrl" value={next} />
               <p className="ds-body-sm" style={{ color: "var(--fg-muted)" }}>
                 Dev-only (E2E shortcut)
               </p>

@@ -1,55 +1,20 @@
 #!/usr/bin/env node
-/**
- * DayPage MCP Server — stdio transport
- * Compatible with Claude Desktop and Claude Code
- *
- * JSON-RPC 2.0 over stdin/stdout.
- * Implements: initialize, listTools, callTool
- */
+import { loadConfig } from "./config.js";
+import { createDayPageHttpServer } from "./http.js";
 
-import { createInterface } from "readline";
-import { handleRequest } from "./server.js";
+const config = loadConfig();
+const server = createDayPageHttpServer(config);
 
-const rl = createInterface({ input: process.stdin, terminal: false });
-
-rl.on("line", (line) => {
-  const trimmed = line.trim();
-  if (trimmed === "") return;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    const errorResponse = {
-      jsonrpc: "2.0",
-      id: null,
-      error: { code: -32700, message: "Parse error: invalid JSON" },
-    };
-    process.stdout.write(JSON.stringify(errorResponse) + "\n");
-    return;
-  }
-
-  handleRequest(parsed)
-    .then((response) => {
-      if (response !== null) {
-        process.stdout.write(JSON.stringify(response) + "\n");
-      }
-    })
-    .catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      const errorResponse = {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32603, message: `Internal error: ${msg}` },
-      };
-      process.stdout.write(JSON.stringify(errorResponse) + "\n");
-    });
+server.listen(config.port, config.host, () => {
+  process.stdout.write(
+    JSON.stringify({ event: "listening", service: "daypage-cloud-mcp", host: config.host, port: config.port }) + "\n",
+  );
 });
 
-rl.on("close", () => {
-  process.exit(0);
-});
+async function shutdown(signal: string): Promise<void> {
+  process.stdout.write(JSON.stringify({ event: "shutdown", signal }) + "\n");
+  server.close((error) => process.exit(error ? 1 : 0));
+}
 
-// Keep alive — MCP servers run as persistent processes
-process.on("SIGTERM", () => process.exit(0));
-process.on("SIGINT", () => process.exit(0));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
