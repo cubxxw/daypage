@@ -52,7 +52,7 @@
 
 ### 2.5 业务表 RLS、同步 RPC 与 MCP grant
 
-不要在 Dashboard 手工创建通配策略。按 journal 运行迁移至 `0027_multi_device_pull`；`0025` 按表结构分别处理直接 `user_id` 和通过父表归属的记录，并安装幂等同步 RPC、tombstone 与 MCP 客户端授权表，`0027` 再安装单调增量拉取序列与账户隔离的 pull RPC。
+不要在 Dashboard 手工创建通配策略。按 journal 运行迁移至 `0028_sync_receipt_integrity`；`0025` 按表结构分别处理直接 `user_id` 和通过父表归属的记录，并安装幂等同步 RPC、tombstone 与 MCP 客户端授权表，`0027` 再安装单调增量拉取序列与账户隔离的 pull RPC，`0028` 将历史回执绑定到 operation ID、memo ID、kind、revision 四元组，避免异常重试错误确认另一条操作。
 
 ### 2.6 OAuth Server、DCR 与 access-token hook
 
@@ -69,7 +69,7 @@ Supabase 当前只支持标准身份 scopes。DayPage 的 read-only / read-write
 ## 3. 本地启动验证
 
 1. 启动 OrbStack / Docker → `pnpm dlx supabase start`。Supabase CLI 只自动运行 `supabase/migrations`（当前是 Storage 配置），不会隐式运行 Web 的 Drizzle migrations。
-2. 执行 `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm --filter daypage-web db:migrate`，按 journal 运行 `0000` 至 `0027`。
+2. 执行 `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm --filter daypage-web db:migrate`，按 journal 运行 `0000` 至 `0028`。
 3. `pnpm --filter daypage-web dev`（:13000）+ `pnpm --filter daypage-web dev:inngest`（:8288）。
 4. 浏览器开 `127.0.0.1:13000/login` → "Dev login (no email)" → 自动跳 `/home`。
 5. 退出登录 → 用真实邮箱发 magic link → 收件箱（Resend 沙盒规则下需是已验证邮箱）。

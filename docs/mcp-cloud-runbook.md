@@ -11,7 +11,7 @@ This runbook promotes the pipeline in [ADR-0008](architecture/decisions/ADR-0008
 
 ## Database and Auth
 
-1. Apply the Drizzle journal through `0027_multi_device_pull` to the staging database.
+1. Apply the Drizzle journal through `0028_sync_receipt_integrity` to the staging database.
 2. Set the environment-owned resource value:
 
    ```sql
@@ -30,6 +30,9 @@ This runbook promotes the pipeline in [ADR-0008](architecture/decisions/ADR-0008
 `daypage_memo_change_sequence`; otherwise the revisioned write RPC catches the trigger
 failure and returns a rejected operation. The verification script covers this through a
 real authenticated-role upsert rather than a privilege-only assertion.
+
+`0028_sync_receipt_integrity` keeps an exact retry idempotent while rejecting reuse of an
+existing operation ID with a different memo ID, operation kind, or revision.
 
 Supabase standard scopes (`openid email profile`) identify the user. DayPage read/write authority comes from `mcp_client_grants` and is checked on every MCP request.
 
@@ -132,6 +135,9 @@ hard failure rather than an automatic rebind.
 - Hosted migration `0027_multi_device_pull` and its updated transaction verification
   passed on 2026-08-24. The test covered monotonic pull cursors and a user-B zero-result
   negative check, and rolled back its synthetic rows.
+- Hosted migration `0028_sync_receipt_integrity` and the expanded transaction
+  verification passed on 2026-08-25. The test covered both an exact retry and a rejected
+  operation-ID tuple mismatch, and again rolled back all synthetic rows.
 - The marker memo was inserted through `daypage_apply_sync_operations` under the
   synthetic user's access token, not through SQL or a service-role bypass.
 - Codex CLI 0.147.0 completed DCR + PKCE login and called `daypage_search` on the

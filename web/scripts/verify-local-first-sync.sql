@@ -72,6 +72,18 @@ BEGIN
   END IF;
 
   result := public.daypage_apply_sync_operations(jsonb_build_array(jsonb_build_object(
+    'operation_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+    'memo_id', '55555555-5555-4555-8555-555555555555',
+    'kind', 'upsert',
+    'revision', 1,
+    'modified_at', '2026-08-24T00:00:00Z'
+  )));
+  IF jsonb_array_length(result -> 'accepted') <> 0
+    OR result #>> '{rejected,0,reason}' <> 'invalid_or_conflicting_operation' THEN
+    RAISE EXCEPTION 'operation id reuse was not rejected: %', result;
+  END IF;
+
+  result := public.daypage_apply_sync_operations(jsonb_build_array(jsonb_build_object(
     'operation_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
     'memo_id', '33333333-3333-4333-8333-333333333333',
     'kind', 'upsert',

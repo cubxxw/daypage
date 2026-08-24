@@ -58,7 +58,8 @@ copying a Personal Access Token is no longer part of the normal product flow.
 
 The remote contract accepts batches of upsert/delete operations with:
 
-- a unique operation ID used as the idempotency key;
+- a unique operation ID used as the idempotency key and bound by the server to the
+  immutable memo ID, operation kind, and revision tuple;
 - `memo_id`, operation kind and per-memo local revision;
 - `source_modified_at` and a stable content hash;
 - the memo payload for upserts, or a tombstone for deletes.
@@ -169,6 +170,11 @@ minimum sequence privilege needed by authenticated writers. A hosted transaction
 revisioned upsert, exact idempotent retry, stale rejection, tombstone pull, monotonic
 cursor replay safety, user-B isolation, and token-hook behavior/grants, then rolled all
 synthetic rows back.
+
+Migration `0028_sync_receipt_integrity` was then applied to staging. It preserves a
+legitimate retry only when operation ID, memo ID, kind, and revision match the stored
+receipt, and rejects operation-ID reuse for a different logical mutation. The expanded
+transaction verification proved both cases and rolled all synthetic state back.
 
 The same public endpoint also accepts `Authorization: Bearer dpg_stg_…` PATs for
 non-interactive cloud agents. PAT calls are isolated to their owning user and expose
