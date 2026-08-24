@@ -174,6 +174,58 @@ class SupabaseDayPageRepository implements DayPageRepository {
   }
 }
 
+class ApiKeyDayPageRepository implements DayPageRepository {
+  private readonly client: SupabaseClient;
+  private readonly keyHash: string;
+
+  constructor(config: DayPageMcpConfig, private readonly auth: DayPageAuthContext) {
+    if (auth.authType !== "api_key" || !auth.apiKey) {
+      throw new RepositoryError("API key repository requires API key authentication");
+    }
+    this.keyHash = auth.apiKey.hash;
+    this.client = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+      auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
+    });
+  }
+
+  private async execute<T>(operation: string, args: Record<string, unknown> = {}): Promise<T> {
+    const { data, error } = await this.client.rpc("daypage_mcp_api_key_request", {
+      p_key_hash: this.keyHash,
+      p_operation: operation,
+      p_arguments: args,
+    });
+    if (error) throw new RepositoryError(`${operation} failed: ${error.message}`);
+    return data as T;
+  }
+
+  async getGrant(): Promise<McpClientGrant> {
+    return {
+      canRead: this.auth.apiKey?.canRead === true,
+      canWrite: this.auth.apiKey?.canWrite === true,
+    };
+  }
+
+  async listRecent(limit: number, before?: string): Promise<MemoRecord[]> {
+    return this.execute<MemoRecord[]>("list_recent", { limit, before: before ?? null });
+  }
+
+  async getMemo(id: string): Promise<MemoRecord | null> {
+    return this.execute<MemoRecord | null>("get_memo", { id });
+  }
+
+  async search(query: string, limit: number): Promise<SearchResults> {
+    return this.execute<SearchResults>("search", { query, limit });
+  }
+
+  async getPage(slug: string): Promise<PageRecord | null> {
+    return this.execute<PageRecord | null>("get_page", { slug });
+  }
+
+  async addMemo(text: string): Promise<MemoRecord> {
+    return this.execute<MemoRecord>("add_memo", { text });
+  }
+}
+
 export function createSupabaseRepository(
   config: DayPageMcpConfig,
   auth: DayPageAuthContext,
@@ -183,4 +235,13 @@ export function createSupabaseRepository(
     global: { headers: { Authorization: `Bearer ${auth.token}` } },
   });
   return new SupabaseDayPageRepository(client, auth);
+}
+
+export function createDayPageRepository(
+  config: DayPageMcpConfig,
+  auth: DayPageAuthContext,
+): DayPageRepository {
+  return auth.authType === "api_key"
+    ? new ApiKeyDayPageRepository(config, auth)
+    : createSupabaseRepository(config, auth);
 }

@@ -1,9 +1,9 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { AuthenticationError, createTokenVerifier } from "../../../packages/mcp-server/src/auth.ts";
+import { AuthenticationError, createCredentialVerifier } from "../../../packages/mcp-server/src/auth.ts";
 import type { DayPageMcpConfig } from "../../../packages/mcp-server/src/config.ts";
 import { createDayPageMcpServer } from "../../../packages/mcp-server/src/mcp.ts";
-import { createSupabaseRepository } from "../../../packages/mcp-server/src/repository.ts";
+import { createDayPageRepository } from "../../../packages/mcp-server/src/repository.ts";
 
 declare const Deno: {
   env: { get(name: string): string | undefined };
@@ -27,7 +27,7 @@ const config: DayPageMcpConfig = {
   requestsPerMinute: 60,
 };
 
-const verifyToken = createTokenVerifier(config);
+const verifyToken = createCredentialVerifier(config);
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function required(name: string): string {
@@ -119,14 +119,14 @@ async function handle(request: Request): Promise<Response> {
   const rate = takeRateLimit(`${auth.subject}:${auth.clientId}`);
   if (!rate.allowed) return json(429, { error: "Rate limit exceeded" }, { "Retry-After": String(rate.retryAfter) });
 
-  const repository = createSupabaseRepository(config, auth);
+  const repository = createDayPageRepository(config, auth);
   let grant;
   try {
     grant = await repository.getGrant(auth.clientId);
   } catch {
     return json(503, { error: "Authorization grant lookup unavailable" });
   }
-  if (!grant.canRead) return json(403, { error: "This OAuth client has no active DayPage read grant" });
+  if (!grant.canRead) return json(403, { error: "This credential has no active DayPage read permission" });
   if (request.method !== "POST") return json(405, { error: "Method not allowed" }, { Allow: "POST" });
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");

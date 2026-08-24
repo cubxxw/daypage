@@ -73,6 +73,7 @@ async function withServer(
       session_id: "22222222-2222-2222-2222-222222222222",
       client_id: "codex-test-client",
     },
+    authType: "oauth",
   };
   const server = createDayPageHttpServer(config, {
     verifyToken: async (token) => {

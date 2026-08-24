@@ -183,6 +183,13 @@
       "when": 1787500801000,
       "tag": "0025_local_first_sync_and_mcp",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787587200000,
+      "tag": "0026_mcp_api_key_auth",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,7 @@ export async function authenticateApiKey(
     .where(
       and(
         eq(api_keys.key_hash, keyHash),
+        isNull(api_keys.revoked_at),
         or(isNull(api_keys.expires_at), gt(api_keys.expires_at, now))
       )
     )

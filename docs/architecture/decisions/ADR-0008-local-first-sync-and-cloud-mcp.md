@@ -1,4 +1,4 @@
-# ADR-0008: Local-first sync and OAuth-protected DayPage Cloud MCP
+# ADR-0008: Local-first sync and user-scoped DayPage Cloud MCP
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -109,6 +109,15 @@ key plus that same user token. All data operations consequently execute under RL
 does not hold a service-role key or `DATABASE_URL` in the request path and never forwards
 the token to any service other than its matching Supabase project.
 
+Cloud agents that cannot complete an interactive OAuth flow may instead use a revocable
+DayPage personal access token (PAT). PATs reuse `api_keys`, carry read/write scopes, are
+shown only once, and are stored only as SHA-256 hashes. A fixed `SECURITY DEFINER` RPC
+revalidates the hash, expiry, revocation and scope on every operation and applies the
+resolved `user_id` to every static query. The RPC is executable only by the anonymous
+gateway role; the underlying key and content tables remain inaccessible to that role.
+This adds non-interactive authentication without introducing a service-role credential
+or accepting a caller-supplied user ID. OAuth remains the default for third-party apps.
+
 Initial stable tools are namespaced and bounded:
 
 - `daypage_list_recent`
@@ -139,6 +148,16 @@ the supplied production project remained untouched. The accepted MCP resource is
 `https://gcukhewnszjrwfzhxctn.supabase.co/functions/v1/daypage-mcp`, with a public static
 consent UI on the staging branch's GitHub Pages site. Codex CLI completed DCR/PKCE and
 read the uniquely marked memo through `daypage_search`.
+
+The same public endpoint also accepts `Authorization: Bearer dpg_stg_…` PATs for
+non-interactive cloud agents. PAT calls are isolated to their owning user and expose
+`daypage_add_memo` only when the stored key has the `write` scope.
+
+Implementation evidence (2026-08-24): staging issued a 90-day read-only PAT whose raw
+value was displayed once and whose SHA-256 hash was stored. The official MCP SDK used
+that PAT to list only the four read tools and retrieve memo
+`87300000-0000-4000-8000-000000000002`; a mutated PAT returned `401`. Twenty warm PAT
+searches measured 757 ms p95 and 886 ms maximum.
 
 ## Performance budgets
 

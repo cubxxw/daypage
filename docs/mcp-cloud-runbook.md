@@ -28,6 +28,12 @@ This runbook promotes the pipeline in [ADR-0008](architecture/decisions/ADR-0008
 
 Supabase standard scopes (`openid email profile`) identify the user. DayPage read/write authority comes from `mcp_client_grants` and is checked on every MCP request.
 
+For non-interactive agents, a DayPage PAT can be supplied in the same Bearer header.
+Generate at least 256 bits of entropy, prefix it with `dpg_stg_` or `dpg_live_`, store
+only `sha256(raw_key)` in `api_keys.key_hash`, and display the raw value once. PATs reuse
+the existing `read` / `write` scopes and may be revoked or expired independently. Never
+use a Supabase anon, publishable, secret, or service-role key as a DayPage PAT.
+
 ## Deploy and probe
 
 The portable container deployment remains available: build `deploy/Dockerfile.mcp` and
@@ -64,6 +70,9 @@ GET /functions/v1/daypage-mcp/.well-known/oauth-protected-resource    -> 200 met
 POST /functions/v1/daypage-mcp without bearer token                   -> 401 + WWW-Authenticate
 POST with normal DayPage app token                                    -> 401 (wrong audience/client)
 POST with OAuth token but revoked grant                               -> 403
+POST with invalid, expired, or revoked DayPage PAT                    -> 401
+POST with read-only DayPage PAT calls `daypage_search`                -> 200
+POST with read-only DayPage PAT cannot advertise `daypage_add_memo`
 ```
 
 ## Codex acceptance
@@ -87,4 +96,10 @@ Production promotion requires all six checks and must use a different OAuth cons
 - Codex CLI 0.147.0 completed DCR + PKCE login and called `daypage_search` on the
   remote MCP. It returned memo `87300000-0000-4000-8000-000000000002` with body
   `DAYPAGE_CODEX_MCP_STAGING_20260824 — local Vault to Supabase to Cloud MCP acceptance memo`.
+- A read-only PAT with key ID `30a21a60-604f-4d05-a166-750cccacca67`, display
+  prefix `dpg_stg_1_fe0pD1`, and 90-day expiry was issued to the synthetic user.
+  The official MCP SDK listed the four read tools, did not advertise
+  `daypage_add_memo`, and returned the same marker memo through `daypage_search`.
+- A one-character-mutated PAT returned `401`. On 20 warm PAT searches, measured
+  latency was 633 ms average, 622 ms p50, 757 ms p95, and 886 ms maximum.
 - The supplied production project `thnmxpgwzwprixfkqpkw` was not modified.

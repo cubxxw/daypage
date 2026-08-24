@@ -608,6 +608,7 @@ export const api_keys = pgTable(
       .notNull()
       .defaultNow(),
     expires_at: timestamp("expires_at", { withTimezone: true }),
+    revoked_at: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [
     index("api_keys_user_name").on(t.user_id, t.name),

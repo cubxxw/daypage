@@ -2,11 +2,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { DayPageAuthContext } from "./auth.js";
-import { AuthenticationError, createTokenVerifier } from "./auth.js";
+import { AuthenticationError, createCredentialVerifier } from "./auth.js";
 import type { DayPageMcpConfig } from "./config.js";
 import { createDayPageMcpServer } from "./mcp.js";
 import type { DayPageRepository } from "./repository.js";
-import { createSupabaseRepository } from "./repository.js";
+import { createDayPageRepository } from "./repository.js";
 
 export interface HttpDependencies {
   verifyToken: (token: string) => Promise<DayPageAuthContext>;
@@ -92,8 +92,8 @@ function requestPath(request: IncomingMessage): string {
 export function createDayPageHttpServer(
   config: DayPageMcpConfig,
   dependencies: HttpDependencies = {
-    verifyToken: createTokenVerifier(config),
-    createRepository: (auth) => createSupabaseRepository(config, auth),
+    verifyToken: createCredentialVerifier(config),
+    createRepository: (auth) => createDayPageRepository(config, auth),
   },
 ): Server {
   const limiter = new FixedWindowRateLimiter(config.requestsPerMinute);
@@ -151,7 +151,7 @@ export function createDayPageHttpServer(
       return;
     }
     if (!grant.canRead) {
-      sendJson(response, 403, { error: "This OAuth client has no active DayPage read grant" });
+      sendJson(response, 403, { error: "This credential has no active DayPage read permission" });
       return;
     }
 
