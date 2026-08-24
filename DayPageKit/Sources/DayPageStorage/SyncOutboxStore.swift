@@ -108,6 +108,42 @@ public enum SyncOutboxStore {
         }
     }
 
+    public static func pendingOperation(for memoID: UUID) throws -> SyncOutboxOperation? {
+        try queue.sync {
+            try load().operations.first { $0.memoID == memoID }
+        }
+    }
+
+    public static func deviceID() throws -> String {
+        try queue.sync { try load().deviceID }
+    }
+
+    /// Records the canonical revision received from the server without
+    /// generating another outbound operation. `RawStorage` calls this only
+    /// after the corresponding remote mutation has committed to the Vault.
+    public static func acceptRemoteChange(
+        memo: Memo?,
+        memoID: UUID,
+        remoteRevision: Int64,
+        deleted: Bool
+    ) throws {
+        try queue.sync {
+            var state = try load()
+            let memoKey = key(memoID)
+            state.memoStates[memoKey] = MemoState(
+                revision: max(0, remoteRevision),
+                contentHash: memo.map { Self.contentHash($0) },
+                deleted: deleted
+            )
+            state.operations.removeAll { $0.memoID == memoID }
+            try save(state)
+        }
+    }
+
+    public static func contentHash(for memo: Memo) -> String {
+        contentHash(memo)
+    }
+
     public static func recordUpsert(
         _ memo: Memo,
         vaultPath: String,
@@ -192,7 +228,7 @@ public enum SyncOutboxStore {
     ) {
         let memoKey = key(memo.id)
         let markdown = memo.toMarkdown()
-        let hash = SHA256.hash(data: Data(markdown.utf8)).map { String(format: "%02x", $0) }.joined()
+        let hash = contentHash(memo)
         let previous = state.memoStates[memoKey]
         if previous?.contentHash == hash, previous?.deleted == false { return }
 
@@ -279,5 +315,11 @@ public enum SyncOutboxStore {
 
     private static func key(_ id: UUID) -> String {
         id.uuidString.lowercased()
+    }
+
+    private static func contentHash(_ memo: Memo) -> String {
+        SHA256.hash(data: Data(memo.toMarkdown().utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }

@@ -18,10 +18,12 @@ public struct SupabaseSyncUploader: RemoteUploader {
         struct Accepted: Decodable {
             let operationID: UUID
             let status: String
+            let remoteRevision: Int64?
 
             enum CodingKeys: String, CodingKey {
                 case operationID = "operation_id"
                 case status
+                case remoteRevision = "remote_revision"
             }
         }
 
@@ -99,8 +101,16 @@ public struct SupabaseSyncUploader: RemoteUploader {
             }) {
                 throw MemoSyncError.rejected(reason: rejection.reason)
             }
-            guard decoded.accepted.contains(where: { $0.operationID == operation.operationID }) else {
+            guard let receipt = decoded.accepted.first(where: {
+                $0.operationID == operation.operationID
+            }) else {
                 throw MemoSyncError.rejected(reason: "operation was not acknowledged")
+            }
+            if receipt.status == "stale" {
+                throw MemoSyncError.conflict(remoteRevision: receipt.remoteRevision ?? 0)
+            }
+            guard receipt.status == "applied" else {
+                throw MemoSyncError.rejected(reason: "unknown receipt status")
             }
             return body.count
         case 401:

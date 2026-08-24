@@ -69,9 +69,23 @@ response acknowledges individual operation IDs and returns the accepted remote r
 The client removes only exactly acknowledged revisions; a newer local edit remains
 queued. Retries use bounded exponential backoff with jitter and no artificial UX delay.
 
-The first delivery is push-oriented and preserves local truth. Pull/merge uses the same
-remote revision and tombstone model and is enabled after destructive-conflict fixtures
-prove it cannot overwrite newer local content.
+Every Vault is also bound to the first authenticated Supabase user that enables sync.
+The binding and the pull cursor live in `vault/_agent/sync/account-v1.json`. A later
+login for another account fails closed before an uploader is installed, so an old
+account's pending Vault data cannot be uploaded under a new identity.
+
+Pull uses a server-owned monotonic `sync_change_sequence`, not `updated_at` or a device
+clock. Each device advances its integer cursor only after the entire returned page has
+been durably applied to the Vault. Remote application bypasses the outbound recorder,
+so an incoming change cannot echo back as a new operation. Tombstones remove the local
+canonical memo. If an unsynced local edit conflicts with a newer remote revision, the
+local text is preserved under a new UUID and remains queued while the remote UUID
+becomes canonical; no text is silently discarded.
+
+iOS and macOS install the same session-backed push/pull pair after auth restoration and
+trigger it at login/start, network recovery, scene activation, local writes, and every
+30 seconds while the process remains active. This is foreground/process-lifetime sync,
+not an iOS background-execution promise.
 
 ### 3. Supabase is the tenant and authorization boundary
 
@@ -149,6 +163,13 @@ the supplied production project remained untouched. The accepted MCP resource is
 consent UI on the staging branch's GitHub Pages site. Codex CLI completed DCR/PKCE and
 read the uniquely marked memo through `daypage_search`.
 
+Migration `0027_multi_device_pull` was subsequently applied to that staging project. It
+adds the sequence-backed change cursor, trigger, account-scoped pull RPC, index, and the
+minimum sequence privilege needed by authenticated writers. A hosted transaction proved
+revisioned upsert, exact idempotent retry, stale rejection, tombstone pull, monotonic
+cursor replay safety, user-B isolation, and token-hook behavior/grants, then rolled all
+synthetic rows back.
+
 The same public endpoint also accepts `Authorization: Bearer dpg_stg_…` PATs for
 non-interactive cloud agents. PAT calls are isolated to their owning user and expose
 `daypage_add_memo` only when the stored key has the `write` scope.
@@ -192,6 +213,11 @@ the environment and sample size.
   signed out or misconfigured, which is more truthful than silently dropping it.
 - Tombstones and revisions add operational state and migration code, but avoid relying on
   wall-clock-only last-write-wins behavior.
+- Concurrent edits may intentionally create a second memo with a new UUID. This is a
+  data-preserving conflict policy, not character-level collaborative editing.
+- This delivery syncs memo content and supported metadata. Attachment file bytes remain
+  local-only; CRDT collaboration and guaranteed iOS background execution remain separate
+  product work and must not be implied by release copy.
 - Supabase OAuth's current lack of custom scopes requires a DayPage grant table and custom
   consent UI.
 - A standalone HTTP service adds one deployable component, but it gives Codex and other
@@ -216,8 +242,9 @@ the environment and sample size.
 ## Verification and rollback
 
 Completion requires isolated-Vault crash/retry/delete fixtures, positive and negative RLS
-tests, MCP SDK client contract tests, OAuth consent/revocation evidence, and an actual
-Codex call that reads a uniquely marked synthetic memo from the deployed staging project.
+tests, a real two-Vault create/edit/delete run through the deployed push and pull RPCs,
+MCP SDK client contract tests, OAuth consent/revocation evidence, and an actual Codex call
+that reads a uniquely marked synthetic memo from the deployed staging project.
 
 Rollback disables remote sync/MCP feature configuration without deleting the local
 outbox. Database changes are additive; a rollback stops writers first and leaves columns,

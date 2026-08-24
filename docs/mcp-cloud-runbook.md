@@ -11,7 +11,7 @@ This runbook promotes the pipeline in [ADR-0008](architecture/decisions/ADR-0008
 
 ## Database and Auth
 
-1. Apply the Drizzle journal through `0025_local_first_sync_and_mcp` to the staging database.
+1. Apply the Drizzle journal through `0027_multi_device_pull` to the staging database.
 2. Set the environment-owned resource value:
 
    ```sql
@@ -25,6 +25,11 @@ This runbook promotes the pipeline in [ADR-0008](architecture/decisions/ADR-0008
 4. Enable dynamic client registration (DCR).
 5. Enable custom access-token hook `pg-functions://postgres/public/daypage_custom_access_token_hook`.
 6. Run `web/scripts/verify-local-first-sync.sql` against an isolated database before promotion.
+
+`0027_multi_device_pull` must leave `authenticated` with `USAGE` on
+`daypage_memo_change_sequence`; otherwise the revisioned write RPC catches the trigger
+failure and returns a rejected operation. The verification script covers this through a
+real authenticated-role upsert rather than a privilege-only assertion.
 
 Supabase standard scopes (`openid email profile`) identify the user. DayPage read/write authority comes from `mcp_client_grants` and is checked on every MCP request.
 
@@ -98,11 +103,35 @@ pnpm --dir packages/mcp-server test:live
 
 Production promotion requires all six checks and must use a different OAuth consent/grant set from staging.
 
+## Native multi-device acceptance
+
+Before distributing a new iOS/macOS test build, run the opt-in test with one normal
+staging Supabase Auth session. It creates two independent local Vault directories, then
+performs A create -> B pull -> B edit -> A pull -> A delete -> B pull. Credentials are
+environment-only and the final cloud row is a tombstone.
+
+```bash
+DAYPAGE_SYNC_E2E_URL=https://gcukhewnszjrwfzhxctn.supabase.co \
+DAYPAGE_SYNC_E2E_PUBLISHABLE_KEY="$DAYPAGE_STAGING_PUBLISHABLE_KEY" \
+DAYPAGE_SYNC_E2E_ACCESS_TOKEN="$DAYPAGE_STAGING_USER_ACCESS_TOKEN" \
+DAYPAGE_SYNC_E2E_USER_ID="$DAYPAGE_STAGING_USER_ID" \
+swift test --package-path DayPageKit --filter SupabaseMultiDeviceLiveTests
+```
+
+Release evidence must include the unskipped test result. A skipped test means the
+network path is still unverified and is not sufficient for TestFlight or public beta.
+Also run the second-account negative transaction in
+`web/scripts/verify-local-first-sync.sql`; a local Vault account mismatch must remain a
+hard failure rather than an automatic rebind.
+
 ## Accepted staging evidence (2026-08-24)
 
 - Supabase project: `daypage-staging` (`gcukhewnszjrwfzhxctn`, Seoul).
 - Hosted migration/RLS/OAuth-hook regression printed
   `daypage local-first sync / RLS / OAuth hook verification passed`.
+- Hosted migration `0027_multi_device_pull` and its updated transaction verification
+  passed on 2026-08-24. The test covered monotonic pull cursors and a user-B zero-result
+  negative check, and rolled back its synthetic rows.
 - The marker memo was inserted through `daypage_apply_sync_operations` under the
   synthetic user's access token, not through SQL or a service-role bypass.
 - Codex CLI 0.147.0 completed DCR + PKCE login and called `daypage_search` on the

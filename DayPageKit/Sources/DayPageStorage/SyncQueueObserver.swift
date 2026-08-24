@@ -1,20 +1,16 @@
 // SyncQueueObserver.swift — Round 6 (R6-HIGH: flush 占位 service)
 //
-// Listens for `.syncQueueFlushRequested` (posted by SyncQueueService when
-// the network comes back or a manual retry is triggered) and walks the
-// pending memo set, handing each ID off to a `RemoteUploader`. On success
-// the memo is removed from the queue via `markSynced`; on failure we
-// breadcrumb and abort the current pass so the next trigger gets a fresh
-// chance instead of hammering a server that's already saying no.
+// Listens for `.syncQueueFlushRequested` (local write, network recovery,
+// foreground activation, periodic poll, or manual retry). It uploads the
+// durable outbox first, acknowledges only exact RPC receipts, then pulls and
+// applies the authenticated account's monotonic remote change pages.
 //
 // Why this lives in its own file:
 //   - SyncQueueService deliberately doesn't import any networking layer,
 //     so the flush trigger is a NotificationCenter post. Some component
 //     has to observe that post and perform the work — that's us.
-//   - The real Supabase uploader will land in a later round. Until then
-//     `NoopRemoteUploader` simulates a successful round-trip so the UI
-//     (pendingCount banner) at least drains when we're online, instead
-//     of pretending forever that nothing was synced.
+//   - `NoopRemoteUploader` is deliberately fail-closed. Before auth/session
+//     configuration it can never drain the outbox or imply cloud durability.
 
 import Foundation
 
@@ -40,6 +36,9 @@ public final class SyncQueueObserver {
 
     private var observer: NSObjectProtocol?
     private var isFlushing = false
+    private var puller: RemotePuller?
+    private var accountID: UUID?
+    private var periodicTask: Task<Void, Never>?
 
     /// Injected by the app after it has a Supabase session. The unconfigured
     /// uploader always fails closed and therefore can never falsely drain data.
@@ -57,17 +56,41 @@ public final class SyncQueueObserver {
         }
     }
 
-    /// Swap in the production uploader. Tests call this with a stub that
-    /// asserts ordering / failure behaviour. The real sync service
-    /// will call it at app launch, post-AuthService.
+    /// Legacy uploader-only injection retained for tests and the diagnostic
+    /// API-key bridge. Normal app sessions use `configureSession` so pull and
+    /// account binding are installed atomically with the uploader.
     public func setUploader(_ uploader: RemoteUploader) {
         self.uploader = uploader
+    }
+
+    /// Installs the complete push + pull session after binding the local Vault
+    /// to the authenticated user. A different account fails closed.
+    public func configureSession(
+        userID: UUID,
+        uploader: RemoteUploader,
+        puller: RemotePuller,
+        periodicInterval: TimeInterval = 30
+    ) throws {
+        try SyncAccountStateStore.bind(to: userID)
+        self.accountID = userID
+        self.uploader = uploader
+        self.puller = puller
+        startPeriodicSync(interval: periodicInterval)
+    }
+
+    public func clearSession() {
+        periodicTask?.cancel()
+        periodicTask = nil
+        accountID = nil
+        puller = nil
+        uploader = NoopRemoteUploader()
     }
 
     /// #785: pick the right uploader based on the user's sync configuration.
     /// Legacy API-key bridge retained for existing dogfood installs. New app
     /// sessions install `SupabaseSyncUploader` directly from RootView.
     public func installConfiguredUploader() {
+        guard accountID == nil else { return }
         if SyncSettings.isConfigured {
             self.uploader = MemoSyncUploader()
         } else {
@@ -85,15 +108,28 @@ public final class SyncQueueObserver {
         defer { isFlushing = false }
 
         guard let operations = try? SyncOutboxStore.pendingOperations(),
-              !operations.isEmpty,
               SyncQueueService.shared.beginFlush() else { return }
         defer { SyncQueueService.shared.endFlush() }
 
-        for operation in operations {
+        var shouldPull = true
+        uploadLoop: for operation in operations {
             do {
                 _ = try await uploader.upload(operation: operation)
                 try SyncOutboxStore.acknowledge(operationID: operation.operationID)
                 SyncQueueService.shared.reloadFromOutbox()
+            } catch let error as MemoSyncError {
+                if case .conflict = error {
+                    // Keep the operation until pull preserves the local variant
+                    // and installs the newer remote canonical revision.
+                    break uploadLoop
+                }
+                SentryReporter.breadcrumb(
+                    category: "syncqueue",
+                    level: .warning,
+                    message: "upload failed for \(operation.memoID): \(error)"
+                )
+                shouldPull = false
+                break uploadLoop
             } catch {
                 // Network/server problem — stop this pass so we don't
                 // burn through retries pointlessly. The next online
@@ -103,12 +139,64 @@ public final class SyncQueueObserver {
                     level: .warning,
                     message: "upload failed for \(operation.memoID): \(error)"
                 )
-                break
+                shouldPull = false
+                break uploadLoop
+            }
+        }
+
+        guard shouldPull, let puller, let accountID else { return }
+        do {
+            try await pullAllChanges(using: puller, accountID: accountID)
+        } catch {
+            SentryReporter.breadcrumb(
+                category: "syncqueue",
+                level: .warning,
+                message: "incremental pull failed: \(error)"
+            )
+        }
+    }
+
+    private func pullAllChanges(using puller: RemotePuller, accountID: UUID) async throws {
+        for _ in 0..<20 {
+            let cursor = try SyncAccountStateStore.pullCursor(for: accountID)
+            let page = try await puller.pull(after: cursor, limit: 200)
+            guard page.isValid(after: cursor) else {
+                throw MemoSyncError.invalidResponse
+            }
+            if !page.changes.isEmpty {
+                _ = try await Task.detached(priority: .utility) {
+                    try RawStorage.applyRemoteChanges(page.changes)
+                }.value
+                try SyncAccountStateStore.advancePullCursor(
+                    to: page.nextCursor,
+                    for: accountID
+                )
+                SyncQueueService.shared.reloadFromOutbox()
+            }
+            if !page.hasMore { return }
+            guard !page.changes.isEmpty else { throw MemoSyncError.invalidResponse }
+        }
+        throw MemoSyncError.rejected(reason: "pull pagination limit exceeded")
+    }
+
+    private func startPeriodicSync(interval: TimeInterval) {
+        periodicTask?.cancel()
+        guard interval > 0 else { return }
+        periodicTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, NetworkMonitor.shared.isOnline else { continue }
+                await self?.flush()
             }
         }
     }
 
     deinit {
+        periodicTask?.cancel()
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
         }

@@ -10,6 +10,7 @@ final class MacCloudAuthService: NSObject, ObservableObject {
     @Published private(set) var session: Session?
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var syncErrorMessage: String?
 
     let client: SupabaseClient
 
@@ -29,7 +30,7 @@ final class MacCloudAuthService: NSObject, ObservableObject {
         // the fail-closed observer immediately; the session event below swaps
         // in the real uploader and drains the durable backlog.
         _ = SyncQueueObserver.shared
-        SyncQueueObserver.shared.setUploader(NoopRemoteUploader())
+        SyncQueueObserver.shared.clearSession()
         startAuthStateListener()
         Task { await SyncQueueService.shared.reconcileVault() }
     }
@@ -78,6 +79,7 @@ final class MacCloudAuthService: NSObject, ObservableObject {
     }
 
     func signOut() async {
+        SyncQueueObserver.shared.clearSession()
         do {
             try await client.auth.signOut()
         } catch {
@@ -87,6 +89,10 @@ final class MacCloudAuthService: NSObject, ObservableObject {
 
     func retrySync() {
         Task { await SyncQueueService.shared.flushIfOnline() }
+    }
+
+    func dismissSyncError() {
+        syncErrorMessage = nil
     }
 
     private func startAuthStateListener() {
@@ -103,21 +109,38 @@ final class MacCloudAuthService: NSObject, ObservableObject {
 
     private func installUploader(for session: Session?) {
         guard session != nil else {
-            SyncQueueObserver.shared.setUploader(NoopRemoteUploader())
+            SyncQueueObserver.shared.clearSession()
             return
         }
-        SyncQueueObserver.shared.setUploader(SupabaseSyncUploader(
-            supabaseURL: configuration.supabaseURL,
-            anonKey: configuration.publishableKey,
-            accessTokenProvider: { [weak self] in
-                try await MainActor.run {
-                    guard let token = self?.session?.accessToken, !token.isEmpty else {
-                        throw MemoSyncError.unauthorized
-                    }
-                    return token
+        guard let userID = session?.user.id else { return }
+        let accessTokenProvider: @Sendable () async throws -> String = { [weak self] in
+            try await MainActor.run {
+                guard let token = self?.session?.accessToken, !token.isEmpty else {
+                    throw MemoSyncError.unauthorized
                 }
+                return token
             }
-        ))
+        }
+        do {
+            try SyncQueueObserver.shared.configureSession(
+                userID: userID,
+                uploader: SupabaseSyncUploader(
+                    supabaseURL: configuration.supabaseURL,
+                    anonKey: configuration.publishableKey,
+                    accessTokenProvider: accessTokenProvider
+                ),
+                puller: SupabaseSyncPuller(
+                    supabaseURL: configuration.supabaseURL,
+                    anonKey: configuration.publishableKey,
+                    accessTokenProvider: accessTokenProvider
+                )
+            )
+            syncErrorMessage = nil
+        } catch {
+            SyncQueueObserver.shared.clearSession()
+            syncErrorMessage = error.localizedDescription
+            return
+        }
         Task { await SyncQueueService.shared.flushIfOnline() }
     }
 

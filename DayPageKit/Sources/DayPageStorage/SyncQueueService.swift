@@ -225,15 +225,14 @@ public final class SyncQueueService: ObservableObject {
         return fallback
     }
 
-    /// Trigger a flush attempt if (a) online, (b) not already flushing,
-    /// (c) the queue is non-empty. We deliberately don't perform the
-    /// upload here — instead we post `.syncQueueFlushRequested` so the
-    /// Supabase sync service (or a test double) handles it. Keeps this
-    /// file free of any networking imports beyond NetworkMonitor.
+    /// Trigger a sync attempt when online and not already flushing. An empty
+    /// outbound queue still needs to notify the observer because another
+    /// device may have remote changes waiting to be pulled. We deliberately
+    /// don't perform network work here; the notification keeps this service
+    /// independent of the concrete Supabase adapters.
     public func flushIfOnline() async {
         guard NetworkMonitor.shared.isOnline,
-              !isFlushingNow,
-              !isEmpty else { return }
+              !isFlushingNow else { return }
         NotificationCenter.default.post(name: .syncQueueFlushRequested, object: nil)
     }
 

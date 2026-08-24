@@ -136,4 +136,44 @@ final class SupabaseSyncUploaderTests: XCTestCase {
             }
         }
     }
+
+    func testStaleReceiptSurfacesConflictWithoutAcknowledgement() async throws {
+        let memoID = UUID()
+        let operationID = UUID()
+        let operation = SyncOutboxOperation(
+            operationID: operationID,
+            memoID: memoID,
+            kind: .upsert,
+            revision: 2,
+            modifiedAt: Date(),
+            contentHash: "local",
+            deviceID: UUID().uuidString.lowercased(),
+            payload: nil,
+            sizeBytes: 0
+        )
+        let response = try JSONSerialization.data(withJSONObject: [
+            "accepted": [[
+                "operation_id": operationID.uuidString,
+                "status": "stale",
+                "remote_revision": 2,
+            ]],
+            "rejected": [],
+        ])
+        let uploader = SupabaseSyncUploader(
+            supabaseURL: URL(string: "https://example.supabase.co")!,
+            anonKey: "anon",
+            transport: SyncStubTransport(data: response, status: 200),
+            accessTokenProvider: { "session" }
+        )
+
+        do {
+            _ = try await uploader.upload(operation: operation)
+            XCTFail("stale revision must remain pending until pull resolves it")
+        } catch let error as MemoSyncError {
+            guard case .conflict(let remoteRevision) = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+            XCTAssertEqual(remoteRevision, 2)
+        }
+    }
 }

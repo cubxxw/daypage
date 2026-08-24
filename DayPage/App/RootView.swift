@@ -14,8 +14,10 @@ private enum AppPhase: Equatable {
 struct RootView: View {
     @EnvironmentObject private var authService: AuthService
     @EnvironmentObject private var nav: AppNavigationModel
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var sidebarVM = SidebarViewModel()
     @ObservedObject private var appSettings = AppSettings.shared
+    @State private var syncAccountError: String?
 
     @State private var phase: AppPhase = RootView.initialPhase()
 
@@ -60,6 +62,7 @@ struct RootView: View {
                     installSessionBackedSyncUploader()
                     Task { await SyncQueueService.shared.flushIfOnline() }
                 } else {
+                    SyncQueueObserver.shared.clearSession()
                     let skipped = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
                     if phase == .ready && !skipped { phase = .auth }
                 }
@@ -80,6 +83,21 @@ struct RootView: View {
                 installSessionBackedSyncUploader()
                 Task { await SyncQueueService.shared.reconcileVault() }
             }
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active, authService.session != nil else { return }
+                Task { await SyncQueueService.shared.flushIfOnline() }
+            }
+            .alert(
+                "无法开启云同步",
+                isPresented: Binding(
+                    get: { syncAccountError != nil },
+                    set: { if !$0 { syncAccountError = nil } }
+                )
+            ) {
+                Button("好", role: .cancel) { syncAccountError = nil }
+            } message: {
+                Text(syncAccountError ?? "")
+            }
             .preferredColorScheme(resolvedColorScheme)
             .tint(appSettings.accentColor.color)
     }
@@ -88,23 +106,44 @@ struct RootView: View {
     /// manually copied personal token or service-role credential is involved.
     private func installSessionBackedSyncUploader() {
         guard let supabaseURL = URL(string: Secrets.supabaseURL),
-              !Secrets.supabaseAnonKey.isEmpty else {
-            SyncQueueObserver.shared.setUploader(NoopRemoteUploader())
+              !Secrets.supabaseAnonKey.isEmpty,
+              let session = authService.session else {
+            SyncQueueObserver.shared.clearSession()
             return
         }
-        SyncQueueObserver.shared.setUploader(SupabaseSyncUploader(
-            supabaseURL: supabaseURL,
-            anonKey: Secrets.supabaseAnonKey,
-            accessTokenProvider: {
-                try await MainActor.run {
-                    guard let token = AuthService.shared.session?.accessToken,
-                          !token.isEmpty else {
-                        throw MemoSyncError.unauthorized
-                    }
-                    return token
+        let accessTokenProvider: @Sendable () async throws -> String = {
+            try await MainActor.run {
+                guard let token = AuthService.shared.session?.accessToken,
+                      !token.isEmpty else {
+                    throw MemoSyncError.unauthorized
                 }
+                return token
             }
-        ))
+        }
+        do {
+            try SyncQueueObserver.shared.configureSession(
+                userID: session.user.id,
+                uploader: SupabaseSyncUploader(
+                    supabaseURL: supabaseURL,
+                    anonKey: Secrets.supabaseAnonKey,
+                    accessTokenProvider: accessTokenProvider
+                ),
+                puller: SupabaseSyncPuller(
+                    supabaseURL: supabaseURL,
+                    anonKey: Secrets.supabaseAnonKey,
+                    accessTokenProvider: accessTokenProvider
+                )
+            )
+            syncAccountError = nil
+        } catch {
+            SyncQueueObserver.shared.clearSession()
+            syncAccountError = error.localizedDescription
+            SentryReporter.breadcrumb(
+                category: "syncqueue",
+                level: .error,
+                message: "account binding rejected: \(error)"
+            )
+        }
     }
 
     @ViewBuilder

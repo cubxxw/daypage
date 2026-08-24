@@ -218,11 +218,15 @@ export const memos = pgTable(
     content_hash: text("content_hash"),
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
     last_sync_device_id: text("last_sync_device_id"),
+    sync_change_sequence: bigint("sync_change_sequence", { mode: "number" })
+      .notNull()
+      .default(sql`nextval('public.daypage_memo_change_sequence')`),
   },
   (t) => [
     index("memos_user_created").on(t.user_id, t.created_at),
     index("memos_user_status").on(t.user_id, t.compile_status),
     index("memos_user_sync_cursor").on(t.user_id, t.updated_at, t.id),
+    index("memos_user_sync_change_sequence").on(t.user_id, t.sync_change_sequence),
     index("memos_user_active_created")
       .on(t.user_id, t.created_at)
       .where(sql`${t.deleted_at} is null`),

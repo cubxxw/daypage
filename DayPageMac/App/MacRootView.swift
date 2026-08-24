@@ -10,6 +10,7 @@ import DayPageStorage
 struct MacRootView: View {
 
     @EnvironmentObject private var cloudAuth: MacCloudAuthService
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var syncQueue = SyncQueueService.shared
 
     enum Section: String, CaseIterable, Identifiable {
@@ -102,6 +103,21 @@ struct MacRootView: View {
         }
         .onAppear {
             if cloudAuth.session == nil { showingSignIn = true }
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active, cloudAuth.session != nil else { return }
+            Task { await SyncQueueService.shared.flushIfOnline() }
+        }
+        .alert(
+            "无法开启云同步",
+            isPresented: Binding(
+                get: { cloudAuth.syncErrorMessage != nil },
+                set: { if !$0 { cloudAuth.dismissSyncError() } }
+            )
+        ) {
+            Button("好", role: .cancel) { cloudAuth.dismissSyncError() }
+        } message: {
+            Text(cloudAuth.syncErrorMessage ?? "")
         }
     }
 

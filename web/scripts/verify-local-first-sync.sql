@@ -2,10 +2,18 @@
 
 BEGIN;
 
-INSERT INTO auth.users (id, email)
+INSERT INTO auth.users (
+  id, email, aud, role, created_at, updated_at, raw_user_meta_data
+)
 VALUES
-  ('11111111-1111-4111-8111-111111111111', 'sync-a@daypage.test'),
-  ('22222222-2222-4222-8222-222222222222', 'sync-b@daypage.test');
+  (
+    '11111111-1111-4111-8111-111111111111', 'sync-a@daypage.test',
+    'authenticated', 'authenticated', now(), now(), '{}'::jsonb
+  ),
+  (
+    '22222222-2222-4222-8222-222222222222', 'sync-b@daypage.test',
+    'authenticated', 'authenticated', now(), now(), '{}'::jsonb
+  );
 
 DO $$
 BEGIN
@@ -92,6 +100,11 @@ BEGIN
   IF (SELECT count(*) FROM public.mcp_client_grants) <> 0 THEN
     RAISE EXCEPTION 'tenant B can read tenant A MCP grant';
   END IF;
+  IF jsonb_array_length(
+    public.daypage_pull_sync_changes(0, 200) -> 'changes'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'tenant B pulled tenant A sync changes';
+  END IF;
   BEGIN
     INSERT INTO public.memos (id, user_id, body)
     VALUES (
@@ -113,6 +126,8 @@ SELECT set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111
 DO $$
 DECLARE
   result jsonb;
+  pulled jsonb;
+  cursor_value bigint;
 BEGIN
   result := public.daypage_apply_sync_operations(jsonb_build_array(jsonb_build_object(
     'operation_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
@@ -133,11 +148,30 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'delete did not retain a revisioned tombstone';
   END IF;
+
+  pulled := public.daypage_pull_sync_changes(0, 200);
+  IF NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(pulled -> 'changes') AS pulled_change(value)
+    WHERE pulled_change.value ->> 'id' = '33333333-3333-4333-8333-333333333333'
+      AND pulled_change.value ->> 'deleted_at' IS NOT NULL
+      AND (pulled_change.value ->> 'sync_revision')::bigint = 2
+  ) THEN
+    RAISE EXCEPTION 'incremental pull omitted the revisioned tombstone: %', pulled;
+  END IF;
+  cursor_value := (pulled ->> 'next_cursor')::bigint;
+  IF cursor_value <= 0 THEN
+    RAISE EXCEPTION 'incremental pull did not advance its monotonic cursor: %', pulled;
+  END IF;
+  IF jsonb_array_length(
+    public.daypage_pull_sync_changes(cursor_value, 200) -> 'changes'
+  ) <> 0 THEN
+    RAISE EXCEPTION 'cursor replayed an already-consumed change';
+  END IF;
 END
 $$;
 
 RESET ROLE;
-SET LOCAL ROLE supabase_auth_admin;
 
 DO $$
 DECLARE
@@ -145,6 +179,21 @@ DECLARE
   oauth_event jsonb := '{"claims":{"aud":"authenticated","sub":"11111111-1111-4111-8111-111111111111","client_id":"codex-staging-test"}}';
   result jsonb;
 BEGIN
+  IF NOT has_function_privilege(
+    'supabase_auth_admin',
+    'public.daypage_custom_access_token_hook(jsonb)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'supabase_auth_admin cannot execute the custom token hook';
+  END IF;
+  IF has_function_privilege(
+    'authenticated',
+    'public.daypage_custom_access_token_hook(jsonb)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'authenticated must not execute the custom token hook';
+  END IF;
+
   result := public.daypage_custom_access_token_hook(normal_event);
   IF result <> normal_event THEN
     RAISE EXCEPTION 'normal app token was unexpectedly modified: %', result;
