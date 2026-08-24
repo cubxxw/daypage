@@ -73,6 +73,18 @@ POST with OAuth token but revoked grant                               -> 403
 POST with invalid, expired, or revoked DayPage PAT                    -> 401
 POST with read-only DayPage PAT calls `daypage_search`                -> 200
 POST with read-only DayPage PAT cannot advertise `daypage_add_memo`
+POST with read/write DayPage PAT advertises and calls `daypage_add_memo` -> 200 + Memo ID
+```
+
+Run the deployed read/write contract with the official MCP SDK (credentials stay in
+environment variables and must never be committed):
+
+```bash
+DAYPAGE_MCP_E2E_URL=https://gcukhewnszjrwfzhxctn.supabase.co/functions/v1/daypage-mcp \
+DAYPAGE_MCP_E2E_KEY="$DAYPAGE_MCP_API_KEY" \
+DAYPAGE_MCP_E2E_MAC_MARKER=DAYPAGE_MAC_VAULT_SYNC_STAGING_20260824 \
+DAYPAGE_MCP_E2E_AGENT_MARKER=DAYPAGE_AGENT_MCP_WRITE_STAGING_20260824 \
+pnpm --dir packages/mcp-server test:live
 ```
 
 ## Codex acceptance
@@ -102,4 +114,20 @@ Production promotion requires all six checks and must use a different OAuth cons
   `daypage_add_memo`, and returned the same marker memo through `daypage_search`.
 - A one-character-mutated PAT returned `401`. On 20 warm PAT searches, measured
   latency was 633 ms average, 622 ms p50, 757 ms p95, and 886 ms maximum.
+- The native macOS capture path committed marker
+  `DAYPAGE_MAC_VAULT_SYNC_STAGING_20260824` to an isolated Vault, persisted its durable
+  outbox operation, uploaded through `daypage_apply_sync_operations` with a normal
+  synthetic-user session, acknowledged the outbox, and read memo
+  `012b7ae9-8b02-467c-a9f8-fc8c7488dba2` back under RLS with source `macos`.
+- A second synthetic staging user (`d44e55a5-1a27-43bd-a87b-abcdc585920d`) received a
+  90-day read/write PAT. Only its hash was stored; audit-safe metadata is key ID
+  `3c3bfcd1-3134-433e-94ac-90e712d71bf4`, prefix `dpg_stg_2_ljYDYp`, scopes
+  `read,write`, and expiry `2026-11-22T05:52:04Z`.
+- The official MCP SDK listed all five tools, read the macOS marker, called
+  `daypage_add_memo`, received memo `f6f308e0-db25-42eb-bd7f-cffec23d66c5`, and found
+  its exact marker `DAYPAGE_AGENT_MCP_WRITE_STAGING_20260824` through `daypage_search`.
+- Codex CLI 0.147.0 loaded the Streamable HTTP server with
+  `bearer_token_env_var = "DAYPAGE_MCP_API_KEY"`, called the deployed
+  `daypage_search` tool itself, and returned that same memo ID and marker. The raw PAT
+  was not written to Codex configuration or repository files.
 - The supplied production project `thnmxpgwzwprixfkqpkw` was not modified.

@@ -159,6 +159,21 @@ that PAT to list only the four read tools and retrieve memo
 `87300000-0000-4000-8000-000000000002`; a mutated PAT returned `401`. Twenty warm PAT
 searches measured 757 ms p95 and 886 ms maximum.
 
+The native macOS target now follows the same session-backed contract as iOS. It creates
+the durable observer before auth restoration, keeps the outbox fail-closed while signed
+out, installs `SupabaseSyncUploader` when an email/Apple session exists, reconciles the
+Vault at startup, and automatically drains the backlog. Its UI distinguishes local-only,
+waiting-for-login, syncing, pending, and synced states. A live isolated-Vault test wrote
+memo `012b7ae9-8b02-467c-a9f8-fc8c7488dba2` through the full storage/outbox/RPC/RLS
+path and verified remote source `macos`.
+
+Read/write PAT acceptance also completed in staging. The official MCP SDK advertised
+all five tools, inserted memo `f6f308e0-db25-42eb-bd7f-cffec23d66c5` through
+`daypage_add_memo`, and read it back through `daypage_search`. A separate Codex CLI
+process then loaded the HTTP resource using `DAYPAGE_MCP_API_KEY`, invoked that deployed
+tool, and returned the same UUID and content. Codex configuration stores only the
+environment-variable name; the repository and database never store the raw key.
+
 ## Performance budgets
 
 - Warm local capture acknowledgement p95: at most 100 ms on the reference Simulator.

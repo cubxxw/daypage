@@ -205,7 +205,13 @@ public enum SyncOutboxStore {
             location: memo.location.map { .init(name: $0.name, lat: $0.lat, lng: $0.lng) },
             weather: memo.weather.flatMap { $0.isEmpty ? nil : .init(condition: $0) },
             device: memo.device.flatMap { $0.isEmpty ? nil : $0 },
-            source: "ios",
+            source: {
+                #if os(macOS)
+                return "macos"
+                #else
+                return "ios"
+                #endif
+            }(),
             vaultPath: vaultPath
         )
         let operation = SyncOutboxOperation(
