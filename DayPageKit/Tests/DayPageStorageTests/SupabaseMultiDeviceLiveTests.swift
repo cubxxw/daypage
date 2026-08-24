@@ -10,38 +10,11 @@ import DayPageModels
 /// Required environment variables:
 /// - DAYPAGE_SYNC_E2E_URL
 /// - DAYPAGE_SYNC_E2E_PUBLISHABLE_KEY
-/// - DAYPAGE_SYNC_E2E_ACCESS_TOKEN
-/// - DAYPAGE_SYNC_E2E_USER_ID
+/// - DAYPAGE_SYNC_E2E_ACCESS_TOKEN, or
+/// - DAYPAGE_SYNC_E2E_EMAIL + DAYPAGE_SYNC_E2E_PASSWORD
 final class SupabaseMultiDeviceLiveTests: XCTestCase {
-    private struct Configuration {
-        let url: URL
-        let anonKey: String
-        let accessToken: String
-        let userID: UUID
-
-        static func load() throws -> Configuration {
-            let environment = ProcessInfo.processInfo.environment
-            guard let urlValue = environment["DAYPAGE_SYNC_E2E_URL"],
-                  let url = URL(string: urlValue),
-                  let anonKey = environment["DAYPAGE_SYNC_E2E_PUBLISHABLE_KEY"],
-                  !anonKey.isEmpty,
-                  let accessToken = environment["DAYPAGE_SYNC_E2E_ACCESS_TOKEN"],
-                  !accessToken.isEmpty,
-                  let userValue = environment["DAYPAGE_SYNC_E2E_USER_ID"],
-                  let userID = UUID(uuidString: userValue) else {
-                throw XCTSkip("staging Supabase sync credentials are not configured")
-            }
-            return Configuration(
-                url: url,
-                anonKey: anonKey,
-                accessToken: accessToken,
-                userID: userID
-            )
-        }
-    }
-
     func testTwoVaultsRoundTripCreateEditAndDelete() async throws {
-        let configuration = try Configuration.load()
+        let configuration = try await SupabaseLiveTestConfiguration.load()
         let baseDirectory = ProcessInfo.processInfo.environment["DAYPAGE_TEST_VAULT_ROOT"]
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.temporaryDirectory
@@ -61,12 +34,12 @@ final class SupabaseMultiDeviceLiveTests: XCTestCase {
         }
         let uploader = SupabaseSyncUploader(
             supabaseURL: configuration.url,
-            anonKey: configuration.anonKey,
+            anonKey: configuration.publishableKey,
             accessTokenProvider: tokenProvider
         )
         let puller = SupabaseSyncPuller(
             supabaseURL: configuration.url,
-            anonKey: configuration.anonKey,
+            anonKey: configuration.publishableKey,
             accessTokenProvider: tokenProvider
         )
         let created = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))

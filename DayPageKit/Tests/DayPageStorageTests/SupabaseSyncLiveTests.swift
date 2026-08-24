@@ -9,13 +9,10 @@ import DayPageModels
 final class SupabaseSyncLiveTests: XCTestCase {
     func testLocalVaultCaptureUploadsAndReadsBackFromSupabase() async throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let urlString = environment["DAYPAGE_SYNC_E2E_URL"],
-              let supabaseURL = URL(string: urlString),
-              let publishableKey = environment["DAYPAGE_SYNC_E2E_PUBLISHABLE_KEY"],
-              let accessToken = environment["DAYPAGE_SYNC_E2E_ACCESS_TOKEN"]
-        else {
-            throw XCTSkip("Set DAYPAGE_SYNC_E2E_URL, DAYPAGE_SYNC_E2E_PUBLISHABLE_KEY and DAYPAGE_SYNC_E2E_ACCESS_TOKEN")
-        }
+        let configuration = try await SupabaseLiveTestConfiguration.load()
+        let supabaseURL = configuration.url
+        let publishableKey = configuration.publishableKey
+        let accessToken = configuration.accessToken
 
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("daypage-mac-sync-live-\(UUID().uuidString)", isDirectory: true)

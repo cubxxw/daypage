@@ -116,10 +116,14 @@ environment-only and the final cloud row is a tombstone.
 ```bash
 DAYPAGE_SYNC_E2E_URL=https://gcukhewnszjrwfzhxctn.supabase.co \
 DAYPAGE_SYNC_E2E_PUBLISHABLE_KEY="$DAYPAGE_STAGING_PUBLISHABLE_KEY" \
-DAYPAGE_SYNC_E2E_ACCESS_TOKEN="$DAYPAGE_STAGING_USER_ACCESS_TOKEN" \
-DAYPAGE_SYNC_E2E_USER_ID="$DAYPAGE_STAGING_USER_ID" \
+DAYPAGE_SYNC_E2E_EMAIL="$DAYPAGE_STAGING_TEST_EMAIL" \
+DAYPAGE_SYNC_E2E_PASSWORD="$DAYPAGE_STAGING_TEST_PASSWORD" \
 swift test --package-path DayPageKit --filter SupabaseMultiDeviceLiveTests
 ```
+
+Alternatively set `DAYPAGE_SYNC_E2E_ACCESS_TOKEN`; the test derives the user ID from the
+JWT, so `DAYPAGE_SYNC_E2E_USER_ID` is optional. The credential loader refuses the known
+production project reference before making any network request.
 
 Release evidence must include the unskipped test result. A skipped test means the
 network path is still unverified and is not sufficient for TestFlight or public beta.
