@@ -169,6 +169,41 @@
       "when": 1781022327258,
       "tag": "0023_famous_sharon_carter",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787500800000,
+      "tag": "0024_supabase_auth_migration",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787500801000,
+      "tag": "0025_local_first_sync_and_mcp",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787587200000,
+      "tag": "0026_mcp_api_key_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787590800000,
+      "tag": "0027_multi_device_pull",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787594400000,
+      "tag": "0028_sync_receipt_integrity",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ to drive a change.
 - [Engineering index](engineering/README.md)
 - [Setup](engineering/setup.md)
 - [Testing and evidence](engineering/testing.md)
+- [DayPage Cloud MCP staging runbook](mcp-cloud-runbook.md)
 - [Contributing workflow](engineering/contributing.md)
 - [Agent Team system](agent-system/README.md)
 
@@ -21,6 +22,7 @@ current PRD is adopted and linked here.
 
 ## Architecture decisions
 
+- [ADR-0008: Local-first sync and OAuth-protected DayPage Cloud MCP](architecture/decisions/ADR-0008-local-first-sync-and-cloud-mcp.md) — Accepted
 - [ADR-0006: Repository Agent Team control plane](architecture/decisions/ADR-0006-repository-agent-team-control-plane.md) — Accepted
 - `docs/ADR-0001-*.md` through `docs/ADR-0005-*.md` are legacy-location decisions.
   Read their status fields and verify implementation before relying on them.

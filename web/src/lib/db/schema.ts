@@ -7,6 +7,7 @@ import {
   jsonb,
   boolean,
   integer,
+  bigint,
   real,
   index,
   unique,
@@ -210,10 +211,25 @@ export const memos = pgTable(
     device_id: text("device_id"),
     mood: text("mood"),
     word_count: integer("word_count").notNull().default(0),
+    // #873: device outbox revision and tombstone fields. Vault remains the
+    // capture source of truth; these fields make retries and deletes explicit.
+    sync_revision: bigint("sync_revision", { mode: "number" }).notNull().default(0),
+    source_modified_at: timestamp("source_modified_at", { withTimezone: true }),
+    content_hash: text("content_hash"),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+    last_sync_device_id: text("last_sync_device_id"),
+    sync_change_sequence: bigint("sync_change_sequence", { mode: "number" })
+      .notNull()
+      .default(sql`nextval('public.daypage_memo_change_sequence')`),
   },
   (t) => [
     index("memos_user_created").on(t.user_id, t.created_at),
     index("memos_user_status").on(t.user_id, t.compile_status),
+    index("memos_user_sync_cursor").on(t.user_id, t.updated_at, t.id),
+    index("memos_user_sync_change_sequence").on(t.user_id, t.sync_change_sequence),
+    index("memos_user_active_created")
+      .on(t.user_id, t.created_at)
+      .where(sql`${t.deleted_at} is null`),
     index("memos_embedding_hnsw").using("hnsw", t.embedding.op("vector_cosine_ops")),
   ]
 );
@@ -596,6 +612,7 @@ export const api_keys = pgTable(
       .notNull()
       .defaultNow(),
     expires_at: timestamp("expires_at", { withTimezone: true }),
+    revoked_at: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [
     index("api_keys_user_name").on(t.user_id, t.name),
@@ -604,6 +621,49 @@ export const api_keys = pgTable(
 
 export type ApiKey = typeof api_keys.$inferSelect;
 export type NewApiKey = typeof api_keys.$inferInsert;
+
+// ─── #873: exact sync receipts + OAuth MCP grants ────────────────────────────
+
+export const sync_operations = pgTable(
+  "sync_operations",
+  {
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    operation_id: uuid("operation_id").notNull(),
+    memo_id: uuid("memo_id").notNull(),
+    kind: text("kind").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    status: text("status").notNull(),
+    applied_at: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.operation_id] }),
+    index("sync_operations_user_memo_revision").on(t.user_id, t.memo_id, t.revision),
+  ],
+);
+
+export const mcp_client_grants = pgTable(
+  "mcp_client_grants",
+  {
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    client_id: text("client_id").notNull(),
+    can_read: boolean("can_read").notNull().default(true),
+    can_write: boolean("can_write").notNull().default(false),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.client_id] }),
+    index("mcp_client_grants_client_active").on(t.client_id, t.user_id),
+  ],
+);
+
+export type SyncOperation = typeof sync_operations.$inferSelect;
+export type McpClientGrant = typeof mcp_client_grants.$inferSelect;
 
 // ─── US-013: ingest_sources (external ingest channel configuration) ──────────
 

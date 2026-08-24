@@ -3128,3 +3128,154 @@ html {
     display: none;
   }
 }
+
+/* ─── OAuth consent ─────────────────────────────────────────────── */
+.oauth-consent-shell {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background:
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 42%),
+    var(--bg-primary);
+}
+.oauth-consent-card {
+  width: min(100%, 580px);
+  padding: clamp(24px, 5vw, 42px);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  box-shadow: 0 30px 80px -48px rgba(42, 28, 8, 0.5);
+}
+.oauth-consent-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.oauth-consent-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 15px;
+  background: var(--accent);
+  color: white;
+  font-size: 25px;
+}
+.oauth-consent-kicker {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.oauth-consent-card h1 {
+  margin: 0;
+  color: var(--fg-primary);
+  font-family: var(--font-fraunces), var(--font-family-serif), serif;
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.oauth-consent-copy {
+  margin: 22px 0;
+  color: var(--fg-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+.oauth-consent-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+.oauth-client-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.oauth-client-card div {
+  display: grid;
+  gap: 3px;
+}
+.oauth-client-label,
+.oauth-client-card a {
+  color: var(--fg-subtle);
+  font-size: 0.75rem;
+}
+.oauth-client-card a:hover { color: var(--accent); }
+.oauth-permission-form fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  border: 0;
+}
+.oauth-permission-form legend {
+  margin-bottom: 10px;
+  color: var(--fg-primary);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+.oauth-permission-option {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 11px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.oauth-permission-option:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-1));
+}
+.oauth-permission-option input { margin-top: 3px; accent-color: var(--accent); }
+.oauth-permission-option span { display: grid; gap: 4px; }
+.oauth-permission-option strong { color: var(--fg-primary); font-size: 0.875rem; }
+.oauth-permission-option small { color: var(--fg-muted); font-size: 0.75rem; line-height: 1.5; }
+.oauth-standard-scopes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  color: var(--fg-subtle);
+  font-size: 0.75rem;
+}
+.oauth-standard-scopes div { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+.oauth-standard-scopes code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--fg-muted);
+  font-size: 0.6875rem;
+}
+.oauth-consent-note {
+  margin: 20px 0 0;
+  color: var(--fg-subtle);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+.oauth-consent-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+@media (max-width: 520px) {
+  .oauth-consent-card { border-radius: 18px; }
+  .oauth-consent-actions { flex-direction: column; }
+  .oauth-standard-scopes { align-items: flex-start; flex-direction: column; }
+  .oauth-standard-scopes div { justify-content: flex-start; }
+}

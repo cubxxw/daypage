@@ -110,6 +110,11 @@ export async function proxy(request: NextRequest) {
   }
 
   // 3. Gate the authenticated app routes.
+  if (!isAuthenticated && pathname.startsWith("/oauth/consent")) {
+    const login = new URL("/login", request.url);
+    login.searchParams.set("callbackUrl", `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(login);
+  }
   if (!isAuthenticated && APP_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }

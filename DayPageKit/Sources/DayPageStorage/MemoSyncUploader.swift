@@ -30,6 +30,7 @@ public enum MemoSyncError: LocalizedError {
     case forbidden             // 403 — key 缺 write scope
     case rateLimited(retryAfter: Int)
     case serverError(status: Int)
+    case conflict(remoteRevision: Int64)
     case rejected(reason: String)   // server skipped this memo
 
     public var errorDescription: String? {
@@ -42,6 +43,7 @@ public enum MemoSyncError: LocalizedError {
         case .forbidden: return "API Key 缺少 write 权限"
         case .rateLimited(let s): return "请求过于频繁,请 \(s) 秒后再试"
         case .serverError(let code): return "服务器错误 (\(code))"
+        case .conflict(let revision): return "检测到另一台设备的更新 (云端版本 \(revision))"
         case .rejected(let reason): return "memo 被服务器拒绝: \(reason)"
         }
     }
@@ -163,6 +165,13 @@ public struct MemoSyncUploader: RemoteUploader {
 
     public init(transport: HTTPTransport = HTTPTransports.shared) {
         self.transport = transport
+    }
+
+    public func upload(operation: SyncOutboxOperation) async throws -> Int {
+        guard operation.kind == .upsert else {
+            throw MemoSyncError.rejected(reason: "legacy API-key sync cannot acknowledge deletes")
+        }
+        return try await upload(memoID: operation.memoID.uuidString)
     }
 
     public func upload(memoID: String) async throws -> Int {

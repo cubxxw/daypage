@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/auth/safe-next";
 
 export type MagicLinkState =
   | { status: "idle" }
@@ -20,11 +21,17 @@ export async function sendMagicLink(
   }
 
   const supabase = await createClient();
+  const callbackUrl = safeNextPath(
+    typeof formData.get("callbackUrl") === "string"
+      ? String(formData.get("callbackUrl"))
+      : undefined,
+    "/today",
+  );
   const h = await headers();
   const host =
     h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:13000";
   const proto = h.get("x-forwarded-proto") ?? "http";
-  const emailRedirectTo = `${proto}://${host}/api/auth/callback?next=/today`;
+  const emailRedirectTo = `${proto}://${host}/api/auth/callback?next=${encodeURIComponent(callbackUrl)}`;
 
   const { error } = await supabase.auth.signInWithOtp({
     email,

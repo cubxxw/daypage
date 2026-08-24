@@ -88,6 +88,22 @@ public enum RawStorage {
 
             try atomicWrite(string: combined, to: url)
 
+            let outboxRecorded: Bool
+            do {
+                try SyncOutboxStore.recordUpsert(
+                    memo,
+                    vaultPath: "raw/\(url.lastPathComponent)"
+                )
+                outboxRecorded = true
+            } catch {
+                outboxRecorded = false
+                SentryReporter.breadcrumb(
+                    category: "syncqueue",
+                    level: .warning,
+                    message: "outbox append record failed for \(memo.id): \(error)"
+                )
+            }
+
             SentryReporter.breadcrumb(
                 category: "rawstorage",
                 message: "append memo \(memo.id) to \(url.lastPathComponent)"
@@ -96,15 +112,18 @@ public enum RawStorage {
             WidgetCenter.shared.reloadAllTimelines()
             notifyDidWrite(for: memo.created)
 
-            // R6: enqueue for offline sync. Memo.id is a UUID so its
-            // canonical string is the SyncQueueService key. Hop to the
-            // main actor because SyncQueueService is @MainActor-isolated;
-            // the write queue itself is a DispatchQueue and cannot touch
-            // it directly.
             let sizeBytes = newBlock.utf8.count
             let memoIDString = memo.id.uuidString
             Task { @MainActor in
-                SyncQueueService.shared.enqueue(memoID: memoIDString, sizeBytes: sizeBytes)
+                if outboxRecorded {
+                    SyncQueueService.shared.reloadFromOutbox()
+                } else {
+                    // The Vault write already committed. Keep the visible
+                    // backlog fail-closed; background reconciliation repairs
+                    // the sidecar without risking a duplicate local memo.
+                    SyncQueueService.shared.enqueue(memoID: memoIDString, sizeBytes: sizeBytes)
+                }
+                await SyncQueueService.shared.flushIfOnline()
             }
         }
     }
@@ -149,10 +168,34 @@ public enum RawStorage {
     public static func rewrite(_ memos: [Memo], for date: Date) throws {
         try writeQueue.sync {
             let url = fileURL(for: date)
+            let previous: [Memo]
+            if FileManager.default.fileExists(atPath: url.path),
+               let content = try? String(contentsOf: url, encoding: .utf8) {
+                previous = parse(fileContent: content, sourceFile: url)
+            } else {
+                previous = []
+            }
             if memos.isEmpty {
                 let fm = FileManager.default
                 if fm.fileExists(atPath: url.path) {
                     try fm.removeItem(at: url)
+                }
+
+                let outboxRecorded: Bool
+                do {
+                    try SyncOutboxStore.recordChanges(
+                        before: previous,
+                        after: [],
+                        vaultPath: "raw/\(url.lastPathComponent)"
+                    )
+                    outboxRecorded = true
+                } catch {
+                    outboxRecorded = false
+                    SentryReporter.breadcrumb(
+                        category: "syncqueue",
+                        level: .warning,
+                        message: "outbox delete record failed for \(url.lastPathComponent): \(error)"
+                    )
                 }
 
                 SentryReporter.breadcrumb(
@@ -162,11 +205,39 @@ public enum RawStorage {
 
                 WidgetCenter.shared.reloadAllTimelines()
                 notifyDidWrite(for: date)
+                let deletedPayload = previous.map { ($0.id.uuidString, 0) }
+                Task { @MainActor in
+                    if outboxRecorded {
+                        SyncQueueService.shared.reloadFromOutbox()
+                    } else {
+                        for (memoID, sizeBytes) in deletedPayload {
+                            SyncQueueService.shared.enqueue(memoID: memoID, sizeBytes: sizeBytes)
+                        }
+                    }
+                    await SyncQueueService.shared.flushIfOnline()
+                }
                 return
             }
 
             let content = serialize(memos)
             try atomicWrite(string: content, to: url)
+
+            let outboxRecorded: Bool
+            do {
+                try SyncOutboxStore.recordChanges(
+                    before: previous,
+                    after: memos,
+                    vaultPath: "raw/\(url.lastPathComponent)"
+                )
+                outboxRecorded = true
+            } catch {
+                outboxRecorded = false
+                SentryReporter.breadcrumb(
+                    category: "syncqueue",
+                    level: .warning,
+                    message: "outbox rewrite record failed for \(url.lastPathComponent): \(error)"
+                )
+            }
 
             SentryReporter.breadcrumb(
                 category: "rawstorage",
@@ -186,9 +257,14 @@ public enum RawStorage {
                 (memo.id.uuidString, memo.toMarkdown().utf8.count)
             }
             Task { @MainActor in
-                for (memoIDString, sizeBytes) in enqueuePayload {
-                    SyncQueueService.shared.enqueue(memoID: memoIDString, sizeBytes: sizeBytes)
+                if outboxRecorded {
+                    SyncQueueService.shared.reloadFromOutbox()
+                } else {
+                    for (memoIDString, sizeBytes) in enqueuePayload {
+                        SyncQueueService.shared.enqueue(memoID: memoIDString, sizeBytes: sizeBytes)
+                    }
                 }
+                await SyncQueueService.shared.flushIfOnline()
             }
         }
     }
@@ -238,6 +314,23 @@ public enum RawStorage {
                 try atomicWrite(string: content, to: url)
             }
 
+            let outboxRecorded: Bool
+            do {
+                try SyncOutboxStore.recordChanges(
+                    before: existing,
+                    after: updated,
+                    vaultPath: "raw/\(url.lastPathComponent)"
+                )
+                outboxRecorded = true
+            } catch {
+                outboxRecorded = false
+                SentryReporter.breadcrumb(
+                    category: "syncqueue",
+                    level: .warning,
+                    message: "outbox mutate record failed for \(url.lastPathComponent): \(error)"
+                )
+            }
+
             SentryReporter.breadcrumb(
                 category: "rawstorage",
                 message: "mutate \(updated.count) memos in \(url.lastPathComponent)"
@@ -251,14 +344,165 @@ public enum RawStorage {
             // last memo for a day we have nothing to upload. The transform
             // returning nil bypasses this entire tail (guard above), which
             // is the documented "no-change" path.
+            let deletedIDs = Set(existing.map(\.id)).subtracting(updated.map(\.id))
             let enqueuePayload: [(String, Int)] = updated.map { memo in
                 (memo.id.uuidString, memo.toMarkdown().utf8.count)
-            }
+            } + deletedIDs.map { ($0.uuidString, 0) }
             Task { @MainActor in
-                for (memoIDString, sizeBytes) in enqueuePayload {
-                    SyncQueueService.shared.enqueue(memoID: memoIDString, sizeBytes: sizeBytes)
+                if outboxRecorded {
+                    SyncQueueService.shared.reloadFromOutbox()
+                } else {
+                    for (memoIDString, sizeBytes) in enqueuePayload {
+                        SyncQueueService.shared.enqueue(memoID: memoIDString, sizeBytes: sizeBytes)
+                    }
+                }
+                await SyncQueueService.shared.flushIfOnline()
+            }
+        }
+    }
+
+    // MARK: - Remote sync application
+
+    /// Applies an ordered page of server changes without echoing those changes
+    /// back into the outbox. If the same memo has an unsynced local edit, the
+    /// local version is first preserved under a new UUID and remains queued for
+    /// upload; the server version then becomes canonical for the original UUID.
+    /// This keeps both sides of a concurrent edit instead of silently choosing
+    /// a winner and losing text.
+    public static func applyRemoteChanges(
+        _ changes: [SyncRemoteChange]
+    ) throws -> SyncRemoteApplyResult {
+        try writeQueue.sync {
+            var appliedCount = 0
+            var deletedCount = 0
+            var conflictCopies: [UUID] = []
+            var affectedDates: [Date] = []
+
+            for change in changes.sorted(by: { $0.changeSequence < $1.changeSequence }) {
+                let located = findMemoOnDisk(id: change.id)
+                let localMemo = located?.memo
+                let pending = try SyncOutboxStore.pendingOperation(for: change.id)
+                let remoteMemo = change.isDeleted
+                    ? nil
+                    : change.makeMemo(preservingLocalMetadata: localMemo)
+
+                let pendingMatchesRemote = !change.isDeleted
+                    && pending?.kind == .upsert
+                    && pending?.contentHash != nil
+                    && pending?.contentHash == change.contentHash
+
+                var conflictCopy: Memo?
+                if pending != nil, !pendingMatchesRemote, var preserved = localMemo {
+                    preserved.id = UUID()
+                    conflictCopy = preserved
+                    conflictCopies.append(preserved.id)
+                }
+
+                if let localMemo { affectedDates.append(localMemo.created) }
+                if let remoteMemo { affectedDates.append(remoteMemo.created) }
+                try replaceMemoOnDisk(id: change.id, with: remoteMemo)
+                try SyncOutboxStore.acceptRemoteChange(
+                    memo: remoteMemo,
+                    memoID: change.id,
+                    remoteRevision: change.syncRevision,
+                    deleted: change.isDeleted
+                )
+
+                if let conflictCopy {
+                    try insertMemoOnDisk(conflictCopy)
+                    try SyncOutboxStore.recordUpsert(
+                        conflictCopy,
+                        vaultPath: "raw/\(fileURL(for: conflictCopy.created).lastPathComponent)"
+                    )
+                    affectedDates.append(conflictCopy.created)
+                }
+
+                if change.isDeleted {
+                    deletedCount += 1
+                } else {
+                    appliedCount += 1
                 }
             }
+
+            WidgetCenter.shared.reloadAllTimelines()
+            for date in Set(affectedDates.map { Calendar.current.startOfDay(for: $0) }) {
+                notifyDidWrite(for: date)
+            }
+            return SyncRemoteApplyResult(
+                appliedCount: appliedCount,
+                deletedCount: deletedCount,
+                conflictCopies: conflictCopies
+            )
+        }
+    }
+
+    private static func findMemoOnDisk(id: UUID) -> (memo: Memo, file: URL)? {
+        let rawDirectory = VaultInitializer.vaultURL.appendingPathComponent("raw", isDirectory: true)
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: rawDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+        let target = id.uuidString.lowercased()
+        for file in files where file.pathExtension == "md" {
+            guard let content = try? String(contentsOf: file, encoding: .utf8),
+                  content.lowercased().contains(target) else { continue }
+            if let memo = parse(fileContent: content, sourceFile: file).first(where: {
+                $0.id == id
+            }) {
+                return (memo, file)
+            }
+        }
+        return nil
+    }
+
+    private static func replaceMemoOnDisk(id: UUID, with replacement: Memo?) throws {
+        if let located = findMemoOnDisk(id: id) {
+            let content = try String(contentsOf: located.file, encoding: .utf8)
+            var memos = parse(fileContent: content, sourceFile: located.file)
+            memos.removeAll { $0.id == id }
+            if let replacement, fileURL(for: replacement.created) == located.file {
+                memos.append(replacement)
+            }
+            try writeRemoteMemoList(memos, to: located.file)
+        }
+
+        guard let replacement else { return }
+        let target = fileURL(for: replacement.created)
+        if findMemoOnDisk(id: id)?.file == target { return }
+        let existing: [Memo]
+        if FileManager.default.fileExists(atPath: target.path) {
+            let content = try String(contentsOf: target, encoding: .utf8)
+            existing = parse(fileContent: content, sourceFile: target)
+        } else {
+            existing = []
+        }
+        var updated = existing.filter { $0.id != id }
+        updated.append(replacement)
+        try writeRemoteMemoList(updated, to: target)
+    }
+
+    private static func insertMemoOnDisk(_ memo: Memo) throws {
+        let target = fileURL(for: memo.created)
+        let existing: [Memo]
+        if FileManager.default.fileExists(atPath: target.path) {
+            let content = try String(contentsOf: target, encoding: .utf8)
+            existing = parse(fileContent: content, sourceFile: target)
+        } else {
+            existing = []
+        }
+        var updated = existing.filter { $0.id != memo.id }
+        updated.append(memo)
+        try writeRemoteMemoList(updated, to: target)
+    }
+
+    private static func writeRemoteMemoList(_ memos: [Memo], to file: URL) throws {
+        if memos.isEmpty {
+            if FileManager.default.fileExists(atPath: file.path) {
+                try FileManager.default.removeItem(at: file)
+            }
+        } else {
+            try atomicWrite(string: serialize(memos), to: file)
         }
     }
 

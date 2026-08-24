@@ -7,9 +7,12 @@ surfaces in one repository.
 flowchart LR
   Apple["iOS / Mac / Watch / Widget"] --> Kit["DayPageKit\nModels · Storage · Services"]
   Kit --> Vault["Local Markdown/YAML vault"]
-  Apple --> Remote["Supabase / provider APIs"]
+  Vault --> Outbox["Revisioned sync outbox"]
+  Outbox --> Remote["Supabase Auth · Postgres · RLS"]
+  Apple --> Remote
   Web["Next.js web"] --> Remote
-  MCP["TypeScript MCP server"] --> Remote
+  Agent["External Agent / App"] -->|"OAuth consent + Streamable HTTP"| MCP["DayPage Cloud MCP"]
+  MCP -->|"caller JWT; RLS scoped"| Remote
   Agentry["Go agentry runtime"] -. product tools .-> MCP
   Control[".agents development control plane"] -. coordinates repository work .-> Apple
   Control -.-> Web
@@ -56,6 +59,12 @@ server routes, auth, connectors, database access, background jobs, and browser t
 
 `packages/mcp-server/` is a TypeScript MCP server for DayPage operations. It shares the
 workspace but has its own build, type-check, and Node test gates.
+
+Raw Vault writes are acknowledged locally before network work. A versioned operational
+outbox records upserts and tombstones, and Supabase applies them idempotently under RLS.
+External agents use the OAuth-protected Streamable HTTP MCP endpoint; the MCP process uses
+the caller's Supabase token rather than a broad database credential. See
+[ADR-0008](decisions/ADR-0008-local-first-sync-and-cloud-mcp.md).
 
 ## Agent boundaries
 

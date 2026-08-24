@@ -370,6 +370,7 @@ final class AuthService: NSObject, ObservableObject {
         isLoading = true
         error = nil
         defer { isLoading = false }
+        SyncQueueObserver.shared.clearSession()
         try await supabase.auth.signOut()
         session = nil   // listener will confirm; local clear takes effect immediately in UI
         SentrySDK.setUser(nil)

@@ -1,6 +1,6 @@
 # Supabase Auth — Dashboard 配置 & 本地启动清单
 
-> 配合 PR `feat/unified-auth-supabase`。代码改造（middleware / login / API 路由 / schema / migration / 依赖卸载）已落地；下列是**用户手动操作**才能跑通的部分。
+> 配合 Supabase Auth 与 DayPage Cloud MCP。schema、RLS、同步 RPC、OAuth grant 和 token hook 均由仓库迁移管理；Dashboard 只负责环境级开关和密钥。
 
 ---
 
@@ -50,43 +50,28 @@
   - Auto Confirm User: ✅（不发确认信，直接可登）
 - [ ] 创建后，DB 的 trigger `on_auth_user_created`（来自 migration `0024`）会自动在 `public.users` 插一条 profile 行。
 
-### 2.5 业务表 RLS（auth.uid() = user_id）
-所有持有 `user_id` 字段的业务表都要开 RLS。在 Database → Tables 里逐张表 "Enable RLS"，然后跑下面这段 SQL（SQL Editor → New query）：
+### 2.5 业务表 RLS、同步 RPC 与 MCP grant
 
-```sql
--- DayPage business tables: scope every row to its owner.
-do $$
-declare
-  t text;
-  tables text[] := array[
-    'memos','memo_attachments','pages','page_links','annotations',
-    'inbox_items','domains','trees','tree_nodes','agents','agent_sessions',
-    'work_orders','task_suggestions','chat_threads','chat_messages',
-    'ingest_sources','api_keys','api_logs','user_settings'
-  ];
-begin
-  foreach t in array tables loop
-    execute format('alter table public.%I enable row level security', t);
-    execute format(
-      'drop policy if exists "owner_all" on public.%I; '
-      'create policy "owner_all" on public.%I '
-      'for all using (auth.uid() = user_id) with check (auth.uid() = user_id)',
-      t, t
-    );
-  end loop;
-end$$;
-```
+不要在 Dashboard 手工创建通配策略。按 journal 运行迁移至 `0028_sync_receipt_integrity`；`0025` 按表结构分别处理直接 `user_id` 和通过父表归属的记录，并安装幂等同步 RPC、tombstone 与 MCP 客户端授权表，`0027` 再安装单调增量拉取序列与账户隔离的 pull RPC，`0028` 将历史回执绑定到 operation ID、memo ID、kind、revision 四元组，避免异常重试错误确认另一条操作。
 
-> 表名以仓库当前 `web/src/lib/db/schema.ts` 为准。若你的 supabase project 上某张表不存在（migration 还没跑），先 `pnpm --filter ./web db:migrate` 一遍再回来执行。
+### 2.6 OAuth Server、DCR 与 access-token hook
+
+- OAuth Server: enabled
+- Authorization path: `/oauth/consent`
+- Dynamic client registration: enabled
+- Custom access token hook: `pg-functions://postgres/public/daypage_custom_access_token_hook`
+- 设置 `public.daypage_runtime_config` 中 `mcp_resource` 为该环境的 HTTPS MCP URL；空字符串会让 hook 保持 inert。
+
+Supabase 当前只支持标准身份 scopes。DayPage 的 read-only / read-write 权限保存在 `mcp_client_grants`，并在每个 MCP 请求上再次检查，而不是伪装成 OAuth 自定义 scope。
 
 ---
 
 ## 3. 本地启动验证
 
-1. 启动 OrbStack / Docker → `supabase start`（自动跑 `web/drizzle/migrations/*.sql`，包括新 `0024_supabase_auth_migration.sql`）。
-2. `cd web && pnpm install` 让 lockfile 同步（next-auth / @auth/drizzle-adapter / nodemailer 已从 package.json 删除）。
-3. `pnpm dev`（:3000）+ `pnpm dev:inngest`（:8288）—— 见 `web/CLAUDE.md`，少一个都不行。
-4. 浏览器开 `localhost:3000/login` → "Dev login (no email)" → 自动跳 `/home`。
+1. 启动 OrbStack / Docker → `pnpm dlx supabase start`。Supabase CLI 只自动运行 `supabase/migrations`（当前是 Storage 配置），不会隐式运行 Web 的 Drizzle migrations。
+2. 执行 `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm --filter daypage-web db:migrate`，按 journal 运行 `0000` 至 `0028`。
+3. `pnpm --filter daypage-web dev`（:13000）+ `pnpm --filter daypage-web dev:inngest`（:8288）。
+4. 浏览器开 `127.0.0.1:13000/login` → "Dev login (no email)" → 自动跳 `/home`。
 5. 退出登录 → 用真实邮箱发 magic link → 收件箱（Resend 沙盒规则下需是已验证邮箱）。
 
 ---
@@ -95,6 +80,6 @@ end$$;
 
 - 内置 IMAP/SMTP 邮件客户端（用户在 goal 中明确排除）
 - iCloud Family Sharing 账户共享
-- Phase 2 / Phase 3：拆 API Key 桥、`user_preferences` 同步、APNs 推送
-- Apple Sign-In 真接通（按钮可点但会报错——goal 中可接受）
-- 生产环境 envvar 区分（仅 dev / preview / prod 走同一套 Supabase Project）
+- `user_preferences` 双向同步与 APNs 推送
+- Apple Sign-In 的 Services ID / Team ID / Key ID / `.p8` 仍需 Apple Developer 配置
+- production 变更；Cloud MCP 必须先在独立 staging project 完成验证

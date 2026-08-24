@@ -10,6 +10,8 @@ import DayPageServices
 @main
 struct DayPageMacApp: App {
 
+    @StateObject private var cloudAuth = MacCloudAuthService.shared
+
     init() {
         // === DayPageKit hook registration (M1) ===
         // Identical contract to DayPageApp.init on iOS; without these, Storage
@@ -37,6 +39,7 @@ struct DayPageMacApp: App {
     var body: some Scene {
         WindowGroup {
             MacRootView()
+                .environmentObject(cloudAuth)
                 .frame(minWidth: 720, minHeight: 480)
         }
         .windowStyle(.titleBar)

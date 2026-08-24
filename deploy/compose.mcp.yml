@@ -1,0 +1,17 @@
+services:
+  mcp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mcp
+    restart: unless-stopped
+    env_file: ${DAYPAGE_ENV_FILE:-../.env}
+    environment:
+      HOST: 0.0.0.0
+      PORT: 43119
+    ports:
+      - "127.0.0.1:13119:43119"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:43119/healthz >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 5

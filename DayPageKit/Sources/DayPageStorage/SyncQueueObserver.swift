@@ -1,43 +1,32 @@
 // SyncQueueObserver.swift — Round 6 (R6-HIGH: flush 占位 service)
 //
-// Listens for `.syncQueueFlushRequested` (posted by SyncQueueService when
-// the network comes back or a manual retry is triggered) and walks the
-// pending memo set, handing each ID off to a `RemoteUploader`. On success
-// the memo is removed from the queue via `markSynced`; on failure we
-// breadcrumb and abort the current pass so the next trigger gets a fresh
-// chance instead of hammering a server that's already saying no.
+// Listens for `.syncQueueFlushRequested` (local write, network recovery,
+// foreground activation, periodic poll, or manual retry). It uploads the
+// durable outbox first, acknowledges only exact RPC receipts, then pulls and
+// applies the authenticated account's monotonic remote change pages.
 //
 // Why this lives in its own file:
 //   - SyncQueueService deliberately doesn't import any networking layer,
 //     so the flush trigger is a NotificationCenter post. Some component
 //     has to observe that post and perform the work — that's us.
-//   - The real Supabase uploader will land in a later round. Until then
-//     `NoopRemoteUploader` simulates a successful round-trip so the UI
-//     (pendingCount banner) at least drains when we're online, instead
-//     of pretending forever that nothing was synced.
+//   - `NoopRemoteUploader` is deliberately fail-closed. Before auth/session
+//     configuration it can never drain the outbox or imply cloud durability.
 
 import Foundation
 
-/// Pluggable contract for the actual cloud upload. Returns the byte size
-/// reported back from the remote so `markSynced` can decrement the queue's
-/// running totalBytes accurately. Real implementations will translate
-/// memoID → Supabase row + handle conflict resolution; the placeholder
-/// just sleeps briefly to mimic latency.
+/// Pluggable contract for uploading one durable outbox operation. The exact
+/// operation ID must be echoed by the server before the observer removes it.
 public protocol RemoteUploader: Sendable {
-    func upload(memoID: String) async throws -> Int
+    func upload(operation: SyncOutboxOperation) async throws -> Int
 }
 
-/// Placeholder uploader used until the Supabase sync service lands.
-/// Returns size=0; SyncQueueService now remembers per-memo byte sizes
-/// from enqueue time so the return value is informational only and the
-/// totalBytes tally still drains correctly. Sleeps ~300ms per memo so
-/// the spinner + "正在同步…" banner stay visible long enough to be
-/// perceived — the previous 200ms sometimes drained the queue inside a
-/// single frame, leaving the user wondering whether anything happened.
+/// Fail-closed fallback used before an authenticated Supabase session exists.
+/// It must never remove an outbox operation or imply that data reached cloud.
 public struct NoopRemoteUploader: RemoteUploader {
-    public func upload(memoID: String) async throws -> Int {
-        try await Task.sleep(nanoseconds: 300_000_000)
-        return 0
+    public init() {}
+
+    public func upload(operation: SyncOutboxOperation) async throws -> Int {
+        throw MemoSyncError.notConfigured
     }
 }
 
@@ -47,10 +36,12 @@ public final class SyncQueueObserver {
 
     private var observer: NSObjectProtocol?
     private var isFlushing = false
+    private var puller: RemotePuller?
+    private var accountID: UUID?
+    private var periodicTask: Task<Void, Never>?
 
-    /// Injected by whoever wires up the real Supabase uploader (probably
-    /// `DayPageApp` once that lands). Until then the Noop double drains
-    /// the queue so the UI doesn't lie about backlog forever.
+    /// Injected by the app after it has a Supabase session. The unconfigured
+    /// uploader always fails closed and therefore can never falsely drain data.
     private var uploader: RemoteUploader = NoopRemoteUploader()
 
     private init() {
@@ -65,19 +56,41 @@ public final class SyncQueueObserver {
         }
     }
 
-    /// Swap in the production uploader. Tests call this with a stub that
-    /// asserts ordering / failure behaviour. The real sync service
-    /// will call it at app launch, post-AuthService.
+    /// Legacy uploader-only injection retained for tests and the diagnostic
+    /// API-key bridge. Normal app sessions use `configureSession` so pull and
+    /// account binding are installed atomically with the uploader.
     public func setUploader(_ uploader: RemoteUploader) {
         self.uploader = uploader
     }
 
+    /// Installs the complete push + pull session after binding the local Vault
+    /// to the authenticated user. A different account fails closed.
+    public func configureSession(
+        userID: UUID,
+        uploader: RemoteUploader,
+        puller: RemotePuller,
+        periodicInterval: TimeInterval = 30
+    ) throws {
+        try SyncAccountStateStore.bind(to: userID)
+        self.accountID = userID
+        self.uploader = uploader
+        self.puller = puller
+        startPeriodicSync(interval: periodicInterval)
+    }
+
+    public func clearSession() {
+        periodicTask?.cancel()
+        periodicTask = nil
+        accountID = nil
+        puller = nil
+        uploader = NoopRemoteUploader()
+    }
+
     /// #785: pick the right uploader based on the user's sync configuration.
-    /// When a web endpoint + API key are present, install the real
-    /// `MemoSyncUploader`; otherwise fall back to the Noop double so the
-    /// pending banner still drains locally without pretending data reached the
-    /// server. Call this at launch and whenever Settings changes the config.
+    /// Legacy API-key bridge retained for existing dogfood installs. New app
+    /// sessions install `SupabaseSyncUploader` directly from RootView.
     public func installConfiguredUploader() {
+        guard accountID == nil else { return }
         if SyncSettings.isConfigured {
             self.uploader = MemoSyncUploader()
         } else {
@@ -94,26 +107,29 @@ public final class SyncQueueObserver {
         isFlushing = true
         defer { isFlushing = false }
 
-        let pending = SyncQueueService.shared.pendingMemoIDs
-        guard !pending.isEmpty else { return }
+        guard let operations = try? SyncOutboxStore.pendingOperations(),
+              SyncQueueService.shared.beginFlush() else { return }
+        defer { SyncQueueService.shared.endFlush() }
 
-        // R8: give the "正在同步…" banner enough time to actually appear
-        // before we start draining. The banner reads
-        // SyncQueueService.isFlushingNow indirectly through the network
-        // observer chain, and on fast paths the queue used to empty
-        // before SwiftUI had finished its first frame. 5s aligns with
-        // the iOS HIG "noticeable progress" budget — the user gets to
-        // see *something*, but it's still short enough that no one will
-        // call it broken.
-        try? await Task.sleep(nanoseconds: 5_000_000_000)
-
-        for memoID in pending {
+        var shouldPull = true
+        uploadLoop: for operation in operations {
             do {
-                // Return value is ignored — the queue tracks per-memo
-                // bytes from enqueue time. Real uploaders may still
-                // return their own size for telemetry.
-                _ = try await uploader.upload(memoID: memoID)
-                SyncQueueService.shared.markSynced(memoID: memoID)
+                _ = try await uploader.upload(operation: operation)
+                try SyncOutboxStore.acknowledge(operationID: operation.operationID)
+                SyncQueueService.shared.reloadFromOutbox()
+            } catch let error as MemoSyncError {
+                if case .conflict = error {
+                    // Keep the operation until pull preserves the local variant
+                    // and installs the newer remote canonical revision.
+                    break uploadLoop
+                }
+                SentryReporter.breadcrumb(
+                    category: "syncqueue",
+                    level: .warning,
+                    message: "upload failed for \(operation.memoID): \(error)"
+                )
+                shouldPull = false
+                break uploadLoop
             } catch {
                 // Network/server problem — stop this pass so we don't
                 // burn through retries pointlessly. The next online
@@ -121,14 +137,66 @@ public final class SyncQueueObserver {
                 SentryReporter.breadcrumb(
                     category: "syncqueue",
                     level: .warning,
-                    message: "upload failed for \(memoID): \(error)"
+                    message: "upload failed for \(operation.memoID): \(error)"
                 )
-                break
+                shouldPull = false
+                break uploadLoop
+            }
+        }
+
+        guard shouldPull, let puller, let accountID else { return }
+        do {
+            try await pullAllChanges(using: puller, accountID: accountID)
+        } catch {
+            SentryReporter.breadcrumb(
+                category: "syncqueue",
+                level: .warning,
+                message: "incremental pull failed: \(error)"
+            )
+        }
+    }
+
+    private func pullAllChanges(using puller: RemotePuller, accountID: UUID) async throws {
+        for _ in 0..<20 {
+            let cursor = try SyncAccountStateStore.pullCursor(for: accountID)
+            let page = try await puller.pull(after: cursor, limit: 200)
+            guard page.isValid(after: cursor) else {
+                throw MemoSyncError.invalidResponse
+            }
+            if !page.changes.isEmpty {
+                _ = try await Task.detached(priority: .utility) {
+                    try RawStorage.applyRemoteChanges(page.changes)
+                }.value
+                try SyncAccountStateStore.advancePullCursor(
+                    to: page.nextCursor,
+                    for: accountID
+                )
+                SyncQueueService.shared.reloadFromOutbox()
+            }
+            if !page.hasMore { return }
+            guard !page.changes.isEmpty else { throw MemoSyncError.invalidResponse }
+        }
+        throw MemoSyncError.rejected(reason: "pull pagination limit exceeded")
+    }
+
+    private func startPeriodicSync(interval: TimeInterval) {
+        periodicTask?.cancel()
+        guard interval > 0 else { return }
+        periodicTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, NetworkMonitor.shared.isOnline else { continue }
+                await self?.flush()
             }
         }
     }
 
     deinit {
+        periodicTask?.cancel()
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
         }

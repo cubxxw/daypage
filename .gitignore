@@ -61,6 +61,9 @@ DerivedData/
 .build/
 .swiftpm/
 Packages/
+!packages/
+!packages/**
+/packages/**/dist/
 Package.pins
 # Package.resolved 一般要提交（锁版本），但如果你的工作流不需要可以忽略
 # Package.resolved

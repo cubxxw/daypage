@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		MAC1000001 /* MacCloudConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = MAC2000001 /* MacCloudConfiguration.swift */; };
+		MAC1000002 /* MacCloudAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = MAC2000002 /* MacCloudAuthService.swift */; };
+		MAC1000003 /* MacAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MAC2000003 /* MacAuthView.swift */; };
+		MACSPM0001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = SPM00002 /* Supabase */; };
 		09C6E4728050D69F54949DD1 /* HapticFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FFEA3DDB8DCB528A4189BF /* HapticFeedbackTests.swift */; };
 		0AE41F00C0DE515000EF0001 /* MemoExifShutterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE41F00C0DE515000EF0002 /* MemoExifShutterTests.swift */; };
 		0AA94A9D087DA366336C8480 /* DayPageServices in Frameworks */ = {isa = PBXBuildFile; productRef = 160D427C0AE7DAC5724A134F /* DayPageServices */; };
@@ -321,6 +325,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		MAC2000001 /* MacCloudConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacCloudConfiguration.swift; sourceTree = "<group>"; };
+		MAC2000002 /* MacCloudAuthService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacCloudAuthService.swift; sourceTree = "<group>"; };
+		MAC2000003 /* MacAuthView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacAuthView.swift; sourceTree = "<group>"; };
+		MAC2000004 /* DayPageMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DayPageMac.entitlements; sourceTree = "<group>"; };
 		04B9410B749C82B6E34779E4 /* MemoryChatTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryChatTests.swift; sourceTree = "<group>"; };
 		0881AB423FF6F12FCDE27C5B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		08FF205E680406EC7E4B83DB /* DailyPageModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DailyPageModel.swift; sourceTree = "<group>"; };
@@ -601,6 +609,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				MACSPM0001 /* Supabase in Frameworks */,
 				C6D17C7128776C1D7DDC2A3A /* Cocoa.framework in Frameworks */,
 				28EF66A892C53EC4D377ABB3 /* DayPageModels in Frameworks */,
 				810F3E09DED3209EF80E9936 /* DayPageStorage in Frameworks */,
@@ -690,7 +699,9 @@
 			children = (
 				ECC94D3EF81E96DD4FE8A0CC /* App */,
 				E3118E9EF8FA1234B9AD7955 /* Config */,
+				MAC5000001 /* Services */,
 				7A6691E243BBAE3A666E1D1B /* Features */,
+				MAC2000004 /* DayPageMac.entitlements */,
 			);
 			name = DayPageMac;
 			path = DayPageMac;
@@ -736,6 +747,7 @@
 		7A6691E243BBAE3A666E1D1B /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				MAC5000002 /* Auth */,
 				70A3CA6CDE3725EE23889BE2 /* Today */,
 			);
 			name = Features;
@@ -1134,9 +1146,26 @@
 			isa = PBXGroup;
 			children = (
 				BFC2FE3353FDB07872B77D65 /* MacKitSecretsProvider.swift */,
+				MAC2000001 /* MacCloudConfiguration.swift */,
 			);
 			name = Config;
 			path = Config;
+			sourceTree = "<group>";
+		};
+		MAC5000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				MAC2000002 /* MacCloudAuthService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		MAC5000002 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				MAC2000003 /* MacAuthView.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		E649E3AC4D392A4CEDD41728 /* Services */ = {
@@ -1268,6 +1297,7 @@
 			);
 			name = DayPageMac;
 			packageProductDependencies = (
+				SPM00002 /* Supabase */,
 				AAA8879467337005F52BBE35 /* DayPageModels */,
 				BBF0FE045FACC9003A215FEC /* DayPageStorage */,
 				7DA55CD7EEB416B5AE4F504C /* DayPageServices */,
@@ -1531,6 +1561,9 @@
 				85D0E0575BCC5BFA40A465A9 /* DayPageMacApp.swift in Sources */,
 				1700091E891D56C434E3221E /* MacRootView.swift in Sources */,
 				AEA556F95D05E9DC9E275688 /* MacKitSecretsProvider.swift in Sources */,
+				MAC1000001 /* MacCloudConfiguration.swift in Sources */,
+				MAC1000002 /* MacCloudAuthService.swift in Sources */,
+				MAC1000003 /* MacAuthView.swift in Sources */,
 				596C06CE9303070E1FF0CA28 /* MacTodayView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1889,6 +1922,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DayPageMac/DayPageMac.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1918,6 +1952,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DayPageMac/DayPageMac.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
