@@ -11,7 +11,8 @@ OUTPUT_FILE="${1:-${REPO_ROOT}/DayPage/Config/GeneratedSecrets.swift}"
 mkdir -p "$(dirname "${OUTPUT_FILE}")"
 cat > "${OUTPUT_FILE}" <<'SWIFT'
 // GeneratedSecrets.swift — deterministic CI placeholder.
-// Real credentials are provided at runtime via Keychain. Never add them here.
+// Privileged credentials are provided at runtime via Keychain. Public client
+// configuration is injected only by the release generator; never add it here.
 enum Secrets {
     static let deepSeekApiKey: String = ""
     static let openAIWhisperApiKey: String = ""

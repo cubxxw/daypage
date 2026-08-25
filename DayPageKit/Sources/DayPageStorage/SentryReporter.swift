@@ -6,12 +6,88 @@ import Foundation
 /// ConflictMerger, LLMClient, …) can specify a level without `import Sentry`.
 /// The app target's `SentryAdapter` impl bridges these to the real
 /// `Sentry.SentryLevel` values at the SDK boundary.
-public enum SentryLevel: Sendable {
+public enum SentryLevel: Sendable, Equatable {
     case debug
     case info
     case warning
     case error
     case fatal
+}
+
+// MARK: - Privacy-safe operational event
+
+/// A deliberately narrow event shape for diagnosable auth/sync failures.
+///
+/// Callers cannot attach arbitrary context, response bodies, memo text, email
+/// addresses, or tokens. Every textual field is matched against a small
+/// allow-list before it reaches an adapter, so the Sentry boundary remains
+/// allow-list based instead of relying on best-effort redaction after collection.
+public struct OperationalEvent: Sendable, Equatable {
+    public enum NetworkState: String, Sendable {
+        case online
+        case offline
+        case unknown
+    }
+
+    public let area: String
+    public let stage: String
+    public let code: String
+    public let correlationID: String
+    public let level: SentryLevel
+    public let provider: String?
+    public let httpStatus: Int?
+    public let networkState: NetworkState
+    public let pendingCount: Int?
+    public let consecutiveFailureCount: Int?
+
+    public init(
+        area: String,
+        stage: String,
+        code: String,
+        correlationID: UUID,
+        level: SentryLevel = .warning,
+        provider: String? = nil,
+        httpStatus: Int? = nil,
+        networkState: NetworkState = .unknown,
+        pendingCount: Int? = nil,
+        consecutiveFailureCount: Int? = nil
+    ) {
+        self.area = Self.allowlisted(area, values: Self.allowedAreas)
+        self.stage = Self.allowlisted(stage, values: Self.allowedStages)
+        self.code = Self.allowlisted(code, values: Self.allowedCodes)
+        self.correlationID = correlationID.uuidString.lowercased()
+        self.level = level
+        self.provider = provider.map { Self.allowlisted($0, values: Self.allowedProviders) }
+        self.httpStatus = httpStatus.map { min(max($0, 100), 599) }
+        self.networkState = networkState
+        self.pendingCount = pendingCount.map { min(max($0, 0), 100_000) }
+        self.consecutiveFailureCount = consecutiveFailureCount.map { min(max($0, 0), 10_000) }
+    }
+
+    /// Stable Sentry grouping message. It contains no user-provided data.
+    public var message: String {
+        "daypage.\(area).failure.\(code)"
+    }
+
+    private static let allowedAreas: Set<String> = ["auth", "sync", "config"]
+    private static let allowedStages: Set<String> = [
+        "preflight", "authorize", "exchange", "send", "verify", "sign_out",
+        "outbox_read", "push", "pull", "launch",
+    ]
+    private static let allowedCodes: Set<String> = [
+        "missing_credential", "service_unavailable", "invalid_email", "rate_limited",
+        "otp_expired", "otp_mismatch", "otp_locked", "network_unavailable",
+        "network_timeout", "network_error", "not_configured", "insecure_scheme",
+        "memo_not_found", "invalid_response", "unauthorized", "forbidden",
+        "server_error", "conflict", "rejected", "unexpected", "unknown",
+    ]
+    private static let allowedProviders: Set<String> = [
+        "apple", "email_otp", "session", "supabase", "legacy_api", "unknown",
+    ]
+
+    private static func allowlisted(_ value: String, values: Set<String>) -> String {
+        values.contains(value) ? value : "unknown"
+    }
 }
 
 // MARK: - SentryAdapter (app-injected)
@@ -46,6 +122,10 @@ public protocol SentryAdapter: Sendable {
     /// the full crash event, not just a breadcrumb.
     func captureError(_ error: Error)
 
+    /// Capture a bounded operational failure whose fields are safe by
+    /// construction. This is preferred over forwarding arbitrary error text.
+    func captureOperationalEvent(_ event: OperationalEvent)
+
     /// Start a Sentry transaction span. Kit holds the returned `SentrySpan`
     /// as an opaque handle. Returning `nil` is allowed (Noop adapter, SDK
     /// disabled) — callers must guard `if let span = ... { span.finish() }`.
@@ -67,6 +147,7 @@ public struct NoopSentryAdapter: SentryAdapter {
     public var isEnabled: Bool { false }
     public func breadcrumb(category: String, level: SentryLevel, message: String) {}
     public func captureError(_ error: Error) {}
+    public func captureOperationalEvent(_ event: OperationalEvent) {}
     public func startTransaction(name: String, operation: String) -> SentrySpan? { nil }
 }
 
@@ -135,6 +216,12 @@ public enum SentryReporter {
         let a = adapter
         guard a.isEnabled else { return }
         a.captureError(error)
+    }
+
+    public static func captureOperationalEvent(_ event: OperationalEvent) {
+        let a = adapter
+        guard a.isEnabled else { return }
+        a.captureOperationalEvent(event)
     }
 
     /// Start a Sentry transaction span (returns nil when SDK disabled). Use

@@ -47,6 +47,34 @@ public enum MemoSyncError: LocalizedError {
         case .rejected(let reason): return "memo 被服务器拒绝: \(reason)"
         }
     }
+
+    /// Stable, content-free code used by diagnostics and telemetry. Associated
+    /// values such as memo IDs, rejection reasons, and remote revisions are
+    /// intentionally discarded.
+    public var diagnosticCode: String {
+        switch self {
+        case .notConfigured: return "not_configured"
+        case .insecureScheme: return "insecure_scheme"
+        case .memoNotFound: return "memo_not_found"
+        case .invalidResponse: return "invalid_response"
+        case .unauthorized: return "unauthorized"
+        case .forbidden: return "forbidden"
+        case .rateLimited: return "rate_limited"
+        case .serverError: return "server_error"
+        case .conflict: return "conflict"
+        case .rejected: return "rejected"
+        }
+    }
+
+    public var diagnosticHTTPStatus: Int? {
+        switch self {
+        case .unauthorized: return 401
+        case .forbidden: return 403
+        case .rateLimited: return 429
+        case .serverError(let status): return status
+        default: return nil
+        }
+    }
 }
 
 // MARK: - Mapper (pure, testable)

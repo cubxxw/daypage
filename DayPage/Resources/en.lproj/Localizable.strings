@@ -1454,3 +1454,28 @@
 "sidebar.nav.schedule" = "Schedule";
 "sidebar.schedule.hint" = "Open the schedule center";
 "sidebar.schedule.upcoming" = "%d upcoming";
+
+/* Diagnostics */
+"settings.diagnostics.entry" = "Diagnostics";
+"settings.diagnostics.title" = "Diagnostics";
+"settings.diagnostics.runtime" = "Runtime";
+"settings.diagnostics.sentry" = "Remote diagnostics";
+"settings.diagnostics.enabled" = "Enabled";
+"settings.diagnostics.disabled" = "Disabled";
+"settings.diagnostics.network" = "Network";
+"settings.diagnostics.online" = "Online";
+"settings.diagnostics.offline" = "Offline";
+"settings.diagnostics.auth" = "Sign in";
+"settings.diagnostics.sync" = "Cloud sync";
+"settings.diagnostics.last_failure" = "Last failure";
+"settings.diagnostics.stage_code" = "Stage / code";
+"settings.diagnostics.reference" = "Reference";
+"settings.diagnostics.no_auth_failure" = "No sign-in failures recorded";
+"settings.diagnostics.pending" = "Pending";
+"settings.diagnostics.last_attempt" = "Last attempt";
+"settings.diagnostics.last_success" = "Last success";
+"settings.diagnostics.last_error" = "Last error";
+"settings.diagnostics.failure_count" = "Consecutive failures";
+"settings.diagnostics.copy" = "Copy diagnostics";
+"settings.diagnostics.copied" = "Diagnostics copied";
+"settings.diagnostics.privacy" = "Includes only version, network state, error codes, timestamps, and reference IDs. It excludes memo text, email, audio, screenshots, and keys.";

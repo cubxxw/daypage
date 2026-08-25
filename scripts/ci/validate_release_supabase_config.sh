@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Fail a release before archive when its public Supabase client configuration
-# is missing, placeholder-only, or accidentally contains a privileged key.
+# Fail a release before archive when its public Supabase/Sentry client
+# configuration is missing, placeholder-only, malformed, or privileged.
 
 set -euo pipefail
 
@@ -32,6 +32,7 @@ command -v ruby >/dev/null 2>&1 || fail "ruby is required to validate release co
 
 supabase_url=$(read_env_value SUPABASE_URL)
 publishable_key=$(read_env_value SUPABASE_PUBLISHABLE_KEY)
+sentry_dsn=$(read_env_value SENTRY_DSN)
 key_source="SUPABASE_PUBLISHABLE_KEY"
 if [[ -z "${publishable_key}" ]]; then
     publishable_key=$(read_env_value SUPABASE_ANON_KEY)
@@ -40,6 +41,7 @@ fi
 
 [[ -n "${supabase_url}" ]] || fail "SUPABASE_URL is empty"
 [[ -n "${publishable_key}" ]] || fail "SUPABASE_PUBLISHABLE_KEY and SUPABASE_ANON_KEY are both empty"
+[[ -n "${sentry_dsn}" ]] || fail "SENTRY_DSN is empty; TestFlight would have no client diagnostics"
 
 case "${supabase_url}" in
     *replace-me*|*placeholder*|*example*)
@@ -78,4 +80,19 @@ case "${publishable_key}" in
         ;;
 esac
 
-echo "[release-config] Supabase URL and ${key_source} are valid public client configuration"
+case "${sentry_dsn}" in
+    *replace-me*|*placeholder*|*example*)
+        fail "SENTRY_DSN still contains a placeholder value"
+        ;;
+esac
+
+ruby -r uri -e '
+  value = ARGV.fetch(0)
+  uri = URI.parse(value)
+  project = uri.path.split("/").reject(&:empty?).last
+  abort unless uri.scheme == "https" && uri.host && !uri.host.empty?
+  abort unless uri.user && !uri.user.empty? && uri.password.nil?
+  abort unless project && project.match?(/\A\d+\z/)
+' "${sentry_dsn}" >/dev/null 2>&1 || fail "SENTRY_DSN must be an HTTPS public ingestion DSN with a numeric project id"
+
+echo "[release-config] Supabase URL, ${key_source}, and Sentry DSN are valid public client configuration"
