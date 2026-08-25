@@ -13,6 +13,7 @@ AGENTS.md
     |
     +-- .codex adapters
     +-- .claude adapters
+    +-- .dsh adapter + safe launcher
 ```
 
 The lead owns task decomposition and integration. Product architect, iOS, web, agent
@@ -20,6 +21,10 @@ platform, QA, reviewer, and docs roles own bounded responsibilities. See
 [team protocol](team-protocol.md) and [context layers](context-layers.md).
 
 This system coordinates development. `agentry/` is a separate product runtime.
+
+DeepSeek Harness is an optional host for the same control plane. Its repository adapter
+pins the runtime and launch policy but does not duplicate roles, workflows, skills, or
+product architecture. See [the DSH testing contract](../engineering/dsh-agentic-testing.md).
 
 ## Design principles
 

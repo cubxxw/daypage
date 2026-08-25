@@ -10,11 +10,23 @@ DERIVED_DATA ?= build/DD
 .PHONY: \
 	doctor check check-agent check-scripts check-kit check-web check-android check-mcp check-contracts \
 	check-agentry check-localization check-tokens check-ios build-ios \
-	ci-secrets simulator-destination tokens-build tokens-check
+	ci-secrets simulator-destination tokens-build tokens-check \
+	dsh-doctor dsh-config dsh-web
 
 # Developer preflight: repository contracts plus the available local toolchain.
 doctor:
 	$(PYTHON) scripts/agent/doctor.py --root . --environment
+
+# DeepSeek Harness is an opt-in development host. These targets never run in
+# the default merge gate because the runtime probe and UI require local credentials.
+dsh-doctor:
+	$(PYTHON) scripts/agent/dsh.py doctor --runtime
+
+dsh-config:
+	$(PYTHON) scripts/agent/dsh.py dump-config
+
+dsh-web:
+	$(PYTHON) scripts/agent/dsh.py web
 
 # Portable, non-Simulator merge gates. Use the scoped targets while iterating.
 check: check-agent check-scripts check-kit check-web check-android check-mcp check-contracts check-agentry check-localization check-tokens
