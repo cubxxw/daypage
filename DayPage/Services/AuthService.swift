@@ -110,7 +110,7 @@ final class AuthService: NSObject, ObservableObject {
         guard
             let url = URL(string: Secrets.supabaseURL),
             !Secrets.supabaseURL.isEmpty,
-            !Secrets.supabaseAnonKey.isEmpty
+            !Secrets.supabasePublishableKey.isEmpty
         else {
             let fallback = URL(string: "https://placeholder.supabase.co") ?? URL(fileURLWithPath: "/")
             supabase = SupabaseClient(supabaseURL: fallback, supabaseKey: "placeholder")
@@ -118,7 +118,7 @@ final class AuthService: NSObject, ObservableObject {
             super.init()
             return
         }
-        supabase = SupabaseClient(supabaseURL: url, supabaseKey: Secrets.supabaseAnonKey)
+        supabase = SupabaseClient(supabaseURL: url, supabaseKey: Secrets.supabasePublishableKey)
         isPlaceholder = false
         super.init()
         migrateAppleEmailToKeychain()

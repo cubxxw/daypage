@@ -115,7 +115,7 @@ struct RootView: View {
     /// manually copied personal token or service-role credential is involved.
     private func installSessionBackedSyncUploader() {
         guard let supabaseURL = URL(string: Secrets.supabaseURL),
-              !Secrets.supabaseAnonKey.isEmpty,
+              !Secrets.supabasePublishableKey.isEmpty,
               let session = authService.session else {
             SyncQueueObserver.shared.clearSession()
             return
@@ -134,12 +134,12 @@ struct RootView: View {
                 userID: session.user.id,
                 uploader: SupabaseSyncUploader(
                     supabaseURL: supabaseURL,
-                    anonKey: Secrets.supabaseAnonKey,
+                    anonKey: Secrets.supabasePublishableKey,
                     accessTokenProvider: accessTokenProvider
                 ),
                 puller: SupabaseSyncPuller(
                     supabaseURL: supabaseURL,
-                    anonKey: Secrets.supabaseAnonKey,
+                    anonKey: Secrets.supabasePublishableKey,
                     accessTokenProvider: accessTokenProvider
                 )
             )

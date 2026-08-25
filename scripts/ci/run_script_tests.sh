@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Run the standalone Swift regression scripts without failing fast. Pass one or
-# more paths to select a subset, or --list to print the discovered test set.
+# Run standalone Swift and shell regression scripts without failing fast. Pass
+# one or more paths to select a subset, or --list to print the discovered set.
 
 set -uo pipefail
 
@@ -33,11 +33,12 @@ done
 if ((${#TEST_FILES[@]} == 0)); then
     while IFS= read -r path; do
         TEST_FILES+=("$path")
-    done < <(find "${REPO_ROOT}/scripts/tests" -maxdepth 1 -type f -name 'test_*.swift' | LC_ALL=C sort)
+    done < <(find "${REPO_ROOT}/scripts/tests" -maxdepth 1 -type f \
+        \( -name 'test_*.swift' -o -name 'test_*.sh' \) | LC_ALL=C sort)
 fi
 
 if ((${#TEST_FILES[@]} == 0)); then
-    echo "No standalone Swift tests found." >&2
+    echo "No standalone script tests found." >&2
     exit 1
 fi
 
@@ -62,8 +63,17 @@ for file in "${TEST_FILES[@]}"; do
     if [[ "${file}" != /* ]]; then
         file="${REPO_ROOT}/${file}"
     fi
-    echo "::group::Standalone Swift test: ${file#${REPO_ROOT}/}"
-    if "${SWIFT_COMMAND[@]}" "${file}"; then
+    case "${file}" in
+        *.swift) TEST_COMMAND=("${SWIFT_COMMAND[@]}" "${file}") ;;
+        *.sh) TEST_COMMAND=(bash "${file}") ;;
+        *)
+            echo "Unsupported standalone test type: ${file}" >&2
+            overall=1
+            continue
+            ;;
+    esac
+    echo "::group::Standalone script test: ${file#${REPO_ROOT}/}"
+    if "${TEST_COMMAND[@]}"; then
         echo "PASS: ${file#${REPO_ROOT}/}"
     else
         status=$?
