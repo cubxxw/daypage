@@ -66,14 +66,14 @@ escape_swift() {
 DEEPSEEK_BASE_URL_PUBLIC=$(escape_swift "$(read_env_value DEEPSEEK_BASE_URL)")
 DEEPSEEK_MODEL_PUBLIC=$(escape_swift "$(read_env_value DEEPSEEK_MODEL)")
 SUPABASE_URL_PUBLIC=$(escape_swift "$(read_env_value SUPABASE_URL)")
-SUPABASE_PUBLISHABLE_KEY_VALUE=$(read_env_value SUPABASE_PUBLISHABLE_KEY)
-if [[ -z "${SUPABASE_PUBLISHABLE_KEY_VALUE}" ]]; then
+supabase_publishable_key_value=$(read_env_value SUPABASE_PUBLISHABLE_KEY)
+if [[ -z "${supabase_publishable_key_value}" ]]; then
     # Backward compatibility for existing GitHub ENV_FILE/local .env values.
     # The legacy anon JWT has the same low-privilege client role as the newer
     # sb_publishable_ key and is intentionally bundled in public clients.
-    SUPABASE_PUBLISHABLE_KEY_VALUE=$(read_env_value SUPABASE_ANON_KEY)
+    supabase_publishable_key_value=$(read_env_value SUPABASE_ANON_KEY)
 fi
-SUPABASE_PUBLISHABLE_KEY_PUBLIC=$(escape_swift "${SUPABASE_PUBLISHABLE_KEY_VALUE}")
+SUPABASE_PUBLISHABLE_KEY_PUBLIC=$(escape_swift "${supabase_publishable_key_value}")
 VOICE_ASR_PROVIDER_PUBLIC=$(escape_swift "$(read_env_value VOICE_ASR_PROVIDER)")
 DOUBAO_ASR_STREAM_URL_PUBLIC=$(escape_swift "$(read_env_value DOUBAO_ASR_STREAM_URL)")
 DOUBAO_ASR_FILE_URL_PUBLIC=$(escape_swift "$(read_env_value DOUBAO_ASR_FILE_URL)")
