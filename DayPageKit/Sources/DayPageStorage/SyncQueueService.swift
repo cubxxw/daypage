@@ -23,6 +23,45 @@ import Foundation
 import Combine
 import DayPageModels
 
+/// Small, content-free diagnostic state for the most recent cloud-sync runs.
+/// This is metadata only and is persisted in UserDefaults, never in the Vault.
+public struct SyncHealthSnapshot: Codable, Equatable, Sendable {
+    public var lastAttemptAt: Date?
+    public var lastSuccessAt: Date?
+    public var lastFailureAt: Date?
+    public var lastFailureStage: String?
+    public var lastFailureCode: String?
+    public var lastHTTPStatus: Int?
+    public var lastCorrelationID: String?
+    public var pendingCountAtLastAttempt: Int
+    public var consecutiveFailureCount: Int
+    public var lastRemoteReportAt: Date?
+
+    public init(
+        lastAttemptAt: Date? = nil,
+        lastSuccessAt: Date? = nil,
+        lastFailureAt: Date? = nil,
+        lastFailureStage: String? = nil,
+        lastFailureCode: String? = nil,
+        lastHTTPStatus: Int? = nil,
+        lastCorrelationID: String? = nil,
+        pendingCountAtLastAttempt: Int = 0,
+        consecutiveFailureCount: Int = 0,
+        lastRemoteReportAt: Date? = nil
+    ) {
+        self.lastAttemptAt = lastAttemptAt
+        self.lastSuccessAt = lastSuccessAt
+        self.lastFailureAt = lastFailureAt
+        self.lastFailureStage = lastFailureStage
+        self.lastFailureCode = lastFailureCode
+        self.lastHTTPStatus = lastHTTPStatus
+        self.lastCorrelationID = lastCorrelationID
+        self.pendingCountAtLastAttempt = pendingCountAtLastAttempt
+        self.consecutiveFailureCount = consecutiveFailureCount
+        self.lastRemoteReportAt = lastRemoteReportAt
+    }
+}
+
 /// Process-wide, @MainActor singleton tracking memo IDs awaiting Supabase
 /// sync. All published state drives SwiftUI, so it must mutate on the main
 /// actor.
@@ -49,6 +88,9 @@ public final class SyncQueueService: ObservableObject {
     /// `flushIfOnline` and inspected by the banner to disable retries.
     @Published public private(set) var isFlushingNow: Bool = false
 
+    /// Durable, privacy-safe state rendered by Settings diagnostics.
+    @Published public private(set) var syncHealth = SyncHealthSnapshot()
+
     /// Convenience accessors — these aren't `@Published` themselves but
     /// will recompute whenever `pendingMemoIDs` does because callers
     /// observe the underlying Set.
@@ -73,6 +115,7 @@ public final class SyncQueueService: ObservableObject {
     private let bytesKey        = "syncQueue.totalBytes"
     private let oldestKey       = "syncQueue.oldestDate"
     private let sizesKey        = "syncQueue.memoSizes"
+    private let healthKey       = "syncQueue.health.v1"
 
     /// Allows tests to inject a private UserDefaults suite so they don't
     /// pollute the shared standard suite. Production callers use
@@ -101,6 +144,56 @@ public final class SyncQueueService: ObservableObject {
     }
 
     // MARK: - Public mutation API
+
+    public func recordSyncAttempt(
+        correlationID: UUID,
+        pendingCount: Int,
+        at date: Date = Date()
+    ) {
+        syncHealth.lastAttemptAt = date
+        syncHealth.lastCorrelationID = correlationID.uuidString.lowercased()
+        syncHealth.pendingCountAtLastAttempt = min(max(pendingCount, 0), 100_000)
+        persistToDisk()
+    }
+
+    public func recordSyncSuccess(at date: Date = Date()) {
+        syncHealth.lastSuccessAt = date
+        syncHealth.consecutiveFailureCount = 0
+        persistToDisk()
+    }
+
+    /// Records the latest failure and returns whether it should also become a
+    /// remote Sentry event. Repeats of the same stage/code are reported at most
+    /// once per throttle window; a success or changed failure starts a new burst.
+    @discardableResult
+    public func recordSyncFailure(
+        stage: String,
+        code: String,
+        httpStatus: Int?,
+        at date: Date = Date(),
+        remoteThrottle: TimeInterval = 15 * 60
+    ) -> Bool {
+        let sameFailure = syncHealth.lastFailureStage == stage
+            && syncHealth.lastFailureCode == code
+            && syncHealth.consecutiveFailureCount > 0
+        let reportWindowElapsed = syncHealth.lastRemoteReportAt.map {
+            date.timeIntervalSince($0) >= max(0, remoteThrottle)
+        } ?? true
+        let shouldReport = !sameFailure || reportWindowElapsed
+
+        syncHealth.lastFailureAt = date
+        syncHealth.lastFailureStage = stage
+        syncHealth.lastFailureCode = code
+        syncHealth.lastHTTPStatus = httpStatus.map { min(max($0, 100), 599) }
+        syncHealth.consecutiveFailureCount = sameFailure
+            ? min(syncHealth.consecutiveFailureCount + 1, 10_000)
+            : 1
+        if shouldReport {
+            syncHealth.lastRemoteReportAt = date
+        }
+        persistToDisk()
+        return shouldReport
+    }
 
     /// Add a memo to the queue. Idempotent: re-enqueuing the same ID is
     /// a no-op for the count + byte tally (Set semantics dedupe the ID;
@@ -274,6 +367,9 @@ public final class SyncQueueService: ObservableObject {
         // memoSizes serialised as [String: Int] — UserDefaults can store
         // Dictionary<String, Int> natively.
         defaults.set(memoSizes, forKey: sizesKey)
+        if let data = try? JSONEncoder().encode(syncHealth) {
+            defaults.set(data, forKey: healthKey)
+        }
     }
 
     /// Pull persisted state on init. Missing keys leave the @Published
@@ -286,6 +382,10 @@ public final class SyncQueueService: ObservableObject {
         oldestPendingDate = defaults.object(forKey: oldestKey) as? Date
         if let dict = defaults.dictionary(forKey: sizesKey) as? [String: Int] {
             memoSizes = dict
+        }
+        if let data = defaults.data(forKey: healthKey),
+           let restored = try? JSONDecoder().decode(SyncHealthSnapshot.self, from: data) {
+            syncHealth = restored
         }
         // R9 migration: do NOT pre-seed missing IDs with size=0 — that
         // used to mask the legacy-state case where pendingMemoIDs was

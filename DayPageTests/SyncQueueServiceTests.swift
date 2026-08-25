@@ -300,4 +300,61 @@ struct SyncQueueServiceTests {
         #expect(svc.isEmpty)
         #expect(svc.totalBytes == 0)
     }
+
+    // MARK: - Privacy-safe sync health
+
+    @Test
+    func syncHealthPersistsAndThrottlesRepeatedRemoteEvents() {
+        let suite = "SyncQueueServiceTests.health.\(UUID().uuidString)"
+        let start = Date(timeIntervalSince1970: 1_788_000_000)
+        let correlationID = UUID()
+        let service = makeService(suite: suite, fresh: true)
+
+        service.recordSyncAttempt(
+            correlationID: correlationID,
+            pendingCount: 3,
+            at: start
+        )
+        #expect(service.syncHealth.lastAttemptAt == start)
+        #expect(service.syncHealth.lastCorrelationID == correlationID.uuidString.lowercased())
+        #expect(service.syncHealth.pendingCountAtLastAttempt == 3)
+
+        let firstReport = service.recordSyncFailure(
+            stage: "push",
+            code: "server_error",
+            httpStatus: 503,
+            at: start.addingTimeInterval(1)
+        )
+        let repeatedReport = service.recordSyncFailure(
+            stage: "push",
+            code: "server_error",
+            httpStatus: 503,
+            at: start.addingTimeInterval(60)
+        )
+        #expect(firstReport)
+        #expect(!repeatedReport)
+        #expect(service.syncHealth.consecutiveFailureCount == 2)
+
+        let elapsedReport = service.recordSyncFailure(
+            stage: "push",
+            code: "server_error",
+            httpStatus: 503,
+            at: start.addingTimeInterval(901)
+        )
+        #expect(elapsedReport)
+
+        service.recordSyncSuccess(at: start.addingTimeInterval(902))
+        #expect(service.syncHealth.consecutiveFailureCount == 0)
+        let afterSuccessReport = service.recordSyncFailure(
+            stage: "push",
+            code: "server_error",
+            httpStatus: 503,
+            at: start.addingTimeInterval(903)
+        )
+        #expect(afterSuccessReport, "a successful run must end the previous failure burst")
+
+        let restored = makeService(suite: suite, fresh: false)
+        #expect(restored.syncHealth == service.syncHealth)
+        UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+    }
 }

@@ -107,53 +107,112 @@ public final class SyncQueueObserver {
         isFlushing = true
         defer { isFlushing = false }
 
-        guard let operations = try? SyncOutboxStore.pendingOperations(),
-              SyncQueueService.shared.beginFlush() else { return }
+        guard SyncQueueService.shared.beginFlush() else { return }
         defer { SyncQueueService.shared.endFlush() }
 
-        var shouldPull = true
+        let correlationID = UUID()
+        SyncQueueService.shared.recordSyncAttempt(
+            correlationID: correlationID,
+            pendingCount: SyncQueueService.shared.pendingCount
+        )
+
+        let operations: [SyncOutboxOperation]
+        do {
+            operations = try SyncOutboxStore.pendingOperations()
+        } catch {
+            recordFailure(stage: "outbox_read", error: error, correlationID: correlationID)
+            return
+        }
+
         uploadLoop: for operation in operations {
             do {
                 _ = try await uploader.upload(operation: operation)
                 try SyncOutboxStore.acknowledge(operationID: operation.operationID)
                 SyncQueueService.shared.reloadFromOutbox()
             } catch let error as MemoSyncError {
+                recordFailure(stage: "push", error: error, correlationID: correlationID)
                 if case .conflict = error {
                     // Keep the operation until pull preserves the local variant
                     // and installs the newer remote canonical revision.
                     break uploadLoop
                 }
-                SentryReporter.breadcrumb(
-                    category: "syncqueue",
-                    level: .warning,
-                    message: "upload failed for \(operation.memoID): \(error)"
-                )
-                shouldPull = false
-                break uploadLoop
+                return
             } catch {
                 // Network/server problem — stop this pass so we don't
                 // burn through retries pointlessly. The next online
                 // transition or manual trigger will resume.
-                SentryReporter.breadcrumb(
-                    category: "syncqueue",
-                    level: .warning,
-                    message: "upload failed for \(operation.memoID): \(error)"
-                )
-                shouldPull = false
-                break uploadLoop
+                recordFailure(stage: "push", error: error, correlationID: correlationID)
+                return
             }
         }
 
-        guard shouldPull, let puller, let accountID else { return }
+        guard let puller, let accountID else {
+            if SyncSettings.isConfigured {
+                SyncQueueService.shared.recordSyncSuccess()
+            }
+            return
+        }
         do {
             try await pullAllChanges(using: puller, accountID: accountID)
+            SyncQueueService.shared.recordSyncSuccess()
         } catch {
-            SentryReporter.breadcrumb(
-                category: "syncqueue",
-                level: .warning,
-                message: "incremental pull failed: \(error)"
-            )
+            recordFailure(stage: "pull", error: error, correlationID: correlationID)
         }
+    }
+
+    private func recordFailure(stage: String, error: Error, correlationID: UUID) {
+        let diagnostic: (code: String, httpStatus: Int?)
+        if let syncError = error as? MemoSyncError {
+            diagnostic = (syncError.diagnosticCode, syncError.diagnosticHTTPStatus)
+        } else if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:
+                diagnostic = ("network_unavailable", nil)
+            case .timedOut:
+                diagnostic = ("network_timeout", nil)
+            default:
+                diagnostic = ("network_error", nil)
+            }
+        } else {
+            diagnostic = ("unexpected", nil)
+        }
+
+        let queue = SyncQueueService.shared
+        let networkState: OperationalEvent.NetworkState = NetworkMonitor.shared.isOnline ? .online : .offline
+        let boundedEvent = OperationalEvent(
+            area: "sync",
+            stage: stage,
+            code: diagnostic.code,
+            correlationID: correlationID,
+            level: diagnostic.code == "unexpected" ? .error : .warning,
+            httpStatus: diagnostic.httpStatus,
+            networkState: networkState,
+            pendingCount: queue.pendingCount
+        )
+        let shouldReport = queue.recordSyncFailure(
+            stage: boundedEvent.stage,
+            code: boundedEvent.code,
+            httpStatus: boundedEvent.httpStatus
+        )
+        let safeMessage = "stage=\(boundedEvent.stage) code=\(boundedEvent.code) correlation=\(boundedEvent.correlationID)"
+        DayPageLogger.shared.warn("[Sync] \(safeMessage)")
+        SentryReporter.breadcrumb(
+            category: "syncqueue",
+            level: .warning,
+            message: safeMessage
+        )
+        guard shouldReport else { return }
+        SentryReporter.captureOperationalEvent(OperationalEvent(
+            area: "sync",
+            stage: boundedEvent.stage,
+            code: boundedEvent.code,
+            correlationID: correlationID,
+            level: boundedEvent.level,
+            httpStatus: boundedEvent.httpStatus,
+            networkState: boundedEvent.networkState,
+            pendingCount: queue.pendingCount,
+            consecutiveFailureCount: queue.syncHealth.consecutiveFailureCount
+        ))
     }
 
     private func pullAllChanges(using puller: RemotePuller, accountID: UUID) async throws {

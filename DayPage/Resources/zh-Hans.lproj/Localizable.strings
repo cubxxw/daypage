@@ -1461,3 +1461,28 @@
 "sidebar.nav.schedule" = "调度";
 "sidebar.schedule.hint" = "打开调度中心";
 "sidebar.schedule.upcoming" = "%d 条即将触发";
+
+/* 诊断信息 */
+"settings.diagnostics.entry" = "诊断信息";
+"settings.diagnostics.title" = "诊断信息";
+"settings.diagnostics.runtime" = "运行状态";
+"settings.diagnostics.sentry" = "远程诊断";
+"settings.diagnostics.enabled" = "已开启";
+"settings.diagnostics.disabled" = "未开启";
+"settings.diagnostics.network" = "网络";
+"settings.diagnostics.online" = "在线";
+"settings.diagnostics.offline" = "离线";
+"settings.diagnostics.auth" = "登录";
+"settings.diagnostics.sync" = "云同步";
+"settings.diagnostics.last_failure" = "最近失败";
+"settings.diagnostics.stage_code" = "阶段 / 错误码";
+"settings.diagnostics.reference" = "参考编号";
+"settings.diagnostics.no_auth_failure" = "尚无登录失败记录";
+"settings.diagnostics.pending" = "待同步";
+"settings.diagnostics.last_attempt" = "最近尝试";
+"settings.diagnostics.last_success" = "最近成功";
+"settings.diagnostics.last_error" = "最近错误";
+"settings.diagnostics.failure_count" = "连续失败";
+"settings.diagnostics.copy" = "复制诊断信息";
+"settings.diagnostics.copied" = "诊断信息已复制";
+"settings.diagnostics.privacy" = "仅包含版本、网络、错误码、时间和关联编号；不包含记录正文、邮箱、语音、截图或密钥。";

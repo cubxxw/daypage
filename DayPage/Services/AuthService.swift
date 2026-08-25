@@ -50,6 +50,46 @@ enum DPAuthError: LocalizedError, Equatable {
             return message.isEmpty ? "请求失败，请稍后再试" : message
         }
     }
+
+    var diagnosticCode: String {
+        switch self {
+        case .missingCredential: return "missing_credential"
+        case .serviceUnavailable: return "service_unavailable"
+        case .invalidEmail: return "invalid_email"
+        case .rateLimited: return "rate_limited"
+        case .otpExpired: return "otp_expired"
+        case .otpMismatch: return "otp_mismatch"
+        case .otpLocked: return "otp_locked"
+        case .networkUnavailable: return "network_unavailable"
+        case .unknown: return "unknown"
+        }
+    }
+}
+
+/// The last content-free authentication failure retained for user support.
+/// Email, tokens, Apple credentials, and provider response text are excluded.
+struct AuthFailureDiagnostic: Codable, Equatable {
+    let occurredAt: Date
+    let provider: String
+    let stage: String
+    let code: String
+    let httpStatus: Int?
+    let networkState: String
+    let correlationID: String
+}
+
+private enum AuthFailureDiagnosticStore {
+    private static let key = "auth.lastFailureDiagnostic.v1"
+
+    static func load() -> AuthFailureDiagnostic? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(AuthFailureDiagnostic.self, from: data)
+    }
+
+    static func save(_ diagnostic: AuthFailureDiagnostic) {
+        guard let data = try? JSONEncoder().encode(diagnostic) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
 }
 
 // MARK: - AuthService
@@ -71,6 +111,7 @@ final class AuthService: NSObject, ObservableObject {
     @Published var error: DPAuthError?
     /// `true` while the network path is unavailable (NWPathMonitor).
     @Published private(set) var isNetworkUnavailable: Bool = false
+    @Published private(set) var lastFailureDiagnostic = AuthFailureDiagnosticStore.load()
 
     // MARK: Derived — Login Provider
 
@@ -210,13 +251,22 @@ final class AuthService: NSObject, ObservableObject {
     // MARK: - Apple Sign-In
 
     func signInWithApple() async throws {
+        let correlationID = UUID()
         guard !isNetworkUnavailable else {
             let err = DPAuthError.networkUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "apple",
+                stage: "preflight",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
         isLoading = true
         error = nil
+        var stage = "authorize"
 
         do {
             let authorization = try await requestAppleAuthorization()
@@ -241,6 +291,7 @@ final class AuthService: NSObject, ObservableObject {
             // Clear isLoading before the listener's session update triggers SwiftUI
             // diffing so the ProgressView overlay is already gone when onChange fires (RC3).
             isLoading = false
+            stage = "exchange"
             _ = try await supabase.auth.signInWithIdToken(
                 credentials: .init(provider: .apple, idToken: identityToken)
             )
@@ -250,6 +301,13 @@ final class AuthService: NSObject, ObservableObject {
             isLoading = false
             let mapped = mapSupabaseError(error)
             self.error = mapped
+            reportAuthFailure(
+                provider: "apple",
+                stage: stage,
+                mappedError: mapped,
+                sourceError: error,
+                correlationID: correlationID
+            )
             throw mapped
         }
     }
@@ -285,14 +343,29 @@ final class AuthService: NSObject, ObservableObject {
     /// Requests a 6-digit email OTP. Enforces a 60-second client-side cooldown
     /// per email to avoid triggering server rate limits.
     func sendOTP(email: String) async throws {
+        let correlationID = UUID()
         guard !isPlaceholder else {
             let err = DPAuthError.serviceUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
         guard !isNetworkUnavailable else {
             let err = DPAuthError.networkUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -300,6 +373,13 @@ final class AuthService: NSObject, ObservableObject {
         if remaining > 0 {
             let err = DPAuthError.rateLimited(retryAfter: remaining)
             self.error = err
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -314,6 +394,13 @@ final class AuthService: NSObject, ObservableObject {
         } catch {
             let mapped = mapSupabaseError(error)
             self.error = mapped
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "send",
+                mappedError: mapped,
+                sourceError: error,
+                correlationID: correlationID
+            )
             throw mapped
         }
     }
@@ -322,20 +409,42 @@ final class AuthService: NSObject, ObservableObject {
     /// emits `signedIn` via `authStateChanges`, which updates `session`.
     /// Enforces 5-attempt → 30-minute local lockout to deter brute-force.
     func verifyOTP(email: String, token: String) async throws {
+        let correlationID = UUID()
         guard !isPlaceholder else {
             let err = DPAuthError.serviceUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "verify",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
         guard !isNetworkUnavailable else {
             let err = DPAuthError.networkUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "verify",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
         if let lockedFor = AuthRateLimiter.shared.otpLockRemaining(email: email) {
             let err = DPAuthError.otpLocked(retryAfter: lockedFor)
             self.error = err
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "verify",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -355,9 +464,23 @@ final class AuthService: NSObject, ObservableObject {
                 if let lockedFor = AuthRateLimiter.shared.otpLockRemaining(email: email) {
                     let lockErr = DPAuthError.otpLocked(retryAfter: lockedFor)
                     self.error = lockErr   // lockout is service-level; publish it
+                    reportAuthFailure(
+                        provider: "email_otp",
+                        stage: "verify",
+                        mappedError: lockErr,
+                        sourceError: error,
+                        correlationID: correlationID
+                    )
                     throw lockErr
                 }
             }
+            reportAuthFailure(
+                provider: "email_otp",
+                stage: "verify",
+                mappedError: mapped,
+                sourceError: error,
+                correlationID: correlationID
+            )
             // Transient failures (mismatch / expired / network) are owned by the
             // view — don't overwrite cross-view service error state.
             throw mapped
@@ -367,6 +490,7 @@ final class AuthService: NSObject, ObservableObject {
     // MARK: - Sign-Out
 
     func signOut() async throws {
+        let correlationID = UUID()
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -384,6 +508,13 @@ final class AuthService: NSObject, ObservableObject {
             guard supabase.auth.currentSession == nil else {
                 let mapped = mapSupabaseError(error)
                 self.error = mapped
+                reportAuthFailure(
+                    provider: "session",
+                    stage: "sign_out",
+                    mappedError: mapped,
+                    sourceError: error,
+                    correlationID: correlationID
+                )
                 throw mapped
             }
             DayPageLogger.shared.info("[AuthService] Local sign-out completed; remote token invalidation deferred")
@@ -446,13 +577,60 @@ final class AuthService: NSObject, ObservableObject {
                 if case let .api(_, _, _, response) = sbError { return response.statusCode }
                 return nil
             }()
-            DayPageLogger.shared.error("[AuthService] Unmapped auth error code=\(code.rawValue) http=\(httpStatus.map(String.init) ?? "-") msg=\(sbError.message)")
+            DayPageLogger.shared.error("[AuthService] Unmapped auth error code=\(code.rawValue) http=\(httpStatus.map(String.init) ?? "-")")
             let suffix = "code=\(code.rawValue) http=\(httpStatus.map(String.init) ?? "-")"
             return .unknown(message: debugFallbackMessage(suffix: suffix))
         }
 
-        DayPageLogger.shared.error("[AuthService] Unknown error type: \(type(of: error)) desc=\(String(describing: error))")
+        DayPageLogger.shared.error("[AuthService] Unknown error type: \(type(of: error))")
         return .unknown(message: debugFallbackMessage(suffix: "type=\(type(of: error))"))
+    }
+
+    private func reportAuthFailure(
+        provider: String,
+        stage: String,
+        mappedError: DPAuthError,
+        sourceError: Error?,
+        correlationID: UUID
+    ) {
+        let status = sourceError.flatMap(authHTTPStatus)
+        let networkState: OperationalEvent.NetworkState = isNetworkUnavailable ? .offline : .online
+        let event = OperationalEvent(
+            area: "auth",
+            stage: stage,
+            code: mappedError.diagnosticCode,
+            correlationID: correlationID,
+            level: mappedError.diagnosticCode == "unknown" ? .error : .warning,
+            provider: provider,
+            httpStatus: status,
+            networkState: networkState
+        )
+        let diagnostic = AuthFailureDiagnostic(
+            occurredAt: Date(),
+            provider: event.provider ?? "unknown",
+            stage: event.stage,
+            code: event.code,
+            httpStatus: event.httpStatus,
+            networkState: event.networkState.rawValue,
+            correlationID: event.correlationID
+        )
+        lastFailureDiagnostic = diagnostic
+        AuthFailureDiagnosticStore.save(diagnostic)
+
+        let safeMessage = "provider=\(diagnostic.provider) stage=\(diagnostic.stage) code=\(diagnostic.code) correlation=\(diagnostic.correlationID)"
+        DayPageLogger.shared.warn("[Auth] \(safeMessage)")
+        SentryReporter.breadcrumb(
+            category: "auth",
+            level: .warning,
+            message: safeMessage
+        )
+        SentryReporter.captureOperationalEvent(event)
+    }
+
+    private func authHTTPStatus(from error: Error) -> Int? {
+        guard let authError = error as? Supabase.AuthError,
+              case let .api(_, _, _, response) = authError else { return nil }
+        return response.statusCode
     }
 
     /// Release builds never leak server detail to users. DEBUG builds append a
