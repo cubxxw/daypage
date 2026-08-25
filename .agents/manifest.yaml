@@ -60,3 +60,10 @@ codex:
   host_helpers:
     explorer: .codex/agents/explorer.toml
     docs_researcher: .codex/agents/docs-researcher.toml
+
+dsh:
+  version_file: .dsh/version
+  launcher: scripts/agent/dsh.py
+  patch: .dsh/daypage.patch.yml
+  default_profile: web
+  default_preset: standard

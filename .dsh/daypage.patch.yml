@@ -1,0 +1,17 @@
+# DayPage's repository-owned overlay for the pinned DeepSeek Harness host.
+# Secrets and machine-local paths belong to the launch environment, never here.
+
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: !!js process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro'
+
+# Keep workspace selection inside the Web UI so local, remote, and automated
+# browser sessions use the same observable flow instead of a host-native dialog.
+- id: directory-picker
+  disabled: true
+- insert:
+    - id: daypage-directory-picker-browse-host
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
+    - id: daypage-directory-picker-browse-client
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'

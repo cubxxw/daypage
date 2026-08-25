@@ -261,6 +261,61 @@ class DoctorContractTests(unittest.TestCase):
         self.write(".codex/config.toml", "[agents\ninvalid = true\n")
         self.assertIn("config.toml", self.codes())
 
+    def test_valid_optional_dsh_adapter_is_accepted(self) -> None:
+        self.write(".dsh/version", "0.1.1-rc.2\n")
+        self.write(".dsh/daypage.patch.yml", "[]\n")
+        self.write("scripts/agent/dsh.py", "#!/usr/bin/env python3\n")
+        self.write(
+            ".agents/manifest.yaml",
+            VALID_MANIFEST
+            + """\
+dsh:
+  version_file: .dsh/version
+  launcher: scripts/agent/dsh.py
+  patch: .dsh/daypage.patch.yml
+  default_profile: web
+  default_preset: standard
+""",
+        )
+        self.assertNotIn("manifest.dsh", self.codes())
+        self.assertNotIn("command.unpinned", self.codes())
+
+    def test_unpinned_dsh_version_is_detected(self) -> None:
+        self.write(".dsh/version", "latest\n")
+        self.write(".dsh/daypage.patch.yml", "[]\n")
+        self.write("scripts/agent/dsh.py", "#!/usr/bin/env python3\n")
+        self.write(
+            ".agents/manifest.yaml",
+            VALID_MANIFEST
+            + """\
+dsh:
+  version_file: .dsh/version
+  launcher: scripts/agent/dsh.py
+  patch: .dsh/daypage.patch.yml
+  default_profile: web
+  default_preset: standard
+""",
+        )
+        self.assertIn("command.unpinned", self.codes())
+
+    def test_dsh_build_metadata_version_is_rejected_consistently(self) -> None:
+        self.write(".dsh/version", "0.1.1+local\n")
+        self.write(".dsh/daypage.patch.yml", "[]\n")
+        self.write("scripts/agent/dsh.py", "#!/usr/bin/env python3\n")
+        self.write(
+            ".agents/manifest.yaml",
+            VALID_MANIFEST
+            + """\
+dsh:
+  version_file: .dsh/version
+  launcher: scripts/agent/dsh.py
+  patch: .dsh/daypage.patch.yml
+  default_profile: web
+  default_preset: standard
+""",
+        )
+        self.assertIn("command.unpinned", self.codes())
+
     def test_unpinned_npx_server_is_detected(self) -> None:
         self.write(
             ".codex/config.toml",

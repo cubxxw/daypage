@@ -38,7 +38,7 @@ DOC_SCOPE_PREFIXES = (
     "docs/adr/",
     "docs/decisions/",
 )
-CONTROL_SCOPE_PREFIXES = (".agents/", ".codex/", ".claude/")
+CONTROL_SCOPE_PREFIXES = (".agents/", ".codex/", ".claude/", ".dsh/")
 ROOT_CONTRACT_FILES = {"AGENTS.md", "CLAUDE.md", "README.md"}
 PERSONAL_PATH = re.compile(
     r"(?:/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+|[A-Za-z]:\\Users\\[^\\\s]+)"
@@ -446,6 +446,51 @@ def manifest_reference_findings(
                 )
         return findings
 
+    if section_name == "dsh":
+        for key, within, suffix in (
+            ("version_file", ".dsh", None),
+            ("launcher", "scripts/agent", ".py"),
+            ("patch", ".dsh", ".yml"),
+        ):
+            findings.extend(
+                validate_repo_reference(
+                    root,
+                    manifest_path,
+                    section.get(key),
+                    f"dsh.{key}",
+                    kind="file",
+                    within=within,
+                    suffix=suffix,
+                )
+            )
+        for key, expected in (("default_profile", "web"), ("default_preset", "standard")):
+            if section.get(key) != expected:
+                findings.append(
+                    Finding(
+                        manifest_path,
+                        0,
+                        "manifest.dsh",
+                        f"dsh.{key} must be {expected!r}",
+                    )
+                )
+
+        version_path = resolve_repo_path(root, section.get("version_file"))
+        if version_path is not None and version_path.is_file():
+            try:
+                version = version_path.read_text(encoding="utf-8").strip()
+            except (OSError, UnicodeDecodeError):
+                version = ""
+            if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?", version):
+                findings.append(
+                    Finding(
+                        version_path.resolve().relative_to(root.resolve()).as_posix(),
+                        1,
+                        "command.unpinned",
+                        "DSH version must be one exact semantic version",
+                    )
+                )
+        return findings
+
     # The Codex section has two direct references, one required adapter mapping,
     # one optional helper mapping, and boolean policy metadata.
     findings.extend(
@@ -541,6 +586,10 @@ def validate_manifest(root: Path) -> list[Finding]:
     for section_name in ("roles", "workflows", "contracts", "templates", "skills", "codex"):
         section = manifest.get(section_name)
         findings.extend(manifest_reference_findings(root, path, section_name, section))
+
+    dsh = manifest.get("dsh")
+    if dsh is not None:
+        findings.extend(manifest_reference_findings(root, path, "dsh", dsh))
 
     for section_name, directory in (("roles", ".agents/roles"), ("workflows", ".agents/workflows")):
         section = manifest.get(section_name)
@@ -982,7 +1031,7 @@ def validate_tracked_runs(root: Path) -> list[Finding]:
         if (
             path not in LEGACY_TRACKED_RUN_BASELINE
             and "runs" in parts
-            and any(part in {".agents", ".codex", ".claude"} for part in parts)
+            and any(part in {".agents", ".codex", ".claude", ".dsh"} for part in parts)
         ):
             findings.append(
                 Finding(path, 0, "runs.tracked", "agent run output must be ignored, not tracked")

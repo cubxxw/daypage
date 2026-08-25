@@ -91,6 +91,13 @@ Carthage/Checkouts
 .claude/skills/verify-daypage/runs/
 .agents/**/runs/
 .codex/**/runs/
+.dsh/**/runs/
+.dsh/profiles/
+.dsh/sessions/
+.dsh/storages/
+.dsh/settings.yaml
+.dsh/.credentials.yaml
+.dsh/.anonymous-user-id
 .claude/PRPs/
 
 # -----------------------------------------------------------------------------
