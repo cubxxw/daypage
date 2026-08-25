@@ -8,6 +8,12 @@ importers:
 
   .: {}
 
+  packages/contracts:
+    devDependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+
   packages/mcp-server:
     dependencies:
       '@modelcontextprotocol/sdk':

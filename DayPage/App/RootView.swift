@@ -15,6 +15,7 @@ struct RootView: View {
     @EnvironmentObject private var authService: AuthService
     @EnvironmentObject private var nav: AppNavigationModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var sidebarVM = SidebarViewModel()
     @ObservedObject private var appSettings = AppSettings.shared
     @State private var syncAccountError: String?
@@ -31,7 +32,15 @@ struct RootView: View {
         return .ready
     }
 
-    private let sidebarWidth: CGFloat = 280
+    /// The drawer is a navigation surface, not a fixed 280pt card. Give
+    /// compact phones an 82% rail and accessibility text a wider 92% rail,
+    /// while retaining a calm desktop-like maximum on iPad.
+    private var sidebarWidth: CGFloat {
+        let screenWidth = UIScreen.main.bounds.width
+        let fraction: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.92 : 0.82
+        let maximum: CGFloat = dynamicTypeSize.isAccessibilitySize ? 420 : 360
+        return min(max(280, screenWidth * fraction), maximum)
+    }
 
     private var feedbackPanelWidth: CGFloat {
         min(UIScreen.main.bounds.width * 0.85, 360)

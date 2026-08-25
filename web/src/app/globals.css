@@ -1115,7 +1115,10 @@ mark.user-mark { background: var(--accent-soft); color: var(--fg-primary); borde
   position: fixed;
   inset: 0;
   z-index: 199;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(20, 14, 8, 0.34);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: drawer-backdrop-in var(--motion-fast) var(--motion-ease-out) both;
 }
 .mobile-drawer {
   position: fixed;
@@ -1123,19 +1126,74 @@ mark.user-mark { background: var(--accent-soft); color: var(--fg-primary); borde
   left: 0;
   bottom: 0;
   z-index: 200;
-  width: 280px;
-  max-width: calc(100vw - 48px);
+  width: 320px;
+  max-width: calc(100vw - 24px);
   transform: translateX(-100%);
-  transition: transform 220ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  visibility: hidden;
+  transition:
+    transform var(--motion-medium) var(--motion-spring),
+    visibility 0s linear var(--motion-medium);
   will-change: transform;
+  overflow: hidden;
+  border-radius: 0 var(--radius-sheet) var(--radius-sheet) 0;
+  box-shadow: var(--shadow-drawer);
 }
 .mobile-drawer.is-open {
   transform: translateX(0);
+  visibility: visible;
+  transition-delay: 0s;
 }
 .mobile-drawer .sb {
   display: flex;
+  width: 100%;
   height: 100%;
   position: static;
+  padding-top: max(22px, env(safe-area-inset-top));
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--bg-warm) 88%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(145%);
+  backdrop-filter: blur(30px) saturate(145%);
+}
+.mobile-drawer__close,
+.mobile-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface-white) 74%, transparent);
+  color: var(--fg-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-drawer__close {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: 10px;
+  z-index: 1;
+}
+.mobile-menu-trigger {
+  flex-shrink: 0;
+  margin-right: 0.25rem;
+}
+.mobile-drawer__close:hover,
+.mobile-menu-trigger:hover {
+  background: var(--surface-white);
+}
+.mobile-drawer__close:focus-visible,
+.mobile-menu-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@keyframes drawer-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-drawer { transition-duration: 1ms; }
+  .mobile-drawer-backdrop { animation: none; }
 }
 
 /* ---------- v9 HomeHero (signature move on /home) ---------- */

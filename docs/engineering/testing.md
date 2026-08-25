@@ -9,7 +9,9 @@ implementation and run the full relevant integration gate before handoff.
 | Script fixtures | `make check-scripts` |
 | DayPageKit | `make check-kit` |
 | Web | `make check-web` |
+| Android | `make check-android` |
 | MCP server | `make check-mcp` |
+| Cross-platform wire contracts | `make check-contracts` |
 | Agentry | `make check-agentry` |
 | Localization | `make check-localization` |
 | Design tokens | `make check-tokens` |
@@ -23,6 +25,7 @@ Direct focused commands remain useful:
 swift test --package-path DayPageKit
 pnpm --filter daypage-web lint
 pnpm --filter daypage-web typecheck
+(cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug)
 pnpm --filter daypage-mcp-server test
 (cd agentry && go test ./... && go vet ./... && go build ./...)
 ```

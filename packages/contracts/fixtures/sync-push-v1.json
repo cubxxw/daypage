@@ -1,0 +1,37 @@
+{
+  "p_operations": [
+    {
+      "operation_id": "10000000-0000-4000-8000-000000000001",
+      "memo_id": "20000000-0000-4000-8000-000000000001",
+      "kind": "upsert",
+      "revision": 3,
+      "modified_at": "2026-08-25T00:00:00Z",
+      "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "device_id": "30000000-0000-4000-8000-000000000001",
+      "payload": {
+        "type": "text",
+        "body": "跨平台同步契约",
+        "created_at": "2026-08-25T00:00:00Z",
+        "location": {
+          "name": "Shanghai",
+          "lat": 31.2304,
+          "lng": 121.4737
+        },
+        "weather": { "condition": "晴" },
+        "device": "iPhone 17 Pro",
+        "source": "ios",
+        "vault_path": "raw/2026-08-25.md"
+      },
+      "size_bytes": 128
+    },
+    {
+      "operation_id": "10000000-0000-4000-8000-000000000002",
+      "memo_id": "20000000-0000-4000-8000-000000000002",
+      "kind": "delete",
+      "revision": 2,
+      "modified_at": "2026-08-25T00:01:00.123Z",
+      "device_id": "30000000-0000-4000-8000-000000000001",
+      "size_bytes": 0
+    }
+  ]
+}

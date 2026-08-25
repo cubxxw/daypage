@@ -12,6 +12,7 @@ entity pages, and an explorable knowledge graph.
 | `DayPageMac/`, `DayPageWatch/`, `DayPageWidget/` | Apple companion surfaces |
 | `DayPageKit/` | Shared Swift models, storage, and services |
 | `DayPageTests/`, `DayPageKit/Tests/` | Xcode and Swift package tests |
+| `android/` | Native Jetpack Compose Android client |
 | `web/` | Next.js web application |
 | `packages/mcp-server/` | TypeScript DayPage MCP server |
 | `agentry/` | Go agent runtime product |
@@ -29,6 +30,7 @@ Raw data remains file-based. Daily memo files live at
 
 - Swift 5 / SwiftUI, iOS 16+, macOS 13+, watchOS 10+
 - Swift Package Manager through `DayPageKit`
+- Kotlin / Jetpack Compose, Room, and WorkManager on Android 8+
 - Supabase and Sentry adapters in app-facing layers
 - Next.js 16, React 19, TypeScript, pnpm workspace
 - TypeScript MCP server

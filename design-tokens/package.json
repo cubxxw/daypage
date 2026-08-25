@@ -1,12 +1,13 @@
 {
   "name": "@daypage/design-tokens",
-  "version": "8.0.0",
+  "version": "9.0.0",
   "private": true,
   "type": "module",
-  "description": "Single source of truth for DayPage design tokens. Generates web CSS variables and iOS Swift constants.",
+  "description": "Single source of truth for DayPage design tokens. Generates CSS, Swift and Compose-ready Kotlin constants.",
   "scripts": {
     "build:css": "node --experimental-strip-types generators/to-css.ts",
     "build:swift": "node --experimental-strip-types generators/to-swift.ts",
-    "build": "pnpm build:css && pnpm build:swift"
+    "build:kotlin": "node --experimental-strip-types generators/to-kotlin.ts",
+    "build": "pnpm build:css && pnpm build:swift && pnpm build:kotlin"
   }
 }

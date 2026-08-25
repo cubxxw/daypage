@@ -13,6 +13,7 @@ and a personal knowledge graph. This is a multi-surface repository:
 - `DayPageMac/`, `DayPageWatch/`, `DayPageWidget/`: Apple platform companions.
 - `DayPageKit/`: Swift package and source of truth for shared models, storage, and services.
 - `DayPageTests/`: Xcode target tests; `DayPageKit/Tests/`: Swift package tests.
+- `android/`: native Jetpack Compose client with Room indexing and a canonical raw Vault.
 - `web/`: Next.js web product; follow `web/AGENTS.md` and local framework docs.
 - `packages/mcp-server/`: TypeScript DayPage MCP server.
 - `agentry/`: Go product runtime. It is not the repository development-agent control plane.

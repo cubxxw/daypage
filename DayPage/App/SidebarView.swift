@@ -128,7 +128,7 @@ struct SidebarView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(DSColor.inkPrimary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
                     .background(DSColor.surfaceSunken, in: Circle())
             }
             .buttonStyle(.plain)
@@ -168,14 +168,31 @@ struct SidebarView: View {
                             )
                         )
                         .frame(width: 46, height: 46)
-                    Text(sidebarVM.isLoggedIn ? sidebarVM.accountInitial : "·")
-                        .font(DSFonts.serif(size: 20, weight: .semibold, relativeTo: .title3))
-                        .foregroundColor(Color(hex: "FAF8F6"))
+                    if sidebarVM.isLoggedIn {
+                        Text(sidebarVM.accountInitial)
+                            .font(DSFonts.serif(
+                                size: 20,
+                                weight: .semibold,
+                                relativeTo: .title3,
+                                maxSize: 28
+                            ))
+                            .foregroundColor(Color(hex: "FAF8F6"))
+                    } else {
+                        Image(systemName: "person.crop.circle.badge.plus")
+                            .font(.system(size: 19, weight: .medium))
+                            .foregroundColor(Color(hex: "FAF8F6"))
+                            .accessibilityHidden(true)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(profileName)
-                        .font(DSFonts.serif(size: 19, weight: .semibold, relativeTo: .title3))
+                        .font(DSFonts.serif(
+                            size: 19,
+                            weight: .semibold,
+                            relativeTo: .title3,
+                            maxSize: 28
+                        ))
                         .foregroundColor(DSColor.inkPrimary)
                         .lineLimit(1)
                     Text(membershipLine)
@@ -368,7 +385,7 @@ struct SidebarView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -403,7 +420,7 @@ struct SidebarView: View {
                     .foregroundColor(DSColor.inkMuted)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -435,7 +452,7 @@ struct SidebarView: View {
                     .foregroundColor(DSColor.inkMuted)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -495,7 +512,7 @@ struct SidebarView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -572,6 +589,7 @@ struct SidebarView: View {
             .padding(.leading, 48)  // align with nav text column (10 + 26 + 12)
             .padding(.trailing, DSSpacing.lg)
             .padding(.vertical, DSSpacing.sm)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -614,6 +632,7 @@ struct SidebarView: View {
             .padding(.leading, 48)  // align with nav text column (10 + 26 + 12)
             .padding(.trailing, DSSpacing.lg)
             .padding(.vertical, 7)
+            .frame(minHeight: 44)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -650,7 +669,7 @@ struct SidebarView: View {
                         .foregroundColor(DSColor.inkMuted)
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -660,51 +679,10 @@ struct SidebarView: View {
             .accessibilityHint(NSLocalizedString("a11y.settings.hint", comment: "Opens app settings"))
             .accessibilityAddTraits(.isButton)
 
-            // Account (when logged in)
-            if sidebarVM.isLoggedIn {
-                accountRow
-            }
         }
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.sm)
         .padding(.bottom, DSSpacing.xl2)
-    }
-
-    private var accountRow: some View {
-        let email = sidebarVM.accountEmail
-        let initial = sidebarVM.accountInitial
-
-        return Button {
-            Haptics.tapConfirm()
-            showAccountSheet = true
-        } label: {
-            HStack(spacing: DSSpacing.md) {
-                ZStack {
-                    Circle()
-                        .fill(DSColor.amberSoft)
-                        .frame(width: 24, height: 24)
-                        .overlay(Circle().strokeBorder(DSColor.amberRim, lineWidth: 0.5))
-                    Text(initial)
-                        .font(DSType.labelSM)
-                        .foregroundColor(DSColor.accentOnBg)
-                }
-                .frame(width: 26, height: 26)
-                Text(email)
-                    .font(DSType.bodySM)
-                    .foregroundColor(DSColor.inkMuted)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Signed in as \(email)")
-        .accessibilityHint("Opens account details")
-        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Date Formatting

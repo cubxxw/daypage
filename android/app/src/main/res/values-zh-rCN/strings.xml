@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DayPage</string>
+    <string name="nav_today">今天</string>
+    <string name="nav_archive">归档</string>
+    <string name="nav_graph">图谱</string>
+    <string name="nav_ask">问一问</string>
+    <string name="nav_settings">设置</string>
+    <string name="menu">菜单</string>
+    <string name="close">关闭</string>
+    <string name="account_center">账户中心</string>
+    <string name="local_profile">本地档案</string>
+    <string name="local_only">仅保存在本机</string>
+    <string name="syncing">正在同步</string>
+    <string name="synced">已同步</string>
+    <plurals name="offline_queued">
+        <item quantity="other">%1$d 条等待同步</item>
+    </plurals>
+    <string name="action_required">需要处理</string>
+    <string name="capture_eyebrow">今天 · 默认私密</string>
+    <string name="capture_title">此刻，有什么值得留下？</string>
+    <string name="capture_body">先记录，再同步。DayPage 会在接触网络之前把内容安全写入本机。</string>
+    <string name="capture_placeholder">写下一条 Noter…</string>
+    <string name="save_noter">留下这条 Noter</string>
+    <string name="recent_noters">最近的 Noter</string>
+    <string name="empty_noters">安静的一页。第一条 Noter 会立即出现在这里。</string>
+    <string name="coming_soon">这个页面将在 Android 下一阶段继续接入。</string>
+    <string name="sign_in_title">让 DayPage 跟随你去每台设备</string>
+    <string name="sign_in_body">通过 Apple 或邮箱，把这一本地页面连接到 iPhone、Mac、Web 与 MCP 使用的同一私密账户。</string>
+    <string name="continue_apple">通过 Apple 继续</string>
+    <string name="email">邮箱</string>
+    <string name="email_hint">you@example.com</string>
+    <string name="send_magic_link">发送登录链接</string>
+    <string name="magic_link_sent">请查看邮箱，打开链接后返回 DayPage。</string>
+    <string name="sign_out_device">退出此设备</string>
+    <string name="sign_out_explainer">本机 Noter 会保留，其他设备也不会被退出。</string>
+    <string name="sign_out_confirm_title">要退出此设备吗？</string>
+    <string name="cancel">取消</string>
+    <string name="sign_out">退出</string>
+    <string name="retry_sync">重新同步</string>
+    <string name="privacy_note">无需账户也能本地记录。云同步只使用你的用户会话，客户端永远不包含 service-role 密钥。</string>
+    <plurals name="pending_count">
+        <item quantity="other">%1$d 项改动等待同步</item>
+    </plurals>
+</resources>

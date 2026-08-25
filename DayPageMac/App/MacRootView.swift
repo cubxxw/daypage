@@ -47,6 +47,9 @@ struct MacRootView: View {
             }
             .navigationTitle("DayPage")
             .frame(minWidth: 180)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                sidebarAccountButton
+            }
         } detail: {
             switch selection {
             case .today, .none:
@@ -69,22 +72,6 @@ struct MacRootView: View {
                 syncStatus
             }
             ToolbarItem(placement: .primaryAction) {
-                if cloudAuth.session == nil {
-                    Button("登录同步") { showingSignIn = true }
-                } else {
-                    Menu {
-                        if let account = cloudAuth.accountLabel {
-                            Text(account)
-                        }
-                        Button("立即同步") { cloudAuth.retrySync() }
-                        Divider()
-                        Button("退出登录") { Task { await cloudAuth.signOut() } }
-                    } label: {
-                        Image(systemName: "person.crop.circle.fill")
-                    }
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
                 Text("⌘K")
                     .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(.tertiary)
@@ -101,9 +88,6 @@ struct MacRootView: View {
             MacAuthView()
                 .environmentObject(cloudAuth)
         }
-        .onAppear {
-            if cloudAuth.session == nil { showingSignIn = true }
-        }
         .onChange(of: scenePhase) { phase in
             guard phase == .active, cloudAuth.session != nil else { return }
             Task { await SyncQueueService.shared.flushIfOnline() }
@@ -119,6 +103,46 @@ struct MacRootView: View {
         } message: {
             Text(cloudAuth.syncErrorMessage ?? "")
         }
+    }
+
+    private var sidebarAccountButton: some View {
+        Button {
+            showingSignIn = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: cloudAuth.session == nil
+                    ? "person.crop.circle.badge.plus"
+                    : "person.crop.circle.fill")
+                    .font(.system(size: 20, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(
+                        cloudAuth.session == nil
+                            ? Color(nsColor: .secondaryLabelColor)
+                            : Color.orange
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(cloudAuth.accountLabel ?? "仅本机账户")
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    Text(cloudAuth.session == nil ? "登录并开启同步" : "账户与同步")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(10)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(8)
+        .background(.regularMaterial)
+        .accessibilityLabel(cloudAuth.session == nil ? "仅本机账户，登录并开启同步" : "账户与同步")
     }
 
     @ViewBuilder

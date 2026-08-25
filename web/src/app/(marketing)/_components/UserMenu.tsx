@@ -55,8 +55,8 @@ export function UserMenu({ user, lang = "en" }: Props) {
 
   const T =
     lang === "zh"
-      ? { open: "打开", settings: "设置", signOut: "退出登录", label: "用户菜单" }
-      : { open: "Today", settings: "Settings", signOut: "Sign out", label: "User menu" };
+      ? { open: "打开", settings: "设置", signOut: "退出此设备", label: "用户菜单" }
+      : { open: "Today", settings: "Settings", signOut: "Sign out this device", label: "User menu" };
 
   return (
     <div ref={wrap} className="relative">

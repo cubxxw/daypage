@@ -79,12 +79,24 @@ final class MacCloudAuthService: NSObject, ObservableObject {
     }
 
     func signOut() async {
-        SyncQueueObserver.shared.clearSession()
+        errorMessage = nil
         do {
-            try await client.auth.signOut()
+            // Account Center promises a device-local sign-out. Keep every
+            // other DayPage client online and only clear this Mac's session.
+            try await client.auth.signOut(scope: .local)
         } catch {
-            errorMessage = userFacingMessage(for: error)
+            // The SDK may already have removed the local session when a
+            // follow-up network operation fails. In that case the user's
+            // requested outcome is complete and must not be reported as a
+            // failed logout.
+            guard client.auth.currentSession == nil else {
+                errorMessage = userFacingMessage(for: error)
+                return
+            }
         }
+
+        SyncQueueObserver.shared.clearSession()
+        session = nil
     }
 
     func retrySync() {
