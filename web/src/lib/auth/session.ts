@@ -17,6 +17,7 @@ export interface SessionUser {
   id: string;
   email: string | null;
   name: string | null;
+  provider: string | null;
 }
 
 export interface Session {
@@ -38,6 +39,8 @@ export async function auth(): Promise<Session | null> {
         (user.user_metadata?.name as string | undefined) ??
         (user.user_metadata?.full_name as string | undefined) ??
         null,
+      provider:
+        (user.app_metadata?.provider as string | undefined) ?? null,
     },
   };
 }
@@ -58,6 +61,7 @@ export async function resolveUserId(email: string): Promise<string | null> {
 // signature so the existing server-action call sites work unchanged.
 export async function signOut(opts?: { redirectTo?: string }): Promise<void> {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut({ scope: "local" });
+  if (error) throw error;
   if (opts?.redirectTo) redirect(opts.redirectTo);
 }

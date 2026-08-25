@@ -370,8 +370,26 @@ final class AuthService: NSObject, ObservableObject {
         isLoading = true
         error = nil
         defer { isLoading = false }
+
+        do {
+            // "Sign out" is intentionally device-local. Other DayPage clients
+            // continue syncing, matching the wording in Account Center.
+            try await supabase.auth.signOut(scope: .local)
+        } catch {
+            // Supabase clears its local session before attempting server-side
+            // refresh-token invalidation. When that request fails offline the
+            // user is still safely signed out on this device, so do not trap
+            // them behind a misleading error. If a local session remains, the
+            // logout genuinely failed and should be recoverable in the UI.
+            guard supabase.auth.currentSession == nil else {
+                let mapped = mapSupabaseError(error)
+                self.error = mapped
+                throw mapped
+            }
+            DayPageLogger.shared.info("[AuthService] Local sign-out completed; remote token invalidation deferred")
+        }
+
         SyncQueueObserver.shared.clearSession()
-        try await supabase.auth.signOut()
         session = nil   // listener will confirm; local clear takes effect immediately in UI
         SentrySDK.setUser(nil)
         DayPageLogger.shared.info("[AuthService] User signed out")

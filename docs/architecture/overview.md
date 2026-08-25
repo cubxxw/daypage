@@ -1,7 +1,7 @@
 # Current architecture
 
-DayPage is a local-first memory system with Apple, web, integration, and agent-runtime
-surfaces in one repository.
+DayPage is a local-first memory system with Apple, Android, web, integration, and
+agent-runtime surfaces in one repository.
 
 ```mermaid
 flowchart LR
@@ -10,6 +10,9 @@ flowchart LR
   Vault --> Outbox["Revisioned sync outbox"]
   Outbox --> Remote["Supabase Auth · Postgres · RLS"]
   Apple --> Remote
+  Android["Android\nJetpack Compose"] --> AndroidVault["Local Markdown/YAML vault\nRoom index · WorkManager outbox"]
+  AndroidVault --> Remote
+  Android --> Remote
   Web["Next.js web"] --> Remote
   Agent["External Agent / App"] -->|"OAuth consent + Streamable HTTP"| MCP["DayPage Cloud MCP"]
   MCP -->|"caller JWT; RLS scoped"| Remote
@@ -53,6 +56,13 @@ Page completion marker is written only after those throwable entity operations s
 See [ADR-0007](decisions/ADR-0007-compilation-entity-operation-markers.md).
 
 ## Web and integrations
+
+`android/` is a Kotlin / Jetpack Compose application. Its canonical records use the
+same `vault/raw/YYYY-MM-DD.md` format as Apple clients; Room is a query index and durable
+sync outbox, not a replacement source of truth. Android uses Supabase Auth PKCE, Android
+Keystore-protected session envelopes, monotonic pull cursors, exact push receipts, and
+WorkManager retry. Pulled pages reach the raw Vault before their cursor commits. See
+[ADR-0009](decisions/ADR-0009-native-surfaces-shared-contracts.md).
 
 `web/` is a Next.js 16 / React 19 application in the pnpm workspace. It owns web UI,
 server routes, auth, connectors, database access, background jobs, and browser tests.

@@ -8,7 +8,7 @@ SIMULATOR_FALLBACK ?= iPhone 16
 DERIVED_DATA ?= build/DD
 
 .PHONY: \
-	doctor check check-agent check-scripts check-kit check-web check-mcp \
+	doctor check check-agent check-scripts check-kit check-web check-android check-mcp check-contracts \
 	check-agentry check-localization check-tokens check-ios build-ios \
 	ci-secrets simulator-destination tokens-build tokens-check
 
@@ -17,7 +17,7 @@ doctor:
 	$(PYTHON) scripts/agent/doctor.py --root . --environment
 
 # Portable, non-Simulator merge gates. Use the scoped targets while iterating.
-check: check-agent check-scripts check-kit check-web check-mcp check-agentry check-localization check-tokens
+check: check-agent check-scripts check-kit check-web check-android check-mcp check-contracts check-agentry check-localization check-tokens
 
 check-agent:
 	$(PYTHON) scripts/agent/doctor.py --root .
@@ -33,8 +33,14 @@ check-web:
 	$(PNPM) web:lint
 	$(PNPM) web:typecheck
 
+check-android:
+	cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug
+
 check-mcp:
 	$(PNPM) --filter daypage-mcp-server test
+
+check-contracts:
+	$(PNPM) contracts:test
 
 check-agentry:
 	cd agentry && go test ./...
@@ -44,16 +50,18 @@ check-agentry:
 check-localization:
 	bash scripts/check_localization_parity.sh
 
-# Regenerate web CSS + iOS Swift tokens from design-tokens/tokens.json.
+# Regenerate web CSS + Apple Swift + Android Compose tokens from design-tokens/tokens.json.
 tokens-build:
 	node --experimental-strip-types design-tokens/generators/to-css.ts
 	node --experimental-strip-types design-tokens/generators/to-swift.ts
+	node --experimental-strip-types design-tokens/generators/to-kotlin.ts
 
 check-tokens: tokens-check
 
 # CI guard: regenerate and fail if the working tree is dirty.
 tokens-check: tokens-build
-	git diff --exit-code -- web/src/app/globals.css DayPage/App/DSTokens.swift
+	git diff --exit-code -- web/src/app/globals.css DayPage/App/DSTokens.swift \
+		design-tokens/generated/kotlin/app/daypage/designsystem/DayPageTokens.kt
 
 # Direct CI helpers; ci-secrets always writes a non-sensitive placeholder.
 ci-secrets:

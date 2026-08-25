@@ -145,7 +145,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <div className="sb__group-label">
         <span>System</span>
       </div>
-      <SystemRow iconName="settings" label="Settings" href="/settings" />
       <SystemRow
         iconName="user"
         label={
@@ -154,7 +153,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           "account"
         }
         title={session.user.email ?? undefined}
-        meta="free"
+        meta="account"
+        href="/settings"
       />
 
       {/* Sign out — server action form */}
@@ -164,7 +164,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           await signOut({ redirectTo: "/login" });
         }}
       >
-        <SystemRow iconName="logout" label="Sign out" as="button" />
+        <SystemRow iconName="logout" label="Sign out this device" as="button" />
       </form>
     </>
   );
@@ -256,4 +256,3 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

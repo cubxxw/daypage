@@ -29,6 +29,7 @@ export default async function SettingsPage() {
           name: session.user.name ?? null,
           email: session.user.email ?? null,
           plan: "free",
+          provider: session.user.provider,
         }}
         signOutAction={handleSignOut}
       />

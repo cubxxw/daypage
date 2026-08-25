@@ -70,8 +70,15 @@ export interface SettingsClientProps {
     name: string | null;
     email: string | null;
     plan: string;
+    provider: string | null;
   };
   signOutAction: () => Promise<void>;
+}
+
+function providerLabel(provider: string | null): string {
+  if (provider === "apple") return "Apple sign-in";
+  if (provider === "email") return "Email sign-in";
+  return provider ? `${provider} sign-in` : "Verified account";
 }
 
 // ── Storage subscription (useSyncExternalStore avoids setState-in-effect) ──
@@ -190,7 +197,6 @@ export function SettingsClient({ user, signOutAction }: SettingsClientProps) {
       writeStorageSnapshot(merged);
       setCloudSynced(true);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
   const persist = useCallback((next: Preferences) => {
@@ -343,12 +349,12 @@ export function SettingsClient({ user, signOutAction }: SettingsClientProps) {
               <div className="settings-profile-email">{user.email ?? "—"}</div>
               <div className="settings-profile-chips">
                 <Chip tone="accent">{user.plan}</Chip>
-                <Chip tone="ghost">github auth</Chip>
+                <Chip tone="ghost">{providerLabel(user.provider)}</Chip>
               </div>
             </div>
             <form action={signOutAction} className="settings-profile-cta">
               <Btn kind="secondary" size="sm" type="submit">
-                Sign out
+                Sign out this device
               </Btn>
             </form>
           </div>

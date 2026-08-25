@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/sync-pull-request-v1.schema.json",
+  "title": "DayPage sync pull request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["p_after_sequence", "p_limit"],
+  "properties": {
+    "p_after_sequence": { "type": "integer", "minimum": 0 },
+    "p_limit": { "type": "integer", "minimum": 1, "maximum": 500 }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "accepted": [
+    {
+      "operation_id": "10000000-0000-4000-8000-000000000001",
+      "memo_id": "20000000-0000-4000-8000-000000000001",
+      "revision": 3,
+      "remote_revision": 3,
+      "status": "applied"
+    }
+  ],
+  "rejected": [
+    {
+      "operation_id": "10000000-0000-4000-8000-000000000002",
+      "memo_id": "20000000-0000-4000-8000-000000000002",
+      "reason": "invalid_or_conflicting_operation"
+    }
+  ]
+}

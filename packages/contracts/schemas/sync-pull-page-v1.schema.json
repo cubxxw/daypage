@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/sync-pull-page-v1.schema.json",
+  "title": "DayPage sync pull page v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["changes", "next_cursor", "has_more"],
+  "properties": {
+    "changes": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/change" }
+    },
+    "next_cursor": { "type": "integer", "minimum": 0 },
+    "has_more": { "type": "boolean" }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] },
+        "lat": { "type": ["number", "null"], "minimum": -90, "maximum": 90 },
+        "lng": { "type": ["number", "null"], "minimum": -180, "maximum": 180 }
+      }
+    },
+    "weather": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "condition": { "type": ["string", "null"] },
+            "weather": { "type": ["string", "null"] }
+          }
+        }
+      ]
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "body",
+        "created_at",
+        "source",
+        "sync_revision",
+        "change_sequence"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "type": { "enum": ["text", "url", "voice", "photo", "file"] },
+        "body": { "type": "string" },
+        "created_at": { "$ref": "#/$defs/timestamp" },
+        "pinned_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "location": { "oneOf": [{ "$ref": "#/$defs/location" }, { "type": "null" }] },
+        "weather": { "oneOf": [{ "$ref": "#/$defs/weather" }, { "type": "null" }] },
+        "device": { "type": ["string", "null"], "maxLength": 240 },
+        "source": { "enum": ["ios", "macos", "android", "web"] },
+        "vault_path": {
+          "type": ["string", "null"],
+          "pattern": "^raw/\\d{4}-\\d{2}-\\d{2}\\.md$"
+        },
+        "source_modified_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "content_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "sync_revision": { "type": "integer", "minimum": 0 },
+        "last_sync_device_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "deleted_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "change_sequence": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

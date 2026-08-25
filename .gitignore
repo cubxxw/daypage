@@ -160,6 +160,8 @@ Icon
 # -----------------------------------------------------------------------------
 .idea/
 .vscode/
+android/.gradle/
+android/local.properties
 *.swp
 *.swo
 *~
