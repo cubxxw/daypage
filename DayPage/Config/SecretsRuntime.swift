@@ -5,11 +5,11 @@ import DayPageServices
 
 // MARK: - Runtime Key Resolution
 //
-// `GeneratedSecrets.swift` is gitignored and now intentionally empty (P0
-// security audit, see `scripts/generate_secrets.sh`). Real secrets must be
-// supplied at runtime through the Keychain (the in-app onboarding /
-// Settings → API Keys flow writes into the `com.daypage.apikeys` service
-// via `KeychainHelper`).
+// `GeneratedSecrets.swift` is gitignored (P0 security audit; see
+// `scripts/generate_secrets.sh`). Privileged credentials must be supplied at
+// runtime through Keychain. Public client configuration — including the
+// Supabase URL and publishable/legacy anon key — is generated into the app at
+// build time because mobile binaries cannot keep client keys secret.
 //
 // The compile-time `Secrets.xxx` fall-throughs are kept only so that
 // `KeychainHelper.getAPIKey(...) ?? Secrets.xxx` collapses to an empty

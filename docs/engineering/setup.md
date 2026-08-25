@@ -18,6 +18,8 @@ pnpm install --frozen-lockfile
 Generate local Apple-side secret configuration through
 `scripts/generate_secrets.sh`. Web-only values belong in ignored local environment
 files. Never commit generated secrets, auth state, a personal vault, or runtime evidence.
+The iOS build requires `SUPABASE_URL` plus `SUPABASE_PUBLISHABLE_KEY`; the legacy
+`SUPABASE_ANON_KEY` remains a temporary fallback for existing release environments.
 
 Run:
 
