@@ -6,10 +6,9 @@ import DayPageStorage
 
 /// One day in the Today timeline. Carries enough metadata to render the
 /// collapsed card (date + summary + memo count) without re-reading the file;
-/// the raw memos themselves are loaded lazily on demand when the card is
-/// expanded, so an opening cold scroll doesn't pay the parse cost for every
-/// historical day.
-public struct TimelineDayEntry: Identifiable, Equatable {
+/// a bounded preview payload is derived during the index scan, so an opening
+/// cold scroll doesn't reopen and parse every historical day.
+public struct TimelineDayEntry: Identifiable, Equatable, Sendable {
 
     /// `yyyy-MM-dd`. Stable id (at most one entry per date).
     public let dateString: String
@@ -30,13 +29,19 @@ public struct TimelineDayEntry: Identifiable, Equatable {
     /// memos carry no text (e.g. photo-only captures).
     public let excerpt: String?
 
+    /// Up to three short memo lines for the context-menu preview. These are
+    /// derived during the index scan so merely scrolling historical rows never
+    /// reopens and reparses the underlying Markdown file.
+    public let previewLines: [String]
+
     public var id: String { dateString }
 
     public static func == (lhs: TimelineDayEntry, rhs: TimelineDayEntry) -> Bool {
         lhs.dateString == rhs.dateString &&
         lhs.memoCount == rhs.memoCount &&
         lhs.summary == rhs.summary &&
-        lhs.excerpt == rhs.excerpt
+        lhs.excerpt == rhs.excerpt &&
+        lhs.previewLines == rhs.previewLines
     }
 }
 
@@ -149,7 +154,8 @@ public enum TimelineService {
                 date: date,
                 memoCount: memos.count,
                 summary: summary(forDateString: stem, dailyDir: dailyDir),
-                excerpt: excerpt(from: memos)
+                excerpt: excerpt(from: memos),
+                previewLines: previewLines(from: memos)
             ))
         }
 
@@ -176,7 +182,8 @@ public enum TimelineService {
             date: date,
             memoCount: memos.count,
             summary: summary(forDateString: stem, dailyDir: dailyDir),
-            excerpt: excerpt(from: memos)
+            excerpt: excerpt(from: memos),
+            previewLines: previewLines(from: memos)
         )
     }
 
@@ -191,6 +198,30 @@ public enum TimelineService {
             .first { !$0.isEmpty }
         guard let line, !line.isEmpty else { return nil }
         return String(line.prefix(120))
+    }
+
+    /// Lightweight preview payload, newest-first and capped by both item count
+    /// and character count. Keeping it in the metadata index preserves the old
+    /// long-press preview without a per-row disk read on scroll.
+    nonisolated private static func previewLines(from memos: [Memo]) -> [String] {
+        let lines = memos
+            .sorted { lhs, rhs in
+                if lhs.pinnedAt != nil && rhs.pinnedAt == nil { return true }
+                if lhs.pinnedAt == nil && rhs.pinnedAt != nil { return false }
+                if let leftPin = lhs.pinnedAt, let rightPin = rhs.pinnedAt {
+                    return leftPin > rightPin
+                }
+                return lhs.created > rhs.created
+            }
+            .compactMap { memo -> String? in
+                let line = memo.body
+                    .split(whereSeparator: \.isNewline)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .first { !$0.isEmpty }
+                guard let line else { return nil }
+                return String(line.prefix(180))
+            }
+        return Array(lines.prefix(3))
     }
 
     /// Reads the compiled daily-page `summary:` for a day, if compiled.

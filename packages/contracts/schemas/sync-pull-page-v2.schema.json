@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/sync-pull-page-v2.schema.json",
+  "title": "DayPage revisioned attachment sync pull page v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["changes", "next_cursor", "has_more"],
+  "properties": {
+    "changes": { "type": "array", "maxItems": 500, "items": { "$ref": "#/$defs/change" } },
+    "next_cursor": { "type": "integer", "minimum": 0 },
+    "has_more": { "type": "boolean" }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$" },
+    "attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "kind", "content_sha256", "size_bytes", "mime_type", "object_key", "original_filename"],
+      "properties": {
+        "position": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "kind": { "enum": ["audio", "photo", "file"] },
+        "content_sha256": { "$ref": "#/$defs/hash" },
+        "size_bytes": { "type": "integer", "minimum": 1, "maximum": 52428800 },
+        "mime_type": { "type": "string", "minLength": 1 },
+        "object_key": { "type": "string", "minLength": 1 },
+        "original_filename": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "transcript": { "type": ["string", "null"] },
+        "transcription_status": { "enum": ["pending", "done", "failed", null] }
+      }
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "body", "created_at", "source", "sync_revision", "change_sequence", "attachment_manifest_hash", "attachments"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "type": { "enum": ["text", "url", "voice", "photo", "file"] },
+        "body": { "type": "string" },
+        "created_at": { "$ref": "#/$defs/timestamp" },
+        "pinned_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "location": { "type": ["object", "null"] },
+        "weather": {
+          "oneOf": [
+            { "type": "object" },
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        },
+        "device": { "type": ["string", "null"] },
+        "source": { "enum": ["ios", "macos", "android", "web"] },
+        "vault_path": { "type": ["string", "null"] },
+        "source_modified_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "content_hash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "sync_revision": { "type": "integer", "minimum": 0 },
+        "last_sync_device_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "deleted_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "change_sequence": { "type": "integer", "minimum": 1 },
+        "attachment_manifest_hash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "attachments": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/attachment" } }
+      }
+    }
+  }
+}

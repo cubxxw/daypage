@@ -483,6 +483,8 @@ final class ArchiveViewModel: ObservableObject {
 
 struct ArchiveView: View {
 
+    let isActive: Bool
+
     @EnvironmentObject private var nav: AppNavigationModel
     @StateObject private var viewModel = ArchiveViewModel()
     @State private var mode: ArchiveMode = .calendar
@@ -506,6 +508,7 @@ struct ArchiveView: View {
     @State private var shareItems: [Any] = []
     @State private var monthNavDirection: Edge = .leading
     @State private var todayPulse: Bool = false
+    @State private var hasActivated: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - List mode scroll-to-top
@@ -684,12 +687,10 @@ struct ArchiveView: View {
             // RootView's edge strip (1:1 finger tracking) — see TodayView for
             // why the fire-on-release duplicate was removed.
             .onAppear {
-                viewModel.loadMonth()
-                Task { await preScanVault() }
-                consumePendingArchiveDate()
-                consumePendingSearchQuery()
-                guard !reduceMotion else { return }
-                withAnimation(Motion.breathing) { todayPulse = true }
+                activateIfNeeded()
+            }
+            .onChange(of: isActive) { active in
+                if active { activateIfNeeded() }
             }
             .onChange(of: nav.pendingArchiveDate) { _ in
                 consumePendingArchiveDate()
@@ -767,6 +768,22 @@ struct ArchiveView: View {
     }
 
     // MARK: - Navigation Helper
+
+    /// Persistent tab hosts keep Archive alive to preserve navigation and
+    /// month state. Explicit activation prevents its disk work from competing
+    /// with Today's cold launch. Month state can refresh on later selections,
+    /// while the full-Vault pre-scan remains a one-time activation cost.
+    private func activateIfNeeded() {
+        guard isActive else { return }
+        viewModel.loadMonth()
+        consumePendingArchiveDate()
+        consumePendingSearchQuery()
+        guard !hasActivated else { return }
+        hasActivated = true
+        Task { await preScanVault() }
+        guard !reduceMotion else { return }
+        withAnimation(Motion.breathing) { todayPulse = true }
+    }
 
     /// 每个日历单元格均可点击（US-006）。DayDetailView 自身处理
     /// `.empty` / `.error` / `.rawOnly` / `.compiled` 等状态 — 参见 US-002。

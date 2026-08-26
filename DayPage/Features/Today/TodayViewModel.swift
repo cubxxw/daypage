@@ -157,6 +157,11 @@ final class TodayViewModel: ObservableObject {
     /// list under today's raw memos. Excludes today — today renders above.
     @Published var timelineSections: [TimelineSection] = []
 
+    /// Distinguishes a genuinely empty history from the asynchronous index's
+    /// first warm-up. Prevents empty-state/weekly-recap content from flashing
+    /// briefly before an existing multi-year timeline arrives.
+    @Published private(set) var isTimelineReady: Bool = false
+
     /// Unified load state — drives skeleton vs. content in TodayView.
     @Published var loadState: LoadState = .loading
 
@@ -261,6 +266,7 @@ final class TodayViewModel: ObservableObject {
 
     init(date: Date = Date()) {
         self.date = date
+        self.isTimelineReady = TimelineIndex.shared.isReady
         observeCompilationFailure()
         observeOnThisDay()
         observeConflictResolution()
@@ -356,6 +362,7 @@ final class TodayViewModel: ObservableObject {
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.timelineSections = TimelineService.sections(referenceDate: self.date)
+                self.isTimelineReady = TimelineIndex.shared.isReady
             }
             .store(in: &cancellables)
     }
@@ -555,21 +562,16 @@ final class TodayViewModel: ObservableObject {
         loadTask?.cancel()
         loadTask = Task.detached(priority: .userInitiated) {
             // --- Off-main disk I/O ---
-            let loadResult: Result<[Memo], Error>
-            do {
-                let loaded = try RawStorage.read(for: capturedDate)
-                loadResult = .success(loaded)
-            } catch {
-                loadResult = .failure(error)
-            }
+            let loadResult = Result { try RawStorage.read(for: capturedDate) }
 
             let dailyExists = FileManager.default.fileExists(atPath: dailyURL.path)
-            var dailySummary: String? = nil
-            if dailyExists {
-                if let content = try? String(contentsOf: dailyURL, encoding: .utf8) {
-                    dailySummary = FrontmatterParser.extractField("summary", from: content)
+            let dailySummary: String? = {
+                guard dailyExists,
+                      let content = try? String(contentsOf: dailyURL, encoding: .utf8) else {
+                    return nil
                 }
-            }
+                return FrontmatterParser.extractField("summary", from: content)
+            }()
 
             // Load yesterday's compiled daily page for fallback
             let yesterdayDate = Calendar.current.date(byAdding: .day, value: -1, to: capturedDate) ?? capturedDate
@@ -582,7 +584,6 @@ final class TodayViewModel: ObservableObject {
                 return VaultInitializer.vaultURL
                     .appendingPathComponent("wiki/daily/\(s).md")
             }()
-            var yesterdayPage: DailyPageModel? = nil
             let yesterdayDateString: String = {
                 let f = DateFormatter()
                 f.dateFormat = "yyyy-MM-dd"
@@ -590,19 +591,26 @@ final class TodayViewModel: ObservableObject {
                 f.timeZone = AppSettings.currentTimeZone()
                 return f.string(from: yesterdayDate)
             }()
-            if FileManager.default.fileExists(atPath: yesterdayDailyURL.path),
-               let content = try? String(contentsOf: yesterdayDailyURL, encoding: .utf8) {
-                yesterdayPage = DailyPageParser.parse(content: content, dateString: yesterdayDateString)
-            }
+            let yesterdayPage: DailyPageModel? = {
+                guard FileManager.default.fileExists(atPath: yesterdayDailyURL.path),
+                      let content = try? String(contentsOf: yesterdayDailyURL, encoding: .utf8) else {
+                    return nil
+                }
+                return DailyPageParser.parse(content: content, dateString: yesterdayDateString)
+            }()
 
             // Load on-this-day memos for fallback using the file path captured before going off-actor.
-            var otdMemos: [Memo] = []
-            if let filePath = capturedOTDFilePath {
+            let otdMemos: [Memo] = {
+                guard let filePath = capturedOTDFilePath else { return [] }
                 let rawURL = VaultInitializer.vaultURL.appendingPathComponent(filePath)
-                if let content = try? String(contentsOf: rawURL, encoding: .utf8) {
-                    otdMemos = RawStorage.parse(fileContent: content)
-                }
-            }
+                guard let content = try? String(contentsOf: rawURL, encoding: .utf8) else { return [] }
+                return RawStorage.parse(fileContent: content)
+            }()
+
+            // Weekly recap is also disk-backed. It previously ran from the
+            // MainActor commit block below, synchronously reading up to a week
+            // of compiled Markdown immediately before Today became interactive.
+            let weeklyRecap = WeeklyRecapService.scanEntries(referenceDate: capturedDate)
 
             // --- Back on MainActor: update published state ---
             await MainActor.run {
@@ -623,10 +631,11 @@ final class TodayViewModel: ObservableObject {
 
                 self.isDailyPageCompiled = dailyExists
                 self.dailyPageSummary = dailyExists ? dailySummary : nil
-                self.weeklyRecap = WeeklyRecapService.shared.entries()
+                self.weeklyRecap = weeklyRecap
                 // O(1) read from TimelineIndex (cached); the expensive scan now
                 // happens only on index rebuild, off this hot path.
                 self.timelineSections = TimelineService.sections(referenceDate: capturedDate)
+                self.isTimelineReady = TimelineIndex.shared.isReady
                 self.yesterdayDailyPageModel = yesterdayPage
                 self.onThisDayMemos = otdMemos
                 self.loadState = .ready

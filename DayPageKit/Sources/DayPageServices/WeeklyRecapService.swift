@@ -75,26 +75,28 @@ public final class WeeklyRecapService {
 
     public static let shared = WeeklyRecapService()
 
-    private let calendar: Calendar
-    private let dateFormatter: DateFormatter
-
-    private init() {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone.current
-        cal.firstWeekday = 2  // Monday — matches Archive calendar convention
-        self.calendar = cal
-
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone.current
-        self.dateFormatter = f
-    }
+    private init() {}
 
     /// Compiled day entries from this week's Monday up to (but not including)
     /// `referenceDate`'s local-midnight, newest first.
     /// On Monday, returns exactly yesterday (Sunday) — see `WeeklyRecapRange`.
     public func entries(referenceDate: Date = Date()) -> [WeeklyRecapEntry] {
+        Self.scanEntries(referenceDate: referenceDate)
+    }
+
+    /// Disk-backed implementation isolated from the MainActor singleton. Today
+    /// loads this inside its existing detached read task, so reading the week's
+    /// compiled Markdown files cannot stall a state commit or scroll frame.
+    public nonisolated static func scanEntries(referenceDate: Date = Date()) -> [WeeklyRecapEntry] {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = AppSettings.currentTimeZone()
+        calendar.firstWeekday = 2  // Monday — matches Archive calendar convention
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = calendar.timeZone
+
         let dailyDir = VaultInitializer.vaultURL.appendingPathComponent("wiki/daily")
         let fm = FileManager.default
         let dates = WeeklyRecapRange.dates(referenceDate: referenceDate, calendar: calendar)

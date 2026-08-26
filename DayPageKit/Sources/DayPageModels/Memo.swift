@@ -4,11 +4,11 @@ import Foundation
 
 /// 存储在 vault/raw/YYYY-MM-DD.md 中的单条用户生成条目。
 /// 序列化为 YAML 前置元数据 + Markdown 正文，以 \n\n---\n\n 分隔。
-public struct Memo: Identifiable, Equatable {
+public struct Memo: Identifiable, Equatable, Sendable {
 
     // MARK: Attachment types
 
-    public struct Location: Equatable {
+    public struct Location: Equatable, Sendable {
         public var name: String?
         public var lat: Double?
         public var lng: Double?
@@ -20,7 +20,7 @@ public struct Memo: Identifiable, Equatable {
         }
     }
 
-    public enum MemoType: String, Equatable, Hashable {
+    public enum MemoType: String, Equatable, Hashable, Sendable {
         case text
         case voice
         case photo
@@ -29,13 +29,13 @@ public struct Memo: Identifiable, Equatable {
     }
 
     // US-016: transcription lifecycle for audio attachments
-    public enum TranscriptionStatus: String, Equatable {
+    public enum TranscriptionStatus: String, Equatable, Sendable {
         case pending    // in-progress or queued
         case done       // transcript available
         case failed     // all retries exhausted or no network
     }
 
-    public struct Attachment: Equatable {
+    public struct Attachment: Equatable, Sendable {
         public var file: String
         public var kind: String                          // "photo" | "audio"
         public var duration: Double?                     // seconds, audio only

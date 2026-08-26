@@ -875,6 +875,7 @@
 "today.timeline.lastWeek"                    = "上周";
 "today.timeline.weekBeforeLast"              = "前两周";
 "today.timeline.openDailyPage"               = "打开当日页面";
+"today.timeline.loading"                     = "正在载入历史记录";
 "today.timeline.action.share"                = "分享";
 "today.timeline.action.pin"                  = "置顶";
 "today.timeline.action.unpin"                = "取消置顶";
@@ -1066,7 +1067,7 @@
 "a11y.recenter_graph"    = "回到中心";
 "a11y.zoom_reset"        = "缩放级别，点击重置";
 "a11y.continue_email"    = "用邮箱继续";
-"a11y.continue_email.hint" = "通过一次性邮箱验证码登录";
+"a11y.continue_email.hint" = "通过一次性邮箱链接登录";
 "a11y.back_to_email"     = "返回邮箱输入";
 "a11y.begin"             = "开始";
 "a11y.begin.hint"        = "开始使用 DayPage";
@@ -1329,7 +1330,14 @@
 "settings.websync.pending"                   = "待同步";
 "settings.websync.pending_count"             = "%d 条";
 "settings.websync.all_synced"                = "已全部同步";
-"settings.websync.footer"                    = "在 web 端 设置 → API Keys 生成一个带写入权限的 key，粘贴到这里。App 写下的 memo 会自动同步到你的 web 账号。";
+"settings.websync.cellular_media"             = "使用蜂窝网络同步附件";
+"settings.websync.footer"                    = "Memo 与附件同步使用服务商管理的传输和静态加密，并非端到端加密。默认等待 Wi-Fi；可在上方允许蜂窝传输。";
+"today.syncqueue.media.pending"               = "%d 个附件待同步";
+"today.syncqueue.media.transferring"          = "正在同步 %d 个附件…";
+"today.syncqueue.media.paused"                = "附件已暂停，等待 Wi-Fi";
+"today.syncqueue.media.unsupported"           = "%d 个附件类型暂不支持云同步";
+"today.syncqueue.media.quota"                 = "附件云空间已满";
+"today.syncqueue.media.failed"                = "%d 个附件等待重试";
 
 // 数据与危险区
 "settings.data.export_full"                  = "导出全部数据（zip）";

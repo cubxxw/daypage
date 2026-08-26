@@ -133,7 +133,7 @@ Serialised as YAML front-matter + Markdown body. Hand-rolled `YAMLParser` in the
 
 **EntityPageService**. Applies the LLM's entity update instructions: creates new `vault/wiki/<type>/<slug>.md` or appends under the right `## Section` heading on existing pages; keeps `wiki/index.md` grouped by type.
 
-**AuthService** + **AuthRateLimiter** + **KeychainHelper**. Supabase Auth (Apple Sign In + email OTP). Custom `DPAuthError` type for user-facing errors, including `rateLimited(retryAfter:)`, `otpLocked(retryAfter:)`, `networkUnavailable`. Persists lockout state across launches.
+**AuthService** + **AuthRateLimiter** + **KeychainHelper**. Supabase Auth (Apple Sign In + same-device PKCE email magic link). Custom `DPAuthError` type for user-facing errors, including `rateLimited(retryAfter:)`, `linkExpired`, and `networkUnavailable`. Persists resend throttling across launches.
 
 **VoiceService**. AVAudioRecorder → m4a; sends to OpenAI Whisper via `whisper-1`; writes transcript onto the attached `Memo.Attachment`.
 

@@ -39,6 +39,56 @@ final class SyncContractFixtureTests: XCTestCase {
         XCTAssertTrue(page.changes[1].isDeleted)
     }
 
+    func testV2PullFixtureVerifiesManifestAndMapsAttachment() throws {
+        let page = try JSONDecoder.syncPullContract.decode(
+            SyncPullPage.self,
+            from: fixture(named: "sync-pull-page-v2.json")
+        )
+
+        XCTAssertTrue(page.isValid(after: 40))
+        let change = try XCTUnwrap(page.changes.first)
+        let descriptor = try XCTUnwrap(change.attachments?.first)
+        XCTAssertEqual(
+            AttachmentManifest.hash([descriptor]),
+            "b01007f034d3db11e98e438e1fefa98e7661523d5db26cd9a2ef133bc0a06e2b"
+        )
+        XCTAssertEqual(descriptor.originalFilename, "photo.jpg")
+        XCTAssertEqual(change.makeMemo().attachments.first?.kind, "photo")
+    }
+
+    func testV2PushFixtureCarriesExactManifestHash() throws {
+        struct V2Request: Decodable {
+            struct Operation: Decodable {
+                let protocolVersion: Int
+                let attachmentManifestHash: String?
+                let payload: Payload?
+
+                struct Payload: Decodable {
+                    let attachments: [SyncAttachmentDescriptor]
+                }
+
+                enum CodingKeys: String, CodingKey {
+                    case protocolVersion = "protocol_version"
+                    case attachmentManifestHash = "attachment_manifest_hash"
+                    case payload
+                }
+            }
+            let operations: [Operation]
+
+            enum CodingKeys: String, CodingKey {
+                case operations = "p_operations"
+            }
+        }
+        let request = try JSONDecoder.syncPushContract.decode(
+            V2Request.self,
+            from: fixture(named: "sync-push-v2.json")
+        )
+        let operation = try XCTUnwrap(request.operations.first)
+        let descriptors = try XCTUnwrap(operation.payload?.attachments)
+        XCTAssertEqual(operation.protocolVersion, 2)
+        XCTAssertEqual(operation.attachmentManifestHash, AttachmentManifest.hash(descriptors))
+    }
+
     private func fixture(named name: String) throws -> Data {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -60,7 +110,6 @@ private extension JSONDecoder {
 
     static var syncPullContract: JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = syncDateStrategy
         return decoder
     }

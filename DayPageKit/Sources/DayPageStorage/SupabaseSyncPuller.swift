@@ -45,6 +45,69 @@ public struct SyncRemoteChange: Decodable, Equatable, Sendable {
     public let lastSyncDeviceId: String?
     public let deletedAt: Date?
     public let changeSequence: Int64
+    public let attachmentManifestHash: String?
+    public let attachments: [SyncAttachmentDescriptor]?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case body
+        case createdAt = "created_at"
+        case pinnedAt = "pinned_at"
+        case location
+        case weather
+        case device
+        case source
+        case vaultPath = "vault_path"
+        case sourceModifiedAt = "source_modified_at"
+        case contentHash = "content_hash"
+        case syncRevision = "sync_revision"
+        case lastSyncDeviceId = "last_sync_device_id"
+        case deletedAt = "deleted_at"
+        case changeSequence = "change_sequence"
+        case attachmentManifestHash = "attachment_manifest_hash"
+        case attachments
+    }
+
+    public init(
+        id: UUID,
+        type: String,
+        body: String,
+        createdAt: Date,
+        pinnedAt: Date?,
+        location: Location?,
+        weather: Weather?,
+        device: String?,
+        source: String,
+        vaultPath: String?,
+        sourceModifiedAt: Date?,
+        contentHash: String?,
+        syncRevision: Int64,
+        lastSyncDeviceId: String?,
+        deletedAt: Date?,
+        changeSequence: Int64,
+        attachmentManifestHash: String? = nil,
+        attachments: [SyncAttachmentDescriptor]? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.body = body
+        self.createdAt = createdAt
+        self.pinnedAt = pinnedAt
+        self.location = location
+        self.weather = weather
+        self.device = device
+        self.source = source
+        self.vaultPath = vaultPath
+        self.sourceModifiedAt = sourceModifiedAt
+        self.contentHash = contentHash
+        self.syncRevision = syncRevision
+        self.lastSyncDeviceId = lastSyncDeviceId
+        self.deletedAt = deletedAt
+        self.changeSequence = changeSequence
+        self.attachmentManifestHash = attachmentManifestHash
+        self.attachments = attachments
+    }
 
     public var isDeleted: Bool { deletedAt != nil }
 
@@ -54,6 +117,30 @@ public struct SyncRemoteChange: Decodable, Equatable, Sendable {
         case "voice": memoType = .voice
         case "photo": memoType = .photo
         default: memoType = .text
+        }
+        let remoteAttachments: [Memo.Attachment]
+        if attachmentManifestHash != nil {
+            remoteAttachments = (attachments ?? [])
+                .sorted { $0.position < $1.position }
+                .map { descriptor in
+                    Memo.Attachment(
+                        file: AttachmentTransferStore.localPath(
+                            memoID: id,
+                            objectKey: descriptor.objectKey,
+                            fallback: descriptor
+                        ),
+                        kind: descriptor.kind,
+                        duration: descriptor.durationMilliseconds.map { Double($0) / 1_000 },
+                        transcript: descriptor.transcript,
+                        transcriptionStatus: descriptor.transcriptionStatus.flatMap {
+                            Memo.TranscriptionStatus(rawValue: $0)
+                        }
+                    )
+                }
+        } else {
+            // Protocol-v1 rows did not carry an authoritative attachment
+            // manifest, so retain the local metadata during mixed-version rollout.
+            remoteAttachments = local?.attachments ?? []
         }
         return Memo(
             id: id,
@@ -65,7 +152,7 @@ public struct SyncRemoteChange: Decodable, Equatable, Sendable {
             },
             weather: weather?.condition,
             device: device,
-            attachments: local?.attachments ?? [],
+            attachments: remoteAttachments,
             mood: local?.mood,
             entityMentions: local?.entityMentions ?? [],
             marginNote: local?.marginNote,
@@ -79,10 +166,30 @@ public struct SyncPullPage: Decodable, Equatable, Sendable {
     public let nextCursor: Int64
     public let hasMore: Bool
 
+    private enum CodingKeys: String, CodingKey {
+        case changes
+        case nextCursor = "next_cursor"
+        case hasMore = "has_more"
+    }
+
     /// A malformed page must never advance the durable cursor past a change
     /// that was not applied locally. The RPC promises strict sequence order
     /// and sets `next_cursor` to the final returned sequence.
     public func isValid(after cursor: Int64) -> Bool {
+        guard changes.allSatisfy({ change in
+            if change.isDeleted {
+                return change.attachmentManifestHash == nil
+                    && (change.attachments ?? []).isEmpty
+            }
+            guard let expected = change.attachmentManifestHash else {
+                return change.attachments == nil || change.attachments?.isEmpty == true
+            }
+            let descriptors = change.attachments ?? []
+            return AttachmentManifest.isStructurallyValid(descriptors)
+                && AttachmentManifest.hash(descriptors) == expected
+        }) else {
+            return false
+        }
         let sequences = changes.map(\.changeSequence)
         guard nextCursor >= cursor,
               sequences == sequences.sorted(),
@@ -131,21 +238,28 @@ public struct SupabaseSyncPuller: RemotePuller {
     public let endpoint: URL
     public let anonKey: String
     public let transport: HTTPTransport
+    public let attachmentDownloader: SupabaseAttachmentDownloader
     public let accessTokenProvider: AccessTokenProvider
 
     public init(
         supabaseURL: URL,
         anonKey: String,
         transport: HTTPTransport = HTTPTransports.shared,
+        fileTransport: AttachmentFileTransport = URLSession.shared,
         accessTokenProvider: @escaping AccessTokenProvider
     ) {
         self.endpoint = supabaseURL
             .appendingPathComponent("rest", isDirectory: true)
             .appendingPathComponent("v1", isDirectory: true)
             .appendingPathComponent("rpc", isDirectory: true)
-            .appendingPathComponent("daypage_pull_sync_changes")
+            .appendingPathComponent("daypage_pull_sync_changes_v2")
         self.anonKey = anonKey
         self.transport = transport
+        self.attachmentDownloader = SupabaseAttachmentDownloader(
+            supabaseURL: supabaseURL,
+            anonKey: anonKey,
+            fileTransport: fileTransport
+        )
         self.accessTokenProvider = accessTokenProvider
     }
 
@@ -178,7 +292,6 @@ public struct SupabaseSyncPuller: RemotePuller {
         switch http.statusCode {
         case 200...299:
             let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
             decoder.dateDecodingStrategy = .custom { decoder in
                 let container = try decoder.singleValueContainer()
                 let value = try container.decode(String.self)
@@ -194,8 +307,22 @@ public struct SupabaseSyncPuller: RemotePuller {
                 )
             }
             do {
-                return try decoder.decode(SyncPullPage.self, from: data)
+                let page = try decoder.decode(SyncPullPage.self, from: data)
+                guard page.isValid(after: max(0, cursor)) else {
+                    throw MemoSyncError.invalidResponse
+                }
+                // Persist all media obligations before the caller is allowed
+                // to apply the page and advance its durable cursor. Individual
+                // media failures remain retryable sidecar state.
+                try await attachmentDownloader.persistAndAttempt(
+                    changes: page.changes,
+                    accessToken: accessToken
+                )
+                return page
             } catch {
+                if let memoError = error as? MemoSyncError {
+                    throw memoError
+                }
                 throw MemoSyncError.invalidResponse
             }
         case 401:

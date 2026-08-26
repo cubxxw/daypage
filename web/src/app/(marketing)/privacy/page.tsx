@@ -36,8 +36,9 @@ export default function PrivacyPage() {
       <h2>What stays local</h2>
       <p>
         Raw memos, attachments, voice recordings, and the compiled Markdown
-        diary all live in a Markdown vault on your device. You can copy the
-        folder out, open it in Obsidian, or burn it to a USB stick.
+        diary live in a Markdown vault on your device as the local source of
+        truth. You can copy the folder out, open it in Obsidian, or burn it to
+        a USB stick.
       </p>
 
       <h2>What goes over the network</h2>
@@ -50,6 +51,15 @@ export default function PrivacyPage() {
         <li>
           <strong>Voice transcription</strong>: M4A files go to Whisper only if
           you enable it, and only the audio for that memo.
+        </li>
+        <li>
+          <strong>Optional cloud sync</strong>: when you sign in and enable
+          cross-device sync, memo data and supported attachment files are sent
+          to our private Supabase database and object storage. Transport and
+          storage use provider-managed encryption. This sync is <strong>not
+          end-to-end encrypted</strong>, so do not treat it as a zero-knowledge
+          vault. Deleted attachment objects have a recovery grace period before
+          scheduled removal.
         </li>
         <li>
           <strong>Weather + reverse geocoding</strong>: anonymous lat/lng to

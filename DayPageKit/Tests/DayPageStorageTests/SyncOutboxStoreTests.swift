@@ -143,10 +143,10 @@ final class SupabaseSyncUploaderTests: XCTestCase {
         let operation = SyncOutboxOperation(
             operationID: operationID,
             memoID: memoID,
-            kind: .upsert,
+            kind: .delete,
             revision: 2,
             modifiedAt: Date(),
-            contentHash: "local",
+            contentHash: nil,
             deviceID: UUID().uuidString.lowercased(),
             payload: nil,
             sizeBytes: 0

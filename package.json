@@ -12,10 +12,17 @@
     "web:build": "pnpm --filter daypage-web build",
     "web:lint": "pnpm --filter daypage-web lint",
     "web:typecheck": "pnpm --filter daypage-web typecheck",
-    "db:start": "supabase start",
-    "db:reset": "supabase db reset",
+    "db:migrate:local": "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm --filter daypage-web db:migrate",
+    "db:start": "node scripts/prepare_local_backend.mjs && pnpm --filter daypage-mcp-server build:edge && supabase start && pnpm db:migrate:local",
+    "db:reset": "supabase db reset && pnpm db:migrate:local",
+    "db:stop": "supabase stop",
+    "backend:check": "bash scripts/verify_backend_static.sh",
+    "backend:verify:local": "pnpm backend:check && pnpm db:start && bash scripts/verify_local_backend.sh",
     "tokens:build": "node --experimental-strip-types design-tokens/generators/to-css.ts && node --experimental-strip-types design-tokens/generators/to-swift.ts && node --experimental-strip-types design-tokens/generators/to-kotlin.ts",
     "tokens:check": "pnpm tokens:build && git diff --exit-code -- web/src/app/globals.css DayPage/App/DSTokens.swift design-tokens/generated/kotlin/app/daypage/designsystem/DayPageTokens.kt",
     "contracts:test": "pnpm --filter @daypage/contracts test"
+  },
+  "devDependencies": {
+    "supabase": "2.115.0"
   }
 }

@@ -11,6 +11,7 @@ import {
   real,
   index,
   unique,
+  uniqueIndex,
   primaryKey,
   customType,
   type AnyPgColumn,
@@ -216,6 +217,7 @@ export const memos = pgTable(
     sync_revision: bigint("sync_revision", { mode: "number" }).notNull().default(0),
     source_modified_at: timestamp("source_modified_at", { withTimezone: true }),
     content_hash: text("content_hash"),
+    attachment_manifest_hash: text("attachment_manifest_hash"),
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
     last_sync_device_id: text("last_sync_device_id"),
     sync_change_sequence: bigint("sync_change_sequence", { mode: "number" })
@@ -234,21 +236,91 @@ export const memos = pgTable(
   ]
 );
 
-export const memo_attachments = pgTable("memo_attachments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  memo_id: uuid("memo_id")
-    .notNull()
-    .references(() => memos.id, { onDelete: "cascade" }),
-  kind: attachmentKindEnum("kind").notNull(),
-  storage_key: text("storage_key").notNull(),
-  filename: text("filename"),
-  mime_type: text("mime_type"),
-  size_bytes: integer("size_bytes"),
-  duration_sec: real("duration_sec"),
-  transcript: text("transcript"),
-  ocr_text: text("ocr_text"),
-  exif: jsonb("exif"),
-});
+export const memo_attachments = pgTable(
+  "memo_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    memo_id: uuid("memo_id")
+      .notNull()
+      .references(() => memos.id, { onDelete: "cascade" }),
+    kind: attachmentKindEnum("kind").notNull(),
+    storage_key: text("storage_key").notNull(),
+    filename: text("filename"),
+    mime_type: text("mime_type"),
+    size_bytes: integer("size_bytes"),
+    duration_sec: real("duration_sec"),
+    transcript: text("transcript"),
+    ocr_text: text("ocr_text"),
+    exif: jsonb("exif"),
+    // #884: non-null only for a server-verified v2 manifest row. Legacy bulk
+    // metadata remains readable but can never be mistaken for durable media.
+    protocol_version: integer("protocol_version"),
+    position: integer("position"),
+    content_sha256: text("content_sha256"),
+    duration_ms: integer("duration_ms"),
+    transcription_status: text("transcription_status"),
+    verified_at: timestamp("verified_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("memo_attachments_memo_position_v2")
+      .on(t.memo_id, t.position)
+      .where(sql`${t.content_sha256} is not null`),
+    uniqueIndex("memo_attachments_memo_storage_v2")
+      .on(t.memo_id, t.storage_key)
+      .where(sql`${t.content_sha256} is not null`),
+  ],
+);
+
+export const attachment_upload_reservations = pgTable(
+  "attachment_upload_reservations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // A memo may not exist remotely until the v2 commit, so this deliberately
+    // is not a foreign key.
+    memo_id: uuid("memo_id").notNull(),
+    object_key: text("object_key").notNull(),
+    content_sha256: text("content_sha256").notNull(),
+    size_bytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    mime_type: text("mime_type").notNull(),
+    status: text("status").notNull().default("prepared"),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    committed_at: timestamp("committed_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("attachment_upload_reservations_user_object_unique").on(t.user_id, t.object_key),
+    index("attachment_upload_reservations_user_expiry").on(t.user_id, t.expires_at),
+    index("attachment_upload_reservations_user_created").on(t.user_id, t.created_at),
+  ],
+);
+
+export const attachment_gc_queue = pgTable(
+  "attachment_gc_queue",
+  {
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    object_key: text("object_key").notNull(),
+    content_sha256: text("content_sha256").notNull(),
+    reason: text("reason").notNull(),
+    not_before: timestamp("not_before", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    status: text("status").notNull().default("pending"),
+    last_error: text("last_error"),
+    claimed_at: timestamp("claimed_at", { withTimezone: true }),
+    lease_token: uuid("lease_token"),
+    lease_expires_at: timestamp("lease_expires_at", { withTimezone: true }),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.object_key] }),
+    index("attachment_gc_queue_due").on(t.not_before, t.lease_expires_at),
+  ],
+);
 
 // ─── US-007: Wave 1c — domains + pages + page_links + page_sources ─────────────
 
@@ -635,6 +707,10 @@ export const sync_operations = pgTable(
     kind: text("kind").notNull(),
     revision: bigint("revision", { mode: "number" }).notNull(),
     status: text("status").notNull(),
+    protocol_version: integer("protocol_version").notNull().default(1),
+    content_hash: text("content_hash"),
+    attachment_manifest_hash: text("attachment_manifest_hash"),
+    remote_revision: bigint("remote_revision", { mode: "number" }),
     applied_at: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -663,6 +739,8 @@ export const mcp_client_grants = pgTable(
 );
 
 export type SyncOperation = typeof sync_operations.$inferSelect;
+export type AttachmentUploadReservation = typeof attachment_upload_reservations.$inferSelect;
+export type AttachmentGcQueueItem = typeof attachment_gc_queue.$inferSelect;
 export type McpClientGrant = typeof mcp_client_grants.$inferSelect;
 
 // ─── US-013: ingest_sources (external ingest channel configuration) ──────────

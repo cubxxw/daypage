@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Foundation
 import Supabase
+import DayPageServices
 import DayPageStorage
 
 @MainActor
@@ -16,6 +17,7 @@ final class MacCloudAuthService: NSObject, ObservableObject {
 
     private let configuration: MacCloudConfiguration
     private var authStateTask: Task<Void, Never>?
+    private var pendingAppleNonce: String?
 
     private override init() {
         let configuration = MacCloudConfiguration.current()
@@ -43,28 +45,54 @@ final class MacCloudAuthService: NSObject, ObservableObject {
         session?.user.email
     }
 
-    func sendOTP(email: String) async throws {
-        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard normalized.contains("@") else { throw MacCloudAuthError.invalidEmail }
-        try await perform {
-            try await client.auth.signInWithOTP(email: normalized, shouldCreateUser: true)
+    func sendMagicLink(email: String) async throws {
+        let normalized = normalizedEmail(email)
+        guard isValidEmail(normalized) else { throw MacCloudAuthError.invalidEmail }
+        let callbackURL: URL
+        do {
+            callbackURL = try NativeAuthFlow.callbackURL(for: .macOS)
+        } catch {
+            throw MacCloudAuthError.invalidCallbackConfiguration
         }
-    }
 
-    func verifyOTP(email: String, code: String) async throws {
-        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedCode = code.filter(\.isNumber)
-        guard normalizedCode.count == 6 else { throw MacCloudAuthError.invalidCode }
         try await perform {
-            _ = try await client.auth.verifyOTP(
-                email: normalizedEmail,
-                token: normalizedCode,
-                type: .email
+            try await client.auth.signInWithOTP(
+                email: normalized,
+                redirectTo: callbackURL,
+                shouldCreateUser: true
             )
         }
     }
 
+    /// Configures Apple's request and retains the original nonce until the
+    /// returned ID token is exchanged with Supabase.
+    func prepareAppleSignInRequest(_ request: ASAuthorizationAppleIDRequest) {
+        errorMessage = nil
+        do {
+            let nonce = try NativeAuthFlow.randomNonce()
+            pendingAppleNonce = nonce
+            request.requestedScopes = [.fullName, .email]
+            request.nonce = NativeAuthFlow.sha256(nonce)
+            isLoading = true
+        } catch {
+            pendingAppleNonce = nil
+            isLoading = false
+            errorMessage = MacCloudAuthError.secureNonceUnavailable.localizedDescription
+        }
+    }
+
+    func cancelAppleSignIn() {
+        pendingAppleNonce = nil
+        isLoading = false
+    }
+
     func signInWithApple(authorization: ASAuthorization) async throws {
+        guard let nonce = pendingAppleNonce else {
+            isLoading = false
+            throw MacCloudAuthError.appleRequestNotPrepared
+        }
+        defer { pendingAppleNonce = nil }
+
         try await perform {
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let tokenData = credential.identityToken,
@@ -73,9 +101,24 @@ final class MacCloudAuthService: NSObject, ObservableObject {
                 throw MacCloudAuthError.missingAppleCredential
             }
             _ = try await client.auth.signInWithIdToken(
-                credentials: .init(provider: .apple, idToken: identityToken)
+                credentials: .init(provider: .apple, idToken: identityToken, nonce: nonce)
             )
         }
+    }
+
+    /// Redeems only DayPage Mac's exact callback URL. The Supabase auth-state
+    /// listener remains the single writer for `session` and sync installation.
+    @discardableResult
+    func handleAuthCallback(_ url: URL) async -> Bool {
+        guard NativeAuthFlow.isCallback(url, for: .macOS) else { return false }
+        do {
+            try await perform {
+                _ = try await client.auth.session(from: url)
+            }
+        } catch {
+            // `perform` already publishes a privacy-safe recovery message.
+        }
+        return true
     }
 
     func signOut() async {
@@ -183,13 +226,40 @@ final class MacCloudAuthService: NSObject, ObservableObject {
                 break
             }
         }
-        return "登录失败，请检查邮箱、验证码或稍后重试。"
+        if let authError = error as? Supabase.AuthError {
+            switch authError.errorCode {
+            case .providerDisabled:
+                return "Apple 登录尚未在服务器启用，请稍后再试。"
+            case .overEmailSendRateLimit, .overRequestRateLimit:
+                return "发送过于频繁，请稍后再试。"
+            case .otpExpired:
+                return "这个登录链接已过期或已使用，请重新发送。"
+            case .validationFailed:
+                return "请输入有效的邮箱地址。"
+            default:
+                break
+            }
+        }
+        return "登录失败，请稍后重试。"
+    }
+
+    private func normalizedEmail(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func isValidEmail(_ email: String) -> Bool {
+        email.range(
+            of: #"^[^@\s]+@[^@\s]+\.[^@\s]+$"#,
+            options: .regularExpression
+        ) != nil
     }
 }
 
 private enum MacCloudAuthError: LocalizedError {
     case invalidEmail
-    case invalidCode
+    case invalidCallbackConfiguration
+    case secureNonceUnavailable
+    case appleRequestNotPrepared
     case missingAppleCredential
     case remote(String)
 
@@ -197,8 +267,12 @@ private enum MacCloudAuthError: LocalizedError {
         switch self {
         case .invalidEmail:
             return "请输入有效的邮箱地址。"
-        case .invalidCode:
-            return "请输入 6 位验证码。"
+        case .invalidCallbackConfiguration:
+            return "登录回调配置无效，请更新 DayPage 后重试。"
+        case .secureNonceUnavailable:
+            return "无法安全启动 Apple 登录，请稍后重试。"
+        case .appleRequestNotPrepared:
+            return "Apple 登录请求已失效，请重新发起。"
         case .missingAppleCredential:
             return "无法读取 Apple 登录凭证。"
         case .remote(let message):

@@ -204,6 +204,13 @@
       "when": 1787594400000,
       "tag": "0028_sync_receipt_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787731200000,
+      "tag": "0029_revisioned_attachment_sync",
+      "breakpoints": true
     }
   ]
 }

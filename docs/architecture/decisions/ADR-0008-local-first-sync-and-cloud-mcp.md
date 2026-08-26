@@ -201,6 +201,15 @@ process then loaded the HTTP resource using `DAYPAGE_MCP_API_KEY`, invoked that 
 tool, and returned the same UUID and content. Codex configuration stores only the
 environment-variable name; the repository and database never store the raw key.
 
+Local reproducibility was closed on 2026-08-26. The pinned Supabase CLI now serves the
+same generated Edge bundle used for deployment, while the Edge runtime keeps its internal
+Kong URL separate from the host-visible OAuth issuer and MCP resource. `pnpm db:start`
+applies both the Supabase Storage migration and the complete Drizzle journal. Starting
+from a reset database, the native live tests proved Vault/outbox upload and a two-Vault
+create/edit/delete round trip; the official MCP SDK then read the native marker and wrote
+and searched a second memo through a generated read/write PAT. No production service was
+contacted or modified.
+
 ## Performance budgets
 
 - Warm local capture acknowledgement p95: at most 100 ms on the reference Simulator.

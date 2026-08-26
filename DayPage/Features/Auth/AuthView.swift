@@ -171,7 +171,7 @@ struct AuthView: View {
             .buttonStyle(AuthButtonStyle())
             .disabled(viewModel.isLoading)
             .accessibilityLabel(NSLocalizedString("a11y.continue_email", comment: "Continue with email"))
-            .accessibilityHint(NSLocalizedString("a11y.continue_email.hint", comment: "Email OTP sign-in hint"))
+            .accessibilityHint(NSLocalizedString("a11y.continue_email.hint", comment: "Email magic-link sign-in hint"))
         }
     }
 

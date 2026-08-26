@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
+import { attachmentManifestHash } from "../manifest-hash.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const load = async (relativePath) =>
@@ -14,6 +15,11 @@ const cases = [
   ["sync push result", "schemas/sync-push-result-v1.schema.json", "fixtures/sync-push-result-v1.json"],
   ["sync pull request", "schemas/sync-pull-request-v1.schema.json", "fixtures/sync-pull-request-v1.json"],
   ["sync pull page", "schemas/sync-pull-page-v1.schema.json", "fixtures/sync-pull-page-v1.json"],
+  ["sync push v2", "schemas/sync-push-v2.schema.json", "fixtures/sync-push-v2.json"],
+  ["sync push result v2", "schemas/sync-push-result-v2.schema.json", "fixtures/sync-push-result-v2.json"],
+  ["sync pull page v2", "schemas/sync-pull-page-v2.schema.json", "fixtures/sync-pull-page-v2.json"],
+  ["attachment upload prepare v2", "schemas/attachment-upload-prepare-v2.schema.json", "fixtures/attachment-upload-prepare-v2.json"],
+  ["attachment upload prepared v2", "schemas/attachment-upload-prepared-v2.schema.json", "fixtures/attachment-upload-prepared-v2.json"],
 ];
 
 for (const [name, schemaPath, fixturePath] of cases) {
@@ -52,4 +58,33 @@ test("pull fixture preserves a strict monotonic cursor", async () => {
   assert.equal(new Set(sequences).size, sequences.length);
   assert.ok(sequences.every((sequence) => sequence > after));
   assert.equal(page.next_cursor, sequences.at(-1));
+});
+
+test("v2 fixture carries its canonical attachment manifest hash", async () => {
+  const fixture = await load("fixtures/sync-push-v2.json");
+  const operation = fixture.p_operations[0];
+  assert.equal(
+    attachmentManifestHash(operation.payload.attachments),
+    operation.attachment_manifest_hash
+  );
+});
+
+test("v2 delete cannot smuggle attachment durability", async () => {
+  const fixture = await load("fixtures/sync-push-v2.json");
+  fixture.p_operations[1].attachment_manifest_hash = fixture.p_operations[0].attachment_manifest_hash;
+  const validate = new Ajv2020({ allErrors: true }).compile(
+    await load("schemas/sync-push-v2.schema.json")
+  );
+  assert.equal(validate(fixture), false);
+});
+
+test("v2 attachment path and MIME restrictions fail closed", async () => {
+  const fixture = await load("fixtures/sync-push-v2.json");
+  const attachment = fixture.p_operations[0].payload.attachments[0];
+  attachment.object_key = "../other-user/photo.jpg";
+  attachment.mime_type = "application/x-executable";
+  const validate = new Ajv2020({ allErrors: true }).compile(
+    await load("schemas/sync-push-v2.schema.json")
+  );
+  assert.equal(validate(fixture), false);
 });

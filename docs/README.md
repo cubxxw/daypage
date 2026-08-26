@@ -9,6 +9,7 @@ to drive a change.
 - [Repository constitution](../AGENTS.md)
 - [Architecture index](architecture/README.md)
 - [System overview](architecture/overview.md)
+- [Backend system](backend-system.md)
 - [Engineering index](engineering/README.md)
 - [Setup](engineering/setup.md)
 - [Testing and evidence](engineering/testing.md)
@@ -26,6 +27,8 @@ current PRD is adopted and linked here.
 - [ADR-0006: Repository Agent Team control plane](architecture/decisions/ADR-0006-repository-agent-team-control-plane.md) — Accepted
 - [ADR-0013: Privacy-safe operational diagnostics](architecture/decisions/ADR-0013-privacy-safe-operational-diagnostics.md) — Accepted
 - [ADR-0014: DeepSeek Harness development-host adapter](architecture/decisions/ADR-0014-deepseek-harness-host-adapter.md) — Accepted
+- [ADR-0015: Stable memo detail and bounded media](architecture/decisions/ADR-0015-stable-memo-detail-and-bounded-media.md) — Accepted
+- [ADR-0016: Revisioned local-first attachment synchronization](architecture/decisions/ADR-0016-revisioned-attachment-sync.md) — Accepted
 - `docs/ADR-0001-*.md` through `docs/ADR-0005-*.md` are legacy-location decisions.
   Read their status fields and verify implementation before relying on them.
 

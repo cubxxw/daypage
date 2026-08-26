@@ -414,7 +414,7 @@ struct GraphView: View {
             currentTime = date
         }
         .onAppear {
-            viewModel.load()
+            if isActive { viewModel.load() }
         }
         .onChange(of: viewModel.nodes.count) { count in
             didAutoFit = false
@@ -439,9 +439,12 @@ struct GraphView: View {
             stopSimulation()
         }
         .onChange(of: isActive) { active in
-            if active, scenePhase == .active,
-               !viewModel.nodes.isEmpty, simulationSteps < maxSimSteps {
-                startSimulation(reset: simulationSteps == 0)
+            if active {
+                viewModel.load()
+                if scenePhase == .active,
+                   !viewModel.nodes.isEmpty, simulationSteps < maxSimSteps {
+                    startSimulation(reset: simulationSteps == 0)
+                }
             } else {
                 stopSimulation()
             }
@@ -523,7 +526,7 @@ struct GraphView: View {
                 EmptyStateView.graphNotConnected {
                     Task { @MainActor in
                         try? await CompilationService.shared.compile(trigger: "manual") { _, _ in }
-                        viewModel.load()
+                        viewModel.load(force: true)
                     }
                 }
             } else {

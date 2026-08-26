@@ -1279,7 +1279,8 @@ struct TodayView: View {
         if viewModel.compilationFailedError != nil { return .compilationFailed }
         if iCloudConflictBannerVisible { return .iCloudConflict }
         if FeatureFlagStore.shared.isEnabled(.offlineQueue)
-            && (syncQueue.pendingCount >= 5 || syncQueueWaitedTooLong) {
+            && (syncQueue.pendingCount >= 5 || syncQueueWaitedTooLong
+                || attachmentTransferSummary.hasMedia) {
             return .offlineSyncQueue
         }
         if compileService.stage != .idle || viewModel.isCompiling { return .compilationProgress }
@@ -1489,6 +1490,51 @@ struct TodayView: View {
     /// the user can tell the spin actually means progress.
     private var syncQueuePrimaryLabel: String {
         let count = syncQueue.pendingCount
+        let media = attachmentTransferSummary
+        if media.unsupported > 0 {
+            return String(format: NSLocalizedString(
+                "today.syncqueue.media.unsupported",
+                value: "%d 个附件类型暂不支持云同步",
+                comment: "Unsupported cloud media count"
+            ), media.unsupported)
+        }
+        if media.quotaFailed > 0 {
+            return NSLocalizedString(
+                "today.syncqueue.media.quota",
+                value: "附件云空间已满",
+                comment: "Cloud media quota failure"
+            )
+        }
+        if networkMonitor.isCellular
+            && !AttachmentNetworkPolicy.allowsCellularTransfers
+            && media.hasMedia {
+            return NSLocalizedString(
+                "today.syncqueue.media.paused",
+                value: "附件已暂停，等待 Wi-Fi",
+                comment: "Cloud media paused on cellular"
+            )
+        }
+        if media.transferring > 0 {
+            return String(format: NSLocalizedString(
+                "today.syncqueue.media.transferring",
+                value: "正在同步 %d 个附件…",
+                comment: "Cloud media transferring count"
+            ), media.transferring)
+        }
+        if media.failed > 0 {
+            return String(format: NSLocalizedString(
+                "today.syncqueue.media.failed",
+                value: "%d 个附件等待重试",
+                comment: "Retryable cloud media failure count"
+            ), media.failed)
+        }
+        if media.pending > 0 {
+            return String(format: NSLocalizedString(
+                "today.syncqueue.media.pending",
+                value: "%d 个附件待同步",
+                comment: "Pending cloud media count"
+            ), media.pending)
+        }
         if syncQueue.isFlushingNow {
             return String(
                 format: NSLocalizedString(
@@ -1511,6 +1557,10 @@ struct TodayView: View {
             ),
             count
         )
+    }
+
+    private var attachmentTransferSummary: AttachmentTransferSummary {
+        AttachmentTransferStore.actionableSummary()
     }
 
     /// Issue #5 (2026-07-03): pipeline-stage banner. Rendered above the
@@ -1947,7 +1997,7 @@ struct TodayView: View {
             // days too, the recap would duplicate 本周 — only keep it for the
             // (unusual) case where compiled pages exist but the timeline is
             // empty.
-            if viewModel.timelineSections.isEmpty {
+            if viewModel.isTimelineReady && viewModel.timelineSections.isEmpty {
                 WeeklyRecapSection(entries: entries) { dateString in
                     nav.push(DayNavTarget(dateString: dateString), in: .today)
                 }
@@ -2047,7 +2097,21 @@ struct TodayView: View {
     /// shows its hero card above.
     @ViewBuilder
     private var historySupplement: some View {
-        if viewModel.loadState == .ready && !supplementSections.isEmpty {
+        if viewModel.loadState == .ready && !viewModel.isTimelineReady {
+            HStack {
+                Spacer()
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(DSColor.inkSubtle)
+                    .accessibilityLabel(Text(NSLocalizedString(
+                        "today.timeline.loading",
+                        value: "Loading history",
+                        comment: "Timeline history index warm-up accessibility label"
+                    )))
+                Spacer()
+            }
+            .padding(.vertical, 12)
+        } else if viewModel.loadState == .ready && !supplementSections.isEmpty {
             // Quiet breathing room replaces the redundant "EARLIER" rule —
             // the timeline's own SectionHeader (本周/上周) already separates bands.
             // 12 here + the SectionHeader's own 20 top padding lands the

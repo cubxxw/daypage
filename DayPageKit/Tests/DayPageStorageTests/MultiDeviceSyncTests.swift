@@ -102,6 +102,58 @@ final class MultiDeviceSyncTests: XCTestCase {
         XCTAssertEqual(pending.first?.revision, 1)
     }
 
+    func testMatchingTextHashCannotAcknowledgeDifferentMediaManifest() throws {
+        let created = Date(timeIntervalSince1970: 1_787_500_800)
+        let memoID = UUID()
+        _ = try RawStorage.applyRemoteChanges([makeChange(
+            id: memoID,
+            body: "same metadata",
+            createdAt: created,
+            revision: 1,
+            sequence: 1
+        )])
+        var local = try XCTUnwrap(try RawStorage.read(for: created).first)
+        local.attachments = [Memo.Attachment(
+            file: "raw/assets/local.png",
+            kind: "photo"
+        )]
+        try RawStorage.rewrite([local], for: created)
+        let pendingHash = try XCTUnwrap(
+            SyncOutboxStore.pendingOperations().first?.contentHash
+        )
+        let remoteHash = String(repeating: "a", count: 64)
+        let descriptor = SyncAttachmentDescriptor(
+            position: 0,
+            kind: "photo",
+            contentSHA256: remoteHash,
+            sizeBytes: 8,
+            mimeType: "image/png",
+            objectKey: "\(userA.uuidString.lowercased())/\(memoID.uuidString.lowercased())/\(remoteHash).png",
+            originalFilename: "remote.png"
+        )
+
+        let result = try RawStorage.applyRemoteChanges([makeChange(
+            id: memoID,
+            body: "same metadata",
+            createdAt: created,
+            revision: 2,
+            sequence: 2,
+            contentHash: pendingHash,
+            attachmentManifestHash: AttachmentManifest.hash([descriptor]),
+            attachments: [descriptor]
+        )])
+
+        let conflictID = try XCTUnwrap(result.conflictCopies.first)
+        let conflict = try XCTUnwrap(
+            try RawStorage.read(for: created).first(where: { $0.id == conflictID })
+        )
+        XCTAssertEqual(conflict.attachments.first?.file, "raw/assets/local.png")
+        XCTAssertEqual(
+            try SyncOutboxStore.pendingOperations().first?.memoID,
+            conflictID
+        )
+    }
+
     func testRemoteTombstoneDeletesCanonicalWithoutEcho() throws {
         let created = Date(timeIntervalSince1970: 1_787_500_800)
         let memoID = UUID()
@@ -170,7 +222,9 @@ final class MultiDeviceSyncTests: XCTestCase {
         revision: Int64,
         sequence: Int64,
         contentHash: String? = nil,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        attachmentManifestHash: String? = nil,
+        attachments: [SyncAttachmentDescriptor]? = nil
     ) -> SyncRemoteChange {
         SyncRemoteChange(
             id: id,
@@ -188,7 +242,9 @@ final class MultiDeviceSyncTests: XCTestCase {
             syncRevision: revision,
             lastSyncDeviceId: UUID().uuidString.lowercased(),
             deletedAt: deletedAt,
-            changeSequence: sequence
+            changeSequence: sequence,
+            attachmentManifestHash: attachmentManifestHash,
+            attachments: attachments
         )
     }
 }
@@ -296,11 +352,86 @@ final class SupabaseSyncPullerTests: XCTestCase {
             "has_more": false,
         ])
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
 
         let page = try decoder.decode(SyncPullPage.self, from: data)
 
         XCTAssertEqual(page.changes.first?.weather?.condition, "晴")
+    }
+}
+
+private actor MediaThenTextUploader: RemoteUploader {
+    private var attemptedMemoIDs: [UUID] = []
+
+    func upload(operation: SyncOutboxOperation) async throws -> Int {
+        attemptedMemoIDs.append(operation.memoID)
+        if attemptedMemoIDs.count == 1 { throw AttachmentSyncError.network }
+        return operation.sizeBytes
+    }
+
+    func attempts() -> [UUID] { attemptedMemoIDs }
+}
+
+private actor PullCounter: RemotePuller {
+    private var count = 0
+
+    func pull(after cursor: Int64, limit: Int) async throws -> SyncPullPage {
+        count += 1
+        return SyncPullPage(changes: [], nextCursor: cursor, hasMore: false)
+    }
+
+    func calls() -> Int { count }
+}
+
+@MainActor
+final class IndependentMediaSchedulingTests: XCTestCase {
+    private var vault: URL!
+
+    override func setUpWithError() throws {
+        vault = FileManager.default.temporaryDirectory
+            .appendingPathComponent("daypage-independent-media-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: vault.appendingPathComponent("raw", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        VaultInitializer.testOverrideURL = vault
+    }
+
+    override func tearDownWithError() throws {
+        VaultInitializer.testOverrideURL = nil
+        try? FileManager.default.removeItem(at: vault)
+    }
+
+    func testDeferredMediaDoesNotBlockLaterTextOrPull() async throws {
+        let mediaMemo = Memo(body: "media operation")
+        let textMemo = Memo(body: "later text operation")
+        try SyncOutboxStore.recordUpsert(
+            mediaMemo,
+            vaultPath: "raw/2026-08-26.md",
+            modifiedAt: Date(timeIntervalSince1970: 1)
+        )
+        try SyncOutboxStore.recordUpsert(
+            textMemo,
+            vaultPath: "raw/2026-08-26.md",
+            modifiedAt: Date(timeIntervalSince1970: 2)
+        )
+        let uploader = MediaThenTextUploader()
+        let puller = PullCounter()
+        let observer = SyncQueueObserver(observeNotifications: false)
+        try observer.configureSession(
+            userID: UUID(),
+            uploader: uploader,
+            puller: puller,
+            periodicInterval: 0
+        )
+
+        await observer.flush()
+
+        let attemptedMemoIDs = await uploader.attempts()
+        let pullCount = await puller.calls()
+        XCTAssertEqual(attemptedMemoIDs, [mediaMemo.id, textMemo.id])
+        XCTAssertEqual(pullCount, 1)
+        XCTAssertEqual(try SyncOutboxStore.pendingOperations().map(\.memoID), [mediaMemo.id])
+        observer.clearSession()
     }
 }
