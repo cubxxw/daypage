@@ -17,16 +17,15 @@ import DayPageStorage
 /// battery. The index pays that scan once, off the main thread.
 ///
 /// ## Design (deliberately identical to TimelineIndex)
-/// - **Pure in-memory, rebuilt on launch.** No persistence → no snapshot/truth
-///   drift. `vault/raw/*.md` remains the source of truth.
-/// - **mtime-based external-change detection** on foreground.
+/// - **Pure in-memory, rebuilt when Search is first used.** No persistence →
+///   no snapshot/truth drift. `vault/raw/*.md` remains the source of truth.
+/// - **Per-file metadata external-change detection** on foreground, including
+///   edits to existing Markdown files that do not change the directory mtime.
 /// - **Incremental write updates** via `.rawStorageDidWrite` — re-parse just
 ///   the one day that changed.
 /// - **Conflict-merge rebuild** via `.vaultConflictResolved`.
-/// - **No cold-path sync scan**: before the first build completes,
-///   `documentsIfBuilt()` returns nil and callers fall back to the legacy
-///   disk-scanning `SearchService.search` — search stays correct on a cold
-///   start, it's just not indexed yet.
+/// - **No cold-path duplicate scan**: a cold search awaits the in-flight index
+///   build asynchronously, then queries the completed memory snapshot.
 ///
 /// `isDailyPageCompiled` is intentionally NOT cached here: daily compilation
 /// writes `wiki/daily/` (never `raw/`), so no notification would invalidate
@@ -80,11 +79,18 @@ public final class SearchIndex {
     /// True once the first full rebuild has completed.
     private var isBuilt = false
 
-    /// mtime of `vault/raw/` captured at the last rebuild.
-    private var rawDirMtimeSnapshot: Date?
+    /// Per-file size + modification-date snapshot from the last rebuild.
+    private var rawFileSnapshot = RawVaultFileSnapshot(files: [:])
 
     /// Guards against overlapping rebuilds.
     private var rebuildTask: Task<Void, Never>?
+
+    /// Coalesces off-main foreground metadata checks.
+    private var refreshTask: Task<Void, Never>?
+
+    private var rebuildRequestedAfterCurrent = false
+    private var pendingWriteDates: Set<String> = []
+    private var dayUpdateTasks: [String: Task<Void, Never>] = [:]
 
     private var observerTokens: [NSObjectProtocol] = []
 
@@ -106,7 +112,7 @@ public final class SearchIndex {
             forName: .vaultConflictResolved, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.scheduleRebuild()
+                self?.scheduleRebuild(rebuildAgainIfRunning: true)
             }
         }
         observerTokens = [writeToken, conflictToken]
@@ -119,8 +125,8 @@ public final class SearchIndex {
     // MARK: - Public read API
 
     /// Newest-first day documents, or nil while the first build is still in
-    /// flight. Callers fall back to the legacy disk scan on nil — never block
-    /// the main actor on a cold synchronous vault scan here.
+    /// flight. Interactive search uses `documents()` so it awaits the same
+    /// asynchronous build instead of starting a duplicate legacy disk scan.
     public func documentsIfBuilt() -> [DayDocument]? {
         guard isBuilt else { return nil }
         if let cached = sortedSnapshot { return cached }
@@ -142,57 +148,112 @@ public final class SearchIndex {
 
     // MARK: - Lifecycle hooks
 
-    /// Kick the initial background build. Idempotent; call at app launch
-    /// (alongside `TimelineIndex.warmUp()`) and on search-surface appear.
+    /// Kick the initial background build. Idempotent; call when the search
+    /// surface appears so launch I/O remains focused on Today.
     public func warmUp() {
         guard !isBuilt else { return }
         scheduleRebuild()
     }
 
-    /// Rebuild if `vault/raw/` was modified externally (iCloud sync, another
-    /// device) since the last build. One stat() when nothing changed.
+    /// Rebuild if raw Markdown was modified externally (iCloud, Obsidian,
+    /// another device). Metadata enumeration stays off the main actor.
     public func refreshIfExternallyModified() {
-        let current = Self.rawDirMtime()
-        if current != rawDirMtimeSnapshot {
-            scheduleRebuild()
+        guard rebuildTask == nil, refreshTask == nil else { return }
+        refreshTask = Task { [weak self] in
+            let current = await Task.detached(priority: .utility) {
+                RawVaultFileSnapshot.capture()
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.refreshTask = nil
+            if current != self.rawFileSnapshot {
+                self.scheduleRebuild()
+            }
         }
     }
 
     // MARK: - Rebuild
 
-    private func scheduleRebuild() {
-        if let existing = rebuildTask, !existing.isCancelled { return }
+    private func scheduleRebuild(rebuildAgainIfRunning: Bool = false) {
+        if let existing = rebuildTask, !existing.isCancelled {
+            if rebuildAgainIfRunning { rebuildRequestedAfterCurrent = true }
+            return
+        }
+
+        refreshTask?.cancel()
+        refreshTask = nil
+        dayUpdateTasks.values.forEach { $0.cancel() }
+        dayUpdateTasks.removeAll()
 
         rebuildTask = Task { [weak self] in
-            let scanned = await Task.detached(priority: .utility) {
-                Self.scanAllDocuments()
+            let result = await Task.detached(priority: .utility) {
+                let before = RawVaultFileSnapshot.capture()
+                let documents = Self.scanAllDocuments()
+                let after = RawVaultFileSnapshot.capture()
+                return (documents, before, after)
             }.value
-            let mtime = Self.rawDirMtime()
+            guard !Task.isCancelled else { return }
             guard let self else { return }
-            self.docsByDate = scanned
+
+            if result.1 != result.2 || self.rebuildRequestedAfterCurrent {
+                self.rebuildRequestedAfterCurrent = false
+                self.pendingWriteDates.removeAll()
+                self.rebuildTask = nil
+                self.scheduleRebuild()
+                return
+            }
+
+            self.docsByDate = result.0
             self.sortedSnapshot = nil
-            self.rawDirMtimeSnapshot = mtime
+            self.rawFileSnapshot = result.2
             self.isBuilt = true
             self.rebuildTask = nil
+
+            let pendingDates = self.pendingWriteDates
+            self.pendingWriteDates.removeAll()
+            for stem in pendingDates {
+                self.scheduleDayUpdate(stem)
+            }
         }
     }
 
     // MARK: - Incremental updates
 
     private func handleDidWrite(date: Date?) {
-        guard isBuilt else { return }
         guard let date else {
-            scheduleRebuild()
+            scheduleRebuild(rebuildAgainIfRunning: true)
             return
         }
         let stem = Self.dateFormatter.string(from: date)
-        if let doc = Self.scanDocument(dateString: stem) {
-            docsByDate[stem] = doc
-        } else {
-            docsByDate.removeValue(forKey: stem)
+        guard isBuilt, rebuildTask == nil else {
+            pendingWriteDates.insert(stem)
+            if rebuildTask == nil { scheduleRebuild() }
+            return
         }
-        sortedSnapshot = nil
-        rawDirMtimeSnapshot = Self.rawDirMtime()
+        scheduleDayUpdate(stem)
+    }
+
+    /// Parse changed Markdown away from the main actor. Cancelling the previous
+    /// task for the same date ensures stale work can never overwrite a newer
+    /// edit when writes arrive in a burst.
+    private func scheduleDayUpdate(_ stem: String) {
+        dayUpdateTasks[stem]?.cancel()
+        dayUpdateTasks[stem] = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                let document = Self.scanDocument(dateString: stem)
+                let signature = RawVaultFileSnapshot.signature(forDateString: stem)
+                return (document, signature)
+            }.value
+            guard !Task.isCancelled, let self else { return }
+
+            if let document = result.0 {
+                self.docsByDate[stem] = document
+            } else {
+                self.docsByDate.removeValue(forKey: stem)
+            }
+            self.sortedSnapshot = nil
+            self.rawFileSnapshot.update(dateString: stem, signature: result.1)
+            self.dayUpdateTasks[stem] = nil
+        }
     }
 
     // MARK: - Scanning (nonisolated — runs on detached tasks)
@@ -267,31 +328,39 @@ public final class SearchIndex {
         return f
     }()
 
-    private static func rawDirMtime() -> Date? {
-        let rawDir = VaultInitializer.vaultURL.appendingPathComponent("raw")
-        let attrs = try? FileManager.default.attributesOfItem(atPath: rawDir.path)
-        return attrs?[.modificationDate] as? Date
-    }
-
     // MARK: - Test support
 
     /// Test-only: synchronous full build so tests can assert deterministically.
     /// `root` pins the scan to a private temp vault so parallel suites can't
     /// race on the global vault override (#827).
     public func rebuildSynchronouslyForTesting(root: URL? = nil) {
+        rebuildTask?.cancel()
+        rebuildTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        dayUpdateTasks.values.forEach { $0.cancel() }
+        dayUpdateTasks.removeAll()
         docsByDate = Self.scanAllDocuments(root: root)
         sortedSnapshot = nil
-        rawDirMtimeSnapshot = Self.rawDirMtime()
+        rawFileSnapshot = RawVaultFileSnapshot.capture(root: root ?? VaultInitializer.vaultURL)
         isBuilt = true
+        rebuildRequestedAfterCurrent = false
+        pendingWriteDates.removeAll()
     }
 
     /// Test-only: reset to the never-built state.
     public func resetForTesting() {
         rebuildTask?.cancel()
         rebuildTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        dayUpdateTasks.values.forEach { $0.cancel() }
+        dayUpdateTasks.removeAll()
         docsByDate = [:]
         sortedSnapshot = nil
-        rawDirMtimeSnapshot = nil
+        rawFileSnapshot = RawVaultFileSnapshot(files: [:])
         isBuilt = false
+        rebuildRequestedAfterCurrent = false
+        pendingWriteDates.removeAll()
     }
 }

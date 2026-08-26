@@ -9,6 +9,7 @@ to drive a change.
 - [Repository constitution](../AGENTS.md)
 - [Architecture index](architecture/README.md)
 - [System overview](architecture/overview.md)
+- [Backend system](backend-system.md)
 - [Engineering index](engineering/README.md)
 - [Setup](engineering/setup.md)
 - [Testing and evidence](engineering/testing.md)

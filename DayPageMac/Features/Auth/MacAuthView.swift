@@ -6,6 +6,11 @@ import DayPageStorage
 /// iOS: it is a focused desktop sheet opened from the toolbar, while its
 /// account, local-first and device-local sign-out semantics stay identical.
 struct MacAuthView: View {
+    private enum EmailStage: Equatable {
+        case entry
+        case linkSent(address: String)
+    }
+
     @EnvironmentObject private var auth: MacCloudAuthService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -14,8 +19,8 @@ struct MacAuthView: View {
     @ObservedObject private var syncQueue = SyncQueueService.shared
 
     @State private var email = ""
-    @State private var code = ""
-    @State private var codeSent = false
+    @State private var emailStage: EmailStage = .entry
+    @State private var resendSeconds = 0
     @State private var localError: String?
     @State private var isSigningOut = false
     @State private var showSignOutConfirmation = false
@@ -68,8 +73,16 @@ struct MacAuthView: View {
         .onChange(of: auth.session != nil) { signedIn in
             if signedIn {
                 localError = nil
-                code = ""
-                codeSent = false
+                emailStage = .entry
+                resendSeconds = 0
+            }
+        }
+        .task(id: emailStage) {
+            guard case .linkSent = emailStage else { return }
+            while resendSeconds > 0, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                resendSeconds -= 1
             }
         }
     }
@@ -165,13 +178,16 @@ struct MacAuthView: View {
             }
 
             SignInWithAppleButton(.signIn) { request in
-                request.requestedScopes = [.fullName, .email]
+                auth.prepareAppleSignInRequest(request)
             } onCompletion: { result in
                 switch result {
                 case .success(let authorization):
                     Task { await signInWithApple(authorization) }
                 case .failure(let error):
-                    if (error as? ASAuthorizationError)?.code != .canceled {
+                    auth.cancelAppleSignIn()
+                    if (error as? ASAuthorizationError)?.code == .canceled {
+                        localError = nil
+                    } else {
                         localError = "Apple 登录失败，请稍后重试。"
                     }
                 }
@@ -182,58 +198,96 @@ struct MacAuthView: View {
 
             HStack {
                 Divider()
-                Text("或使用邮箱验证码")
+                Text("或使用邮箱登录链接")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize()
                 Divider()
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                TextField("you@example.com", text: $email)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(codeSent || auth.isLoading)
-                    .accessibilityLabel("邮箱地址")
-
-                if codeSent {
-                    TextField("6 位验证码", text: $code)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { Task { await verifyCode() } }
-                        .accessibilityLabel("六位邮箱验证码")
-                }
-
-                HStack {
-                    if codeSent {
-                        Button("修改邮箱") {
-                            codeSent = false
-                            code = ""
-                            localError = nil
-                        }
-                    }
-
-                    Spacer()
-
-                    Button(codeSent ? "验证并同步" : "发送验证码") {
-                        Task { codeSent ? await verifyCode() : await sendCode() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(
-                        auth.isLoading
-                            || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || (codeSent && code.filter(\.isNumber).count != 6)
-                    )
-                }
-            }
+            emailSignInSection
 
             if auth.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("正在安全登录…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .combine)
             }
 
             Text("登录不是使用 DayPage 的前置条件。未登录时，记录只保存在这台 Mac 的 Vault 中。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var emailSignInSection: some View {
+        switch emailStage {
+        case .entry:
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("you@example.com", text: $email)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(auth.isLoading)
+                    .onSubmit { Task { await sendMagicLink() } }
+                    .accessibilityLabel("邮箱地址")
+
+                HStack {
+                    Spacer()
+                    Button("发送登录链接") {
+                        Task { await sendMagicLink() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(
+                        auth.isLoading
+                            || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+                }
+            }
+        case .linkSent(let address):
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "envelope.badge")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.green)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("登录链接已发送")
+                            .font(.callout.weight(.semibold))
+                        Text(address)
+                            .font(.caption)
+                            .textSelection(.enabled)
+                        Text("请在发送请求的这台 Mac 上打开邮件并点击链接，DayPage 会自动完成登录。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityElement(children: .combine)
+
+                HStack {
+                    Button("修改邮箱") {
+                        emailStage = .entry
+                        localError = nil
+                    }
+
+                    Spacer()
+
+                    Button(resendSeconds > 0 ? "\(resendSeconds) 秒后可重发" : "重新发送") {
+                        Task { await sendMagicLink(to: address) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(auth.isLoading || resendSeconds > 0)
+                }
+            }
         }
     }
 
@@ -338,22 +392,19 @@ struct MacAuthView: View {
         return .green
     }
 
-    private func sendCode() async {
+    private func sendMagicLink(to address: String? = nil) async {
         localError = nil
+        let requestedEmail = address ?? email
         do {
-            try await auth.sendOTP(email: email)
+            try await auth.sendMagicLink(email: requestedEmail)
+            let normalized = requestedEmail
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            email = normalized
+            resendSeconds = 60
             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                codeSent = true
+                emailStage = .linkSent(address: normalized)
             }
-        } catch {
-            localError = error.localizedDescription
-        }
-    }
-
-    private func verifyCode() async {
-        localError = nil
-        do {
-            try await auth.verifyOTP(email: email, code: code)
         } catch {
             localError = error.localizedDescription
         }

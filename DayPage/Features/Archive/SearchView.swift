@@ -299,9 +299,9 @@ struct SearchView: View {
                 }
                 setupDebounce()
                 vm.loadTopEntities()
-                // Belt-and-braces (#827): the app-launch warmUp normally has
-                // the index ready long before Search opens; this covers cold
-                // deep-link entries. No-op once built.
+                // Search owns its warm-up. Deferring this work until the system
+                // surface is actually visible prevents a full text-index scan
+                // from competing with Today's cold launch.
                 SearchIndex.shared.warmUp()
                 // Pre-populate query when SearchView was opened from a deep
                 // link (e.g. `daypage://search?q=…`). Only runs on first
@@ -363,21 +363,15 @@ struct SearchView: View {
             vm.isSearching = true
         }
         searchTask = Task {
-            // #827: prefer the pre-folded in-memory SearchIndex (a keystroke
-            // costs an in-memory scan, zero disk I/O). Falls back to the
-            // legacy full-vault disk scan only while the index's first
-            // background build is still in flight.
-            let docs = await MainActor.run { SearchIndex.shared.documentsIfBuilt() }
+            // #827: a cold search awaits the single in-flight index build
+            // asynchronously instead of starting a second full-vault fallback
+            // scan. Once ready, each keystroke is memory-only.
+            let docs = await SearchIndex.shared.documents()
+            guard !Task.isCancelled else { return }
             let hits = await Task.detached(priority: .userInitiated) {
-                if let docs {
-                    return SearchService.search(keyword: trimmed, filters: capturedFilters, in: docs)
-                }
-                return SearchService.search(keyword: trimmed, filters: capturedFilters)
+                SearchService.search(keyword: trimmed, filters: capturedFilters, in: docs)
             }.value
-            guard !Task.isCancelled else {
-                await MainActor.run { vm.isSearching = false }
-                return
-            }
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 vm.isSearching = false
                 appearedIDs = []

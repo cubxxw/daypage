@@ -6,14 +6,14 @@ import { NextRequest } from "next/server";
 const mockUser = { id: "user-uuid-1" };
 const mockUserB = { id: "user-uuid-2" };
 
-vi.mock("@/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ auth: vi.fn() }));
 
-const mockDb = {
+const mockDb = vi.hoisted(() => ({
   select: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
-};
+}));
 vi.mock("@/lib/db/client", () => ({ db: mockDb }));
 
 vi.mock("@/lib/db/schema", async (importOriginal) => {

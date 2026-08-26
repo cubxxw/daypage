@@ -26,8 +26,39 @@ BEGIN
   IF has_table_privilege('authenticated', 'public.daypage_runtime_config', 'SELECT') THEN
     RAISE EXCEPTION 'runtime config must not be readable by authenticated';
   END IF;
+  IF has_table_privilege('authenticated', 'public.memo_attachments', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.memo_attachments', 'UPDATE')
+    OR has_table_privilege('authenticated', 'public.memo_attachments', 'DELETE') THEN
+    RAISE EXCEPTION 'authenticated can mutate verified attachment manifests directly';
+  END IF;
+  IF has_function_privilege(
+    'authenticated', 'public.daypage_claim_attachment_gc(integer)', 'EXECUTE'
+  ) OR has_function_privilege(
+    'authenticated',
+    'public.daypage_finish_attachment_gc(uuid,text,uuid,boolean,text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'authenticated can invoke the private attachment GC controls';
+  END IF;
 END
 $$;
+
+INSERT INTO public.memos (
+  id, user_id, type, body, attachment_manifest_hash, sync_revision
+) VALUES (
+  '66666666-6666-4666-8666-666666666666',
+  '11111111-1111-4111-8111-111111111111',
+  'photo', 'v2 media survives a v1 text writer',
+  repeat('a', 64), 1
+);
+INSERT INTO public.memo_attachments (
+  memo_id, kind, storage_key, filename, mime_type, size_bytes,
+  protocol_version, position, content_sha256, verified_at
+) VALUES (
+  '66666666-6666-4666-8666-666666666666', 'photo',
+  '11111111-1111-4111-8111-111111111111/66666666-6666-4666-8666-666666666666/' || repeat('b', 64) || '.jpg',
+  'fixture.jpg', 'image/jpeg', 4, 2, 0, repeat('b', 64), now()
+);
 
 UPDATE public.daypage_runtime_config
 SET value = 'https://mcp.staging.daypage.test/mcp'
@@ -58,6 +89,36 @@ BEGIN
   )));
   IF result #>> '{accepted,0,status}' <> 'applied' THEN
     RAISE EXCEPTION 'first revision was not applied: %', result;
+  END IF;
+
+  result := public.daypage_apply_sync_operations(jsonb_build_array(jsonb_build_object(
+    'operation_id', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4',
+    'memo_id', '66666666-6666-4666-8666-666666666666',
+    'kind', 'upsert',
+    'revision', 2,
+    'modified_at', '2026-08-24T00:00:00Z',
+    'content_hash', 'v1-text-edit',
+    'device_id', '44444444-4444-4444-8444-444444444444',
+    'payload', jsonb_build_object(
+      'type', 'photo',
+      'body', 'legacy text edit',
+      'created_at', '2026-08-24T00:00:00Z',
+      'source', 'ios',
+      'vault_path', 'raw/2026-08-24.md'
+    )
+  )));
+  IF result #>> '{accepted,0,status}' <> 'applied'
+    OR NOT EXISTS (
+      SELECT 1 FROM public.memos memo
+      WHERE memo.id = '66666666-6666-4666-8666-666666666666'
+        AND memo.attachment_manifest_hash = repeat('a', 64)
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM public.memo_attachments attachment
+      WHERE attachment.memo_id = '66666666-6666-4666-8666-666666666666'
+        AND attachment.protocol_version = 2
+    ) THEN
+    RAISE EXCEPTION 'v1 text edit destroyed a verified v2 manifest';
   END IF;
 
   result := public.daypage_apply_sync_operations(jsonb_build_array(jsonb_build_object(
@@ -184,6 +245,155 @@ END
 $$;
 
 RESET ROLE;
+
+INSERT INTO public.memos (id, user_id, type, body)
+VALUES (
+  '77777777-7777-4777-8777-777777777770',
+  '11111111-1111-4111-8111-111111111111',
+  'file', 'memo byte quota fixture'
+);
+INSERT INTO public.memo_attachments (
+  memo_id, kind, storage_key, filename, mime_type, size_bytes,
+  protocol_version, position, content_sha256, verified_at
+)
+SELECT
+  '77777777-7777-4777-8777-777777777770',
+  'file',
+  '11111111-1111-4111-8111-111111111111/77777777-7777-4777-8777-777777777770/' ||
+    lpad(to_hex(sequence), 64, '0') || '.pdf',
+  'quota-' || sequence || '.pdf', 'application/pdf', 52428800,
+  2, sequence - 1, lpad(to_hex(sequence), 64, '0'), now()
+FROM generate_series(1, 5) AS sequence;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.daypage_prepare_attachment_upload(
+      '77777777-7777-4777-8777-777777777770', repeat('e', 64), 1,
+      'image/png', 'png'
+    );
+    RAISE EXCEPTION 'memo attachment byte quota was not enforced before upload';
+  EXCEPTION WHEN SQLSTATE '54000' THEN
+    IF SQLERRM <> 'memo attachment byte quota exceeded' THEN
+      RAISE;
+    END IF;
+  END;
+END
+$$;
+
+RESET ROLE;
+
+-- A byte quota does not bound abusive one-byte reservation cardinality. Seed
+-- rows through the privileged verification connection, then prove the public
+-- RPC rejects both a short burst and too many simultaneously live slots.
+INSERT INTO public.attachment_upload_reservations (
+  user_id, memo_id, object_key, content_sha256, size_bytes, mime_type,
+  status, expires_at, created_at
+)
+SELECT
+  '11111111-1111-4111-8111-111111111111',
+  '77777777-7777-4777-8777-777777777777',
+  'rate-limit-fixture/' || sequence,
+  repeat('c', 64), 1, 'image/png', 'expired', now() - interval '1 second', now()
+FROM generate_series(1, 60) AS sequence;
+
+INSERT INTO public.attachment_upload_reservations (
+  user_id, memo_id, object_key, content_sha256, size_bytes, mime_type,
+  status, expires_at, created_at
+)
+SELECT
+  '22222222-2222-4222-8222-222222222222',
+  '88888888-8888-4888-8888-888888888888',
+  'live-limit-fixture/' || sequence,
+  repeat('d', 64), 1, 'image/png', 'prepared', now() + interval '1 hour',
+  now() - interval '1 day'
+FROM generate_series(1, 100) AS sequence;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.daypage_prepare_attachment_upload(
+      '99999999-9999-4999-8999-999999999991', repeat('e', 64), 1,
+      'image/png', 'png'
+    );
+    RAISE EXCEPTION 'reservation rate limit was not enforced';
+  EXCEPTION WHEN SQLSTATE '54000' THEN
+    IF SQLERRM <> 'attachment reservation rate limit exceeded' THEN
+      RAISE;
+    END IF;
+  END;
+END
+$$;
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.daypage_prepare_attachment_upload(
+      '99999999-9999-4999-8999-999999999992', repeat('f', 64), 1,
+      'image/png', 'png'
+    );
+    RAISE EXCEPTION 'live reservation limit was not enforced';
+  EXCEPTION WHEN SQLSTATE '54000' THEN
+    IF SQLERRM <> 'live attachment reservation limit exceeded' THEN
+      RAISE;
+    END IF;
+  END;
+END
+$$;
+
+RESET ROLE;
+
+INSERT INTO storage.objects (
+  bucket_id, name, owner, owner_id, created_at, metadata, version
+) VALUES (
+  'memo-attachments',
+  '11111111-1111-4111-8111-111111111111/99999999-9999-4999-8999-999999999993/' ||
+    repeat('a', 63) || '1.png',
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111111',
+  now() - interval '11 minutes',
+  '{"size":9,"mimetype":"image/png"}'::jsonb,
+  'mismatch-fixture'
+);
+INSERT INTO public.attachment_upload_reservations (
+  user_id, memo_id, object_key, content_sha256, size_bytes, mime_type,
+  status, expires_at
+) VALUES (
+  '11111111-1111-4111-8111-111111111111',
+  '99999999-9999-4999-8999-999999999993',
+  '11111111-1111-4111-8111-111111111111/99999999-9999-4999-8999-999999999993/' ||
+    repeat('a', 63) || '1.png',
+  repeat('a', 63) || '1', 8, 'image/png', 'prepared', now() + interval '1 hour'
+);
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+DO $$
+DECLARE
+  result jsonb;
+BEGIN
+  result := public.daypage_inventory_attachment_orphans();
+  IF (result ->> 'queued')::integer < 1
+    OR NOT EXISTS (
+      SELECT 1 FROM public.attachment_upload_reservations reservation
+      WHERE reservation.object_key LIKE '%99999999-9999-4999-8999-999999999993%'
+        AND reservation.status = 'expired'
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM public.attachment_gc_queue queue
+      WHERE queue.object_key LIKE '%99999999-9999-4999-8999-999999999993%'
+        AND queue.status = 'pending'
+        AND queue.reason = 'uncommitted_orphan'
+    ) THEN
+    RAISE EXCEPTION 'mismatched uploaded bytes were not expired and queued: %', result;
+  END IF;
+END
+$$;
 
 DO $$
 DECLARE

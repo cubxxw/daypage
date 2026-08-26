@@ -1,0 +1,39 @@
+{
+  "changes": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "type": "photo",
+      "body": "来自另一台设备的照片",
+      "created_at": "2026-08-25T00:00:00Z",
+      "pinned_at": null,
+      "location": null,
+      "weather": { "condition": "晴" },
+      "device": "iPhone 17 Pro",
+      "source": "ios",
+      "vault_path": "raw/2026-08-25.md",
+      "source_modified_at": "2026-08-25T00:02:00Z",
+      "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sync_revision": 3,
+      "last_sync_device_id": "30000000-0000-4000-8000-000000000001",
+      "deleted_at": null,
+      "change_sequence": 41,
+      "attachment_manifest_hash": "b01007f034d3db11e98e438e1fefa98e7661523d5db26cd9a2ef133bc0a06e2b",
+      "attachments": [
+        {
+          "position": 0,
+          "kind": "photo",
+          "content_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "size_bytes": 4,
+          "mime_type": "image/jpeg",
+          "object_key": "11111111-1111-4111-8111-111111111111/20000000-0000-4000-8000-000000000001/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.jpg",
+          "original_filename": "photo.jpg",
+          "duration_ms": null,
+          "transcript": null,
+          "transcription_status": null
+        }
+      ]
+    }
+  ],
+  "next_cursor": 41,
+  "has_more": false
+}

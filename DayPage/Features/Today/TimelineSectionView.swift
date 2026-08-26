@@ -48,12 +48,12 @@ struct TimelineSectionView: View {
     /// row on chrome; the cards give the full measure to content and rhyme
     /// with the compiled-yesterday card that opens the feed.
     private var spineBody: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(section.days.enumerated()), id: \.element.id) { index, day in
+        LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(section.days) { day in
                 TimelineDayRow(
                     entry: day,
-                    isFirst: index == 0,
-                    isLast: index == section.days.count - 1,
+                    isFirst: day.id == section.days.first?.id,
+                    isLast: day.id == section.days.last?.id,
                     zoomNamespace: zoomNamespace,
                     onOpenDate: onOpenDate,
                     onShareDate: onShareDate,
@@ -128,12 +128,6 @@ struct TimelineDayRow: View {
 
     @ObservedObject private var pinService = TimelinePinService.shared
 
-    /// Loaded lazily on first long-press so the contextMenu preview card can
-    /// show that day's memos without paying the parse cost on every cold
-    /// scroll past the row.
-    @State private var loadedMemos: [Memo] = []
-    @State private var hasLoaded: Bool = false
-
     @State private var showDeleteConfirm: Bool = false
 
     // Swipe-to-reveal state (mirrors SwipeableMemoCard's vocabulary).
@@ -157,15 +151,6 @@ struct TimelineDayRow: View {
                 .accessibilityHint(NSLocalizedString("today.timeline.openDailyPage", value: "Open Daily Page", comment: ""))
                 .accessibilityAction(named: shareActionTitle) { onShareDate?(entry) }
                 .accessibilityAction(named: pinActionTitle) { _ = pinService.togglePin(entry.dateString) }
-                // `preview:` is built the instant the long-press is recognized,
-                // so the memos must already be in hand — loading them *from*
-                // the preview would render an empty card on first press. The
-                // row-level `.task` warms them when the row scrolls on.
-                //
-                // 2026-07-15: `ensureMemosLoaded()` had zero callers, so
-                // `loadedMemos` was permanently [] and the preview card's memo
-                // section never rendered at all.
-                .task { await ensureMemosLoaded() }
                 .contextMenu { menuButtons } preview: { previewCard }
                 .alert(deleteAlertTitle, isPresented: $showDeleteConfirm, actions: deleteAlertActions, message: deleteAlertMessage)
         )
@@ -268,15 +253,10 @@ struct TimelineDayRow: View {
         .allowsHitTesting(revealedSide != nil)
     }
 
-    /// The card sizes itself (shared preview width + intrinsic height) — the
-    /// old hardcoded 320×360 forced a fixed box, so short days padded out to a
-    /// tall empty card and long days got their memos clipped.
-    ///
-    /// Loading is warmed by the row's `.task`, not from here: `preview:` is
-    /// built the instant the press is recognized, so an `.onAppear` load lands
-    /// a frame too late and the first long-press showed a card with no memos.
+    /// The index carries a capped preview payload, so constructing this system
+    /// preview never reopens the day's Markdown file as the row scrolls on.
     private var previewCard: some View {
-        TimelineDayPreviewCard(entry: entry, memos: loadedMemos)
+        TimelineDayPreviewCard(entry: entry, previewLines: entry.previewLines)
     }
 
     // MARK: Localized strings (computed once per render)
@@ -393,20 +373,6 @@ struct TimelineDayRow: View {
         }
         Haptics.tapConfirm()
         onOpenDate?(entry.dateString)
-    }
-
-    /// Loads memos for the contextMenu preview card. Idempotent — `.task` can
-    /// re-fire when the row is recycled, and the parse is not free.
-    private func ensureMemosLoaded() async {
-        guard !hasLoaded else { return }
-        let entry = entry
-        // Off the main actor: TimelineService.memos parses that day's Markdown,
-        // and this runs while the row scrolls into view.
-        let memos = await Task.detached(priority: .utility) {
-            TimelineService.memos(for: entry)
-        }.value
-        loadedMemos = memos
-        hasLoaded = true
     }
 
     // MARK: Context menu items
@@ -970,7 +936,7 @@ private struct TimelineSwipeButton: View {
 // user can recognize what they're about to open.
 struct TimelineDayPreviewCard: View {
     let entry: TimelineDayEntry
-    let memos: [Memo]
+    let previewLines: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -991,19 +957,19 @@ struct TimelineDayPreviewCard: View {
             }
             Divider().padding(.vertical, 2)
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(memos.prefix(3), id: \.id) { memo in
-                    Text(MemoMarkdown.plainText(memo.body))
+                ForEach(Array(previewLines.enumerated()), id: \.offset) { _, line in
+                    Text(MemoMarkdown.plainText(line))
                         .font(DSFonts.inter(size: 13, relativeTo: .footnote))
                         .foregroundColor(DSColor.inkPrimary.opacity(0.85))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
-                if memos.count > 3 {
+                if entry.memoCount > previewLines.count {
                     Text(String(format: NSLocalizedString(
                         "today.timeline.preview.moreMemos",
                         value: "+ %d more",
                         comment: "Count of additional memos hidden in preview"
-                    ), memos.count - 3))
+                    ), entry.memoCount - previewLines.count))
                         .font(DSFonts.jetBrainsMono(size: 10, weight: .bold, relativeTo: .caption2))
                         .tracking(1.4)
                         .foregroundColor(DSColor.inkMuted)

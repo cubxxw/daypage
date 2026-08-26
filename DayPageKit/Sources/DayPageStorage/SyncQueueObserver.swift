@@ -44,7 +44,8 @@ public final class SyncQueueObserver {
     /// uploader always fails closed and therefore can never falsely drain data.
     private var uploader: RemoteUploader = NoopRemoteUploader()
 
-    private init() {
+    init(observeNotifications: Bool = true) {
+        guard observeNotifications else { return }
         observer = NotificationCenter.default.addObserver(
             forName: .syncQueueFlushRequested,
             object: nil,
@@ -116,7 +117,22 @@ public final class SyncQueueObserver {
             do {
                 _ = try await uploader.upload(operation: operation)
                 try SyncOutboxStore.acknowledge(operationID: operation.operationID)
+                if operation.kind == .delete {
+                    try? AttachmentTransferStore.discardTransfers(
+                        memoIDs: [operation.memoID]
+                    )
+                }
                 SyncQueueService.shared.reloadFromOutbox()
+            } catch is AttachmentSyncError {
+                // Media has its own durable sidecar. Leave this memo pending,
+                // continue unrelated text operations, and still pull remote
+                // changes so a large or unsupported file cannot stall sync.
+                SentryReporter.breadcrumb(
+                    category: "syncqueue",
+                    level: .warning,
+                    message: "attachment deferred for \(operation.memoID)"
+                )
+                continue uploadLoop
             } catch let error as MemoSyncError {
                 if case .conflict = error {
                     // Keep the operation until pull preserves the local variant

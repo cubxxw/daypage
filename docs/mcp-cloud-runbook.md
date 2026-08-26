@@ -7,11 +7,13 @@ This runbook promotes the pipeline in [ADR-0008](architecture/decisions/ADR-0008
 - A dedicated Supabase staging project and a staging web/MCP hostname exist.
 - The web origin is registered in Supabase Auth redirect URLs.
 - `DAYPAGE_MCP_RESOURCE` is the canonical external Streamable HTTP URL.
+- `DAYPAGE_OAUTH_CONSENT_URL` is the environment's public consent page; the OAuth Edge
+  function intentionally refuses to start without it.
 - Only the anon key is available to the MCP container. `DATABASE_URL` and the service-role key are intentionally unsupported.
 
 ## Database and Auth
 
-1. Apply the Drizzle journal through `0028_sync_receipt_integrity` to the staging database.
+1. Apply the Drizzle journal through `0029_revisioned_attachment_sync` to the staging database.
 2. Set the environment-owned resource value:
 
    ```sql
@@ -110,8 +112,10 @@ Production promotion requires all six checks and must use a different OAuth cons
 
 Before distributing a new iOS/macOS test build, run the opt-in test with one normal
 staging Supabase Auth session. It creates two independent local Vault directories, then
-performs A create -> B pull -> B edit -> A pull -> A delete -> B pull. Credentials are
-environment-only and the final cloud row is a tombstone.
+performs verified JPEG/M4A create -> pull -> edit -> delete -> restore -> delete. The
+same suite interrupts a real 7 MiB TUS upload after its first 6 MiB chunk and proves a
+rebuilt uploader resumes from the server offset. Credentials are environment-only and
+the final cloud rows are tombstones.
 
 ```bash
 DAYPAGE_SYNC_E2E_URL=https://gcukhewnszjrwfzhxctn.supabase.co \
@@ -130,6 +134,26 @@ network path is still unverified and is not sufficient for TestFlight or public 
 Also run the second-account negative transaction in
 `web/scripts/verify-local-first-sync.sql`; a local Vault account mismatch must remain a
 hard failure rather than an automatic rebind.
+
+## Attachment GC operations
+
+`daypage-attachment-gc` is a non-public scheduled Edge function. Inject a unique,
+high-entropy `DAYPAGE_ATTACHMENT_GC_SECRET` and keep the automatically provided
+`SUPABASE_SERVICE_ROLE_KEY` server-side. Never put either value in an Apple, Android, or
+web build. Invoke it with `POST`, `Authorization: Bearer <gc-secret>`, and optionally the
+bounded `x-daypage-gc-limit` header (1–100).
+
+Each run inventories expired uncommitted Storage objects, leases due rows with
+`FOR UPDATE SKIP LOCKED`, rechecks active manifests and live reservations, deletes only
+through `DELETE /storage/v1/object/memo-attachments`, and records success or bounded
+backoff. Its response contains counts only. It must not log filenames, object keys,
+transcripts, URLs, credentials, or bytes.
+
+Before staging promotion, rehearse deletion grace by tombstoning synthetic media,
+confirming `not_before` is at least 30 days, restoring once to cancel the row, then
+tombstoning again and forcing only the synthetic row due. Verify the object disappears,
+the queue reaches `deleted`, an anonymous worker call returns 401, and all synthetic
+users/reservations/objects are removed.
 
 ## Accepted staging evidence (2026-08-24)
 

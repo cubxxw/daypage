@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/attachment-upload-prepare-v2.schema.json",
+  "title": "DayPage attachment upload preparation v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["memo_id", "content_sha256", "size_bytes", "mime_type", "extension"],
+  "properties": {
+    "memo_id": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "size_bytes": { "type": "integer", "minimum": 1, "maximum": 52428800 },
+    "mime_type": {
+      "enum": ["audio/m4a", "audio/mp4", "image/jpeg", "image/png", "image/heic", "image/heif", "application/pdf"]
+    },
+    "extension": { "enum": ["m4a", "mp4", "jpg", "png", "heic", "heif", "pdf"] }
+  }
+}

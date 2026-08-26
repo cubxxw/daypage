@@ -390,6 +390,8 @@ public enum RawStorage {
                     && pending?.kind == .upsert
                     && pending?.contentHash != nil
                     && pending?.contentHash == change.contentHash
+                    && change.attachmentManifestHash == nil
+                    && localMemo?.attachments.isEmpty != false
 
                 var conflictCopy: Memo?
                 if pending != nil, !pendingMatchesRemote, var preserved = localMemo {

@@ -1,0 +1,13 @@
+{
+  "accepted": [
+    {
+      "operation_id": "10000000-0000-4000-8000-000000000001",
+      "memo_id": "20000000-0000-4000-8000-000000000001",
+      "revision": 3,
+      "remote_revision": 3,
+      "status": "applied",
+      "attachment_manifest_hash": "b01007f034d3db11e98e438e1fefa98e7661523d5db26cd9a2ef133bc0a06e2b"
+    }
+  ],
+  "rejected": []
+}

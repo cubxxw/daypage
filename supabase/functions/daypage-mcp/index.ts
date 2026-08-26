@@ -9,18 +9,23 @@ declare const Deno: {
   env: { get(name: string): string | undefined };
 };
 
+// SUPABASE_URL points at Kong inside the local Edge Runtime container. Keep it
+// for database/Auth calls, but publish the host-visible origin to MCP clients.
 const supabaseUrl = required("SUPABASE_URL").replace(/\/$/, "");
-const resource = `${supabaseUrl}/functions/v1/daypage-mcp`;
+const publicSupabaseUrl = (Deno.env.get("DAYPAGE_PUBLIC_SUPABASE_URL")?.trim() || supabaseUrl)
+  .replace(/\/$/, "");
+const resource = Deno.env.get("DAYPAGE_MCP_RESOURCE")?.trim().replace(/\/$/, "")
+  || `${publicSupabaseUrl}/functions/v1/daypage-mcp`;
 const appBaseUrl = Deno.env.get("DAYPAGE_APP_URL")?.replace(/\/$/, "")
-  ?? `${supabaseUrl}/functions/v1/daypage-oauth`;
+  ?? `${publicSupabaseUrl}/functions/v1/daypage-oauth`;
 
 const config: DayPageMcpConfig = {
   host: "0.0.0.0",
   port: 0,
   supabaseUrl,
   supabaseAnonKey: required("SUPABASE_ANON_KEY"),
-  issuer: `${supabaseUrl}/auth/v1`,
-  authorizationServer: `${supabaseUrl}/auth/v1`,
+  issuer: `${publicSupabaseUrl}/auth/v1`,
+  authorizationServer: `${publicSupabaseUrl}/auth/v1`,
   resource,
   appBaseUrl,
   requestBodyLimitBytes: 1_048_576,

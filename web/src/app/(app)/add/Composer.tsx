@@ -155,7 +155,10 @@ export function Composer() {
     return { words, chars };
   }, [deferredBody]);
 
-  const empty = body.trim().length === 0 && attachments.length === 0;
+  // Web media remains an explicit local preview until it implements the
+  // reservation + Storage + manifest-v2 flow. A selected filename must never
+  // be serialized into memo text or presented as a cloud upload.
+  const empty = body.trim().length === 0;
 
   // ── 附件 ────────────────────────────────────────────────────────────────
   const addFiles = useCallback((files: File[]) => {
@@ -240,12 +243,11 @@ export function Composer() {
 
   const handleSubmit = useCallback(() => {
     if (empty) return;
-    const attachmentLines = attachments.map((a) => `file: ${a.file.name}`);
-    const combined = [body.trim(), ...attachmentLines].filter(Boolean).join("\n");
+    const combined = body.trim();
     const type: "text" | "url" = URL_RE.test(combined.trim()) ? "url" : "text";
     const tempId = `temp-${crypto.randomUUID()}`;
     mutation.mutate({ body: combined, type, tempId });
-  }, [empty, attachments, body, mutation]);
+  }, [empty, body, mutation]);
 
   const canSubmit = !empty && !mutation.isPending;
 
@@ -546,6 +548,17 @@ export function Composer() {
             padding: "0 18px 12px",
           }}
         >
+          <p
+            role="status"
+            style={{
+              flexBasis: "100%",
+              margin: 0,
+              fontSize: 12,
+              color: "var(--fg-subtle, #777)",
+            }}
+          >
+            本地预览：Web 附件同步尚未接入，所选文件不会上传或写入 memo。
+          </p>
           <AnimatePresence initial={false}>
           {attachments.map((a, idx) => (
             <motion.div

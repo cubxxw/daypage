@@ -229,11 +229,11 @@ struct AccountSheet: View {
                 Button {
                     destination = .emailSignIn
                 } label: {
-                    secondaryActionLabel(title: "使用邮箱验证码", symbol: "envelope")
+                    secondaryActionLabel(title: "使用邮箱登录链接", symbol: "envelope")
                 }
                 .buttonStyle(AccountCenterPressStyle())
                 .disabled(activeAction != nil || authService.isPlaceholder)
-                .accessibilityHint("输入邮箱并接收六位验证码")
+                .accessibilityHint("输入邮箱并接收一次性登录链接")
             }
 
             if authService.isPlaceholder {
@@ -483,14 +483,14 @@ struct AccountSheet: View {
     private var loginProviderSymbol: String {
         switch authService.loginProvider {
         case .apple: return "apple.logo"
-        case .emailOTP, .unknown: return "envelope"
+        case .emailLink, .unknown: return "envelope"
         }
     }
 
     private var loginProviderLabel: String {
         switch authService.loginProvider {
         case .apple: return "通过 Apple 登录"
-        case .emailOTP: return "通过邮箱验证码登录"
+        case .emailLink: return "通过邮箱登录链接登录"
         case .unknown: return "已通过 Supabase 验证"
         }
     }

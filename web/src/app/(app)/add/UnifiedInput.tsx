@@ -249,7 +249,9 @@ export function UnifiedInput() {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
-  const empty = body.trim().length === 0 && attachments.length === 0;
+  // Attachment chips are local-only previews until this surface implements
+  // the verified v2 upload/manifest transaction.
+  const empty = body.trim().length === 0;
 
   // US-009: derive photo/file active state from attachments
   const photoActive = attachments.some((a) => a.file.type.startsWith("image/"));
@@ -406,12 +408,11 @@ export function UnifiedInput() {
 
   const handleSubmit = useCallback(() => {
     if (empty) return;
-    const attachmentLines = attachments.map((a) => `file: ${a.file.name}`);
-    const combined = [body.trim(), ...attachmentLines].filter(Boolean).join("\n");
+    const combined = body.trim();
     const type = URL_RE.test(combined.trim()) ? "url" : "text";
     const tempId = `temp-${crypto.randomUUID()}`;
     mutation.mutate({ body: combined, type, tempId });
-  }, [empty, attachments, body, mutation]);
+  }, [empty, body, mutation]);
 
   // US-007: copy bookmarklet source to clipboard
   const handleCopyBookmarklet = useCallback(async () => {
@@ -497,6 +498,9 @@ export function UnifiedInput() {
       {/* Attachment preview row */}
       {attachments.length > 0 && (
         <div className="add-input__attachments">
+          <p role="status" style={{ flexBasis: "100%", margin: 0 }}>
+            Local preview only — selected files are not uploaded or saved with this memo yet.
+          </p>
           {attachments.map((a) => (
             <div key={a.id} className="add-input__attachment">
               {a.previewUrl ? (

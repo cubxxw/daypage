@@ -19,6 +19,8 @@ struct SettingsSyncDataView: View {
     @State private var webSyncBaseURL: String = SyncSettings.baseURLString ?? ""
     @State private var webSyncAPIKey: String = SyncSettings.apiKey ?? ""
     @State private var webSyncSaved: Bool = false
+    @AppStorage(AttachmentNetworkPolicy.allowsCellularKey)
+    private var allowsCellularMedia: Bool = false
 
     // Data section state
     @State private var vaultSizeLabel: String = NSLocalizedString("settings.data.vault.computing", comment: "")
@@ -299,6 +301,16 @@ struct SettingsSyncDataView: View {
             }
             .accessibilityIdentifier("sync-save-button")
 
+            Toggle(isOn: $allowsCellularMedia) {
+                SettingsLabel(
+                    title: NSLocalizedString("settings.websync.cellular_media", comment: ""),
+                    systemImage: "antenna.radiowaves.left.and.right"
+                )
+            }
+            .onChange(of: allowsCellularMedia) { _ in
+                Task { await SyncQueueService.shared.flushIfOnline() }
+            }
+
             if syncQueue.pendingCount > 0 {
                 HStack {
                     SettingsLabel(title: NSLocalizedString("settings.websync.pending", comment: "Pending row"), systemImage: "clock.arrow.circlepath")
@@ -318,7 +330,7 @@ struct SettingsSyncDataView: View {
         } header: {
             Text(NSLocalizedString("settings.websync.section", comment: "Web sync section header"))
         } footer: {
-            Text(NSLocalizedString("settings.websync.footer", comment: "How to generate a write-scope key"))
+            Text(NSLocalizedString("settings.websync.footer", comment: "Cloud sync and encryption disclosure"))
                 .font(.caption)
         }
     }

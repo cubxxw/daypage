@@ -61,6 +61,7 @@ final class GraphViewModel: ObservableObject {
     @Published var nodes: [GraphNode] = []
     @Published var edges: [GraphEdge] = []
     @Published var isLoading: Bool = false
+    @Published private(set) var hasLoaded: Bool = false
     @Published var hasCompiledDailies: Bool = false
 
     // MARK: - Filter State
@@ -191,8 +192,8 @@ final class GraphViewModel: ObservableObject {
 
     // MARK: - Scan & Build Graph
 
-    func load() {
-        guard !isLoading else { return }
+    func load(force: Bool = false) {
+        guard !isLoading, force || !hasLoaded else { return }
         isLoading = true
         Task.detached(priority: .userInitiated) { [weak self] in
             let result = Self.buildGraph()
@@ -202,6 +203,7 @@ final class GraphViewModel: ObservableObject {
                 self?.focusedNodeID = nil   // a reload may swap the graph — drop stale focus
                 self?.edges = result.edges
                 self?.hasCompiledDailies = result.hasCompiledDailies
+                self?.hasLoaded = true
                 self?.isLoading = false
             }
         }

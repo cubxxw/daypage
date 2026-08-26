@@ -62,7 +62,7 @@ struct FeedbackContext {
             guard session != nil else { return nil }
             switch AuthService.shared.loginProvider {
             case .apple: return "apple"
-            case .emailOTP: return "email_otp"
+            case .emailLink: return "email_link"
             case .unknown: return "unknown"
             }
         }()

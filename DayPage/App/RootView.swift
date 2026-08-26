@@ -262,7 +262,7 @@ struct RootView: View {
                             || nav.isFeedbackPanelOpen
                     )
 
-                ArchiveView()
+                ArchiveView(isActive: nav.selectedTab == .archive)
                     .opacity(nav.selectedTab == .archive ? 1 : 0)
                     .allowsHitTesting(nav.selectedTab == .archive)
                     .accessibilityHidden(

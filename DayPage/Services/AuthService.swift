@@ -19,11 +19,7 @@ enum DPAuthError: LocalizedError, Equatable {
     /// Client- or server-side rate limit hit. `retryAfter` is the seconds the
     /// caller must wait before making another request.
     case rateLimited(retryAfter: Int)
-    case otpExpired
-    case otpMismatch
-    /// User exceeded the local OTP-attempt budget; UI must lock the screen for
-    /// `retryAfter` seconds.
-    case otpLocked(retryAfter: Int)
+    case linkExpired
     case networkUnavailable
     case unknown(message: String)
 
@@ -37,13 +33,8 @@ enum DPAuthError: LocalizedError, Equatable {
             return "邮箱地址无效"
         case .rateLimited(let seconds):
             return "请求过于频繁，请 \(seconds) 秒后再试"
-        case .otpExpired:
-            return "验证码已过期，请重新获取"
-        case .otpMismatch:
-            return "验证码错误，请重试"
-        case .otpLocked(let seconds):
-            let minutes = max(1, Int((Double(seconds) / 60.0).rounded(.up)))
-            return "验证失败次数过多，请 \(minutes) 分钟后再试"
+        case .linkExpired:
+            return "登录链接已过期或已使用，请重新发送"
         case .networkUnavailable:
             return "网络连接异常，请检查网络"
         case .unknown(let message):
@@ -76,7 +67,7 @@ final class AuthService: NSObject, ObservableObject {
 
     enum LoginProvider {
         case apple
-        case emailOTP
+        case emailLink
         case unknown
     }
 
@@ -86,7 +77,7 @@ final class AuthService: NSObject, ObservableObject {
            appleEmail == email {
             return .apple
         }
-        return .emailOTP
+        return .emailLink
     }
 
     // MARK: Dependencies
@@ -219,7 +210,7 @@ final class AuthService: NSObject, ObservableObject {
         error = nil
 
         do {
-            let authorization = try await requestAppleAuthorization()
+            let (authorization, nonce) = try await requestAppleAuthorization()
             guard let appleCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let identityTokenData = appleCredential.identityToken,
                   let identityToken = String(data: identityTokenData, encoding: .utf8)
@@ -242,7 +233,7 @@ final class AuthService: NSObject, ObservableObject {
             // diffing so the ProgressView overlay is already gone when onChange fires (RC3).
             isLoading = false
             _ = try await supabase.auth.signInWithIdToken(
-                credentials: .init(provider: .apple, idToken: identityToken)
+                credentials: .init(provider: .apple, idToken: identityToken, nonce: nonce)
             )
         } catch let asError as ASAuthorizationError where asError.code == .canceled {
             isLoading = false
@@ -254,26 +245,29 @@ final class AuthService: NSObject, ObservableObject {
         }
     }
 
-    private func requestAppleAuthorization() async throws -> ASAuthorization {
-        try await withCheckedThrowingContinuation { continuation in
+    private func requestAppleAuthorization() async throws -> (ASAuthorization, String) {
+        let nonce: String
+        do {
+            nonce = try NativeAuthFlow.randomNonce()
+        } catch {
+            throw DPAuthError.serviceUnavailable
+        }
+
+        let authorization = try await withCheckedThrowingContinuation { continuation in
             self.appleSignInContinuation = continuation
             let provider = ASAuthorizationAppleIDProvider()
             let request = provider.createRequest()
             request.requestedScopes = [.fullName, .email]
+            request.nonce = NativeAuthFlow.sha256(nonce)
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = self
             controller.presentationContextProvider = self
             controller.performRequests()
         }
+        return (authorization, nonce)
     }
 
-    // MARK: - Email OTP
-
-    /// Clears the resend cooldown for `email` so the next `sendOTP` call is not
-    /// blocked. Only call when the server confirms the current code has expired.
-    func resetResendCooldown(email: String) {
-        AuthRateLimiter.shared.resetResendCooldown(email: email)
-    }
+    // MARK: - Email Magic Link
 
     /// Seconds the caller must wait before requesting a new OTP for `email`.
     /// Returns 0 when fully expired (or never set). Used by UI to seed its
@@ -282,9 +276,9 @@ final class AuthService: NSObject, ObservableObject {
         AuthRateLimiter.shared.resendCooldownRemaining(email: email)
     }
 
-    /// Requests a 6-digit email OTP. Enforces a 60-second client-side cooldown
-    /// per email to avoid triggering server rate limits.
-    func sendOTP(email: String) async throws {
+    /// Requests the magic link configured by DayPage's Supabase email template.
+    /// The PKCE callback must be opened on the same device that requested it.
+    func sendMagicLink(email: String) async throws {
         guard !isPlaceholder else {
             let err = DPAuthError.serviceUnavailable
             self.error = err
@@ -296,7 +290,26 @@ final class AuthService: NSObject, ObservableObject {
             throw err
         }
 
-        let remaining = AuthRateLimiter.shared.resendCooldownRemaining(email: email)
+        let normalizedEmail = email
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let emailPattern = #"^[^@\s]+@[^@\s]+\.[^@\s]+$"#
+        guard normalizedEmail.range(of: emailPattern, options: .regularExpression) != nil else {
+            let err = DPAuthError.invalidEmail
+            self.error = err
+            throw err
+        }
+
+        let callbackURL: URL
+        do {
+            callbackURL = try NativeAuthFlow.callbackURL(for: .iOS)
+        } catch {
+            let err = DPAuthError.serviceUnavailable
+            self.error = err
+            throw err
+        }
+
+        let remaining = AuthRateLimiter.shared.resendCooldownRemaining(email: normalizedEmail)
         if remaining > 0 {
             let err = DPAuthError.rateLimited(retryAfter: remaining)
             self.error = err
@@ -308,9 +321,13 @@ final class AuthService: NSObject, ObservableObject {
         defer { isLoading = false }
 
         do {
-            try await supabase.auth.signInWithOTP(email: email, shouldCreateUser: true)
-            AuthRateLimiter.shared.recordOTPSent(email: email)
-            DayPageLogger.shared.info("[AuthService] OTP sent successfully")
+            try await supabase.auth.signInWithOTP(
+                email: normalizedEmail,
+                redirectTo: callbackURL,
+                shouldCreateUser: true
+            )
+            AuthRateLimiter.shared.recordOTPSent(email: normalizedEmail)
+            DayPageLogger.shared.info("[AuthService] Magic link sent successfully")
         } catch {
             let mapped = mapSupabaseError(error)
             self.error = mapped
@@ -318,50 +335,28 @@ final class AuthService: NSObject, ObservableObject {
         }
     }
 
-    /// Redeems a 6-digit OTP for a real session. On success the Supabase SDK
-    /// emits `signedIn` via `authStateChanges`, which updates `session`.
-    /// Enforces 5-attempt → 30-minute local lockout to deter brute-force.
-    func verifyOTP(email: String, token: String) async throws {
+    /// Redeems only DayPage's exact iOS auth callback. Authentication state is
+    /// still published exclusively by `authStateChanges`.
+    @discardableResult
+    func handleAuthCallback(_ url: URL) async -> Bool {
+        guard NativeAuthFlow.isCallback(url, for: .iOS) else { return false }
         guard !isPlaceholder else {
-            let err = DPAuthError.serviceUnavailable
-            self.error = err
-            throw err
-        }
-        guard !isNetworkUnavailable else {
-            let err = DPAuthError.networkUnavailable
-            self.error = err
-            throw err
-        }
-
-        if let lockedFor = AuthRateLimiter.shared.otpLockRemaining(email: email) {
-            let err = DPAuthError.otpLocked(retryAfter: lockedFor)
-            self.error = err
-            throw err
+            self.error = .serviceUnavailable
+            return true
         }
 
         isLoading = true
         error = nil
         defer { isLoading = false }
-
         do {
-            _ = try await supabase.auth.verifyOTP(email: email, token: token, type: .email)
-            AuthRateLimiter.shared.resetOTPFailures(email: email)
-            self.error = nil
-            DayPageLogger.shared.info("[AuthService] OTP verified successfully")
+            _ = try await supabase.auth.session(from: url)
         } catch {
             let mapped = mapSupabaseError(error)
-            if mapped == .otpMismatch || mapped == .otpExpired {
-                AuthRateLimiter.shared.incrementOTPFailures(email: email)
-                if let lockedFor = AuthRateLimiter.shared.otpLockRemaining(email: email) {
-                    let lockErr = DPAuthError.otpLocked(retryAfter: lockedFor)
-                    self.error = lockErr   // lockout is service-level; publish it
-                    throw lockErr
-                }
-            }
-            // Transient failures (mismatch / expired / network) are owned by the
-            // view — don't overwrite cross-view service error state.
-            throw mapped
+            self.error = mapped
+            SentrySDK.capture(error: error)
+            DayPageLogger.shared.error("[AuthService] Magic-link callback failed: \(mapped.localizedDescription)")
         }
+        return true
     }
 
     // MARK: - Sign-Out
@@ -415,8 +410,7 @@ final class AuthService: NSObject, ObservableObject {
 
         if let sbError = error as? Supabase.AuthError {
             let code = sbError.errorCode
-            if code == .otpExpired { return .otpExpired }
-            if code == .invalidCredentials { return .otpMismatch }
+            if code == .otpExpired { return .linkExpired }
             if code == .overEmailSendRateLimit
                 || code == .overRequestRateLimit
                 || code == .overSMSSendRateLimit {
@@ -424,6 +418,9 @@ final class AuthService: NSObject, ObservableObject {
                 return .rateLimited(retryAfter: retry)
             }
             if code == .validationFailed { return .invalidEmail }
+            if code == .providerDisabled || code == .emailProviderDisabled {
+                return .serviceUnavailable
+            }
 
             // Fall back to HTTP status codes when errorCode isn't informative.
             if case let .api(_, _, _, response) = sbError {
@@ -431,11 +428,9 @@ final class AuthService: NSObject, ObservableObject {
                     let retry = parseRetryAfter(from: sbError) ?? 60
                     return .rateLimited(retryAfter: retry)
                 }
-                if response.statusCode == 422 { return .otpMismatch }
                 if response.statusCode == 400 {
                     let msg = sbError.message.lowercased()
-                    if msg.contains("expired") { return .otpExpired }
-                    if msg.contains("otp") || msg.contains("token") { return .otpMismatch }
+                    if msg.contains("expired") { return .linkExpired }
                 }
             }
 

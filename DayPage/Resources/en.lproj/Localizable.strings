@@ -868,6 +868,7 @@
 "today.timeline.lastWeek"                    = "Last week";
 "today.timeline.weekBeforeLast"              = "Two weeks ago";
 "today.timeline.openDailyPage"               = "Open Daily Page";
+"today.timeline.loading"                     = "Loading history";
 "today.timeline.action.share"                = "Share";
 "today.timeline.action.pin"                  = "Pin";
 "today.timeline.action.unpin"                = "Unpin";
@@ -1059,7 +1060,7 @@
 "a11y.recenter_graph"    = "Recenter graph";
 "a11y.zoom_reset"        = "Zoom level, tap to reset";
 "a11y.continue_email"    = "Continue with email";
-"a11y.continue_email.hint" = "Sign in using a one-time email code";
+"a11y.continue_email.hint" = "Sign in using a one-time email link";
 "a11y.back_to_email"     = "Back to email input";
 "a11y.begin"             = "Begin";
 "a11y.begin.hint"        = "Starts using DayPage";
@@ -1322,7 +1323,14 @@
 "settings.websync.pending"                   = "Waiting to sync";
 "settings.websync.pending_count"             = "%d items";
 "settings.websync.all_synced"                = "Everything synced";
-"settings.websync.footer"                    = "In the web app, go to Settings → API Keys and create a key with write access, then paste it here. Memos you write in the app sync to your web account automatically.";
+"settings.websync.cellular_media"             = "Sync attachments over cellular";
+"settings.websync.footer"                    = "Memo and attachment sync uses provider-managed encryption in transit and at rest. It is not end-to-end encrypted. Attachment transfers wait for Wi-Fi unless enabled above.";
+"today.syncqueue.media.pending"               = "%d attachments pending sync";
+"today.syncqueue.media.transferring"          = "Syncing %d attachments…";
+"today.syncqueue.media.paused"                = "Attachments paused until Wi-Fi";
+"today.syncqueue.media.unsupported"           = "%d attachment types cannot cloud-sync yet";
+"today.syncqueue.media.quota"                 = "Cloud attachment storage is full";
+"today.syncqueue.media.failed"                = "%d attachments waiting to retry";
 
 // Data & danger zone
 "settings.data.export_full"                  = "Export everything (.zip)";

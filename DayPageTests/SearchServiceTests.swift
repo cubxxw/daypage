@@ -341,7 +341,7 @@ struct SearchIndexParityTests {
     @Test func documentsAreNilBeforeFirstBuild() throws {
         SearchIndex.shared.resetForTesting()
         #expect(SearchIndex.shared.documentsIfBuilt() == nil,
-                "cold index must report nil so callers fall back to the disk scan")
+                "cold index reports nil until the asynchronous snapshot is ready")
     }
 
     @Test func rebuildPicksUpNewDay() throws {

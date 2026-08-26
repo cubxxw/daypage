@@ -259,10 +259,6 @@ struct DayPageApp: App {
             "app_launched",
             props: ["version": (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "?"]
         )
-        // Voice + photo orphan reconciliation. Vault initialization must run
-        // first so VaultInitializer.vaultURL resolves to a real directory.
-        Task.detached(priority: .background) { OrphanedVoiceScanner.runStartupScan() }
-        Task.detached(priority: .background) { OrphanedPhotoScanner.runStartupScan() }
         // 在 SwiftUI 渲染之前注册后台任务处理器
         BackgroundCompilationService.shared.registerTask()
         // 设置通知代理以处理点击
@@ -274,12 +270,19 @@ struct DayPageApp: App {
             // Build the timeline metadata index off the main thread so the
             // first Today load reads it instead of scanning the whole vault
             // (issue #345). Cheap no-op until the background scan completes.
-            TimelineIndex.shared.warmUp()
-            // Same treatment for full-text search (#827): pre-fold the vault
-            // into SearchIndex so the first keystroke in Search never pays a
-            // disk scan. Until this build lands, SearchView falls back to the
-            // legacy scanning path.
-            SearchIndex.shared.warmUp()
+            await TimelineIndex.shared.warmUpAndWait()
+            // SearchIndex warms when Search is actually presented. Starting a
+            // second full-vault parser here made an invisible feature compete
+            // with Today's first interactive frame.
+
+            // Voice + photo orphan reconciliation rereads raw Markdown. Treat
+            // the visible timeline snapshot as an I/O priority barrier, then
+            // run both maintenance passes serially at background priority.
+            Task.detached(priority: .background) {
+                OrphanedVoiceScanner.runStartupScan()
+                guard !Task.isCancelled else { return }
+                OrphanedPhotoScanner.runStartupScan()
+            }
         }
         // url(forUbiquityContainerIdentifier:) may return nil on first call during
         // cold launch while the iCloud daemon finishes container setup. Re-probe
@@ -382,15 +385,11 @@ struct DayPageApp: App {
                         return
                     }
 
-                    // Handle Magic Link / OTP deep-link callbacks.
-                    // Session updates are emitted by authStateChanges — no manual assignment needed.
-                    Task {
-                        do {
-                            try await authService.supabase.auth.session(from: url)
-                        } catch {
-                            SentrySDK.capture(error: error)
-                            DayPageLogger.shared.error("[DayPageApp] Deep-link auth session error: \(error)")
-                        }
+                    // Redeem only the exact native auth callback. Other unknown
+                    // DayPage URLs must not be forwarded into Supabase.
+                    if NativeAuthFlow.isCallback(url, for: .iOS) {
+                        Task { await authService.handleAuthCallback(url) }
+                        return
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .openArchiveAt)) { note in

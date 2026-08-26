@@ -1,5 +1,6 @@
 import SwiftUI
 import DayPageModels
+import DayPageServices
 import DayPageStorage
 
 // MARK: - MacRootView
@@ -91,6 +92,11 @@ struct MacRootView: View {
         .onChange(of: scenePhase) { phase in
             guard phase == .active, cloudAuth.session != nil else { return }
             Task { await SyncQueueService.shared.flushIfOnline() }
+        }
+        .onOpenURL { url in
+            guard NativeAuthFlow.isCallback(url, for: .macOS) else { return }
+            showingSignIn = true
+            Task { await cloudAuth.handleAuthCallback(url) }
         }
         .alert(
             "无法开启云同步",

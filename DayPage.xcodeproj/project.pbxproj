@@ -127,13 +127,11 @@
 		A10000072 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000072 /* AuthView.swift */; };
 		A10000073 /* EmailAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000073 /* EmailAuthView.swift */; };
 		A10000074 /* AccountSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000074 /* AccountSheet.swift */; };
-		A10000075 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000075 /* OTPVerificationView.swift */; };
 		A10000078 /* VaultMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000078 /* VaultMigrationService.swift */; };
 		A10000080 /* AppNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000080 /* AppNavigationModel.swift */; };
 		A10000081 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000081 /* SidebarView.swift */; };
 		A10000082 /* InputBarV4.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000082 /* InputBarV4.swift */; };
 		A10000084 /* WeeklyRecapSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000084 /* WeeklyRecapSection.swift */; };
-		A10000086 /* OTPVerificationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000086 /* OTPVerificationViewModel.swift */; };
 		A10000091 /* GrainOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000091 /* GrainOverlay.swift */; };
 		A10000093 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000093 /* AuthViewModel.swift */; };
 		A10000094 /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000094 /* SidebarViewModel.swift */; };
@@ -437,13 +435,11 @@
 		A20000072 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		A20000073 /* EmailAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAuthView.swift; sourceTree = "<group>"; };
 		A20000074 /* AccountSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSheet.swift; sourceTree = "<group>"; };
-		A20000075 /* OTPVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
 		A20000078 /* VaultMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultMigrationService.swift; sourceTree = "<group>"; };
 		A20000080 /* AppNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationModel.swift; sourceTree = "<group>"; };
 		A20000081 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A20000082 /* InputBarV4.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBarV4.swift; sourceTree = "<group>"; };
 		A20000084 /* WeeklyRecapSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecapSection.swift; sourceTree = "<group>"; };
-		A20000086 /* OTPVerificationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationViewModel.swift; sourceTree = "<group>"; };
 		A20000091 /* GrainOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrainOverlay.swift; sourceTree = "<group>"; };
 		A20000093 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		A20000094 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
@@ -1090,8 +1086,6 @@
 				A20000072 /* AuthView.swift */,
 				A20000093 /* AuthViewModel.swift */,
 				A20000073 /* EmailAuthView.swift */,
-				A20000075 /* OTPVerificationView.swift */,
-				A20000086 /* OTPVerificationViewModel.swift */,
 				A20000074 /* AccountSheet.swift */,
 			);
 			path = Auth;
@@ -1696,8 +1690,6 @@
 				A10000070 /* AuthService.swift in Sources */,
 				A10000072 /* AuthView.swift in Sources */,
 				A10000073 /* EmailAuthView.swift in Sources */,
-				A10000075 /* OTPVerificationView.swift in Sources */,
-				A10000086 /* OTPVerificationViewModel.swift in Sources */,
 				A10000093 /* AuthViewModel.swift in Sources */,
 				A10000094 /* SidebarViewModel.swift in Sources */,
 				A10000074 /* AccountSheet.swift in Sources */,
@@ -1962,7 +1954,8 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DayPageMac/Resources/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1992,7 +1985,8 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DayPageMac/Resources/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (

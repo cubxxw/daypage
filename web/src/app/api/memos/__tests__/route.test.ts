@@ -25,17 +25,17 @@ const mockUser = { id: "user-uuid-1" };
 const mockUserB = { id: "user-uuid-2" };
 
 // Auth mock
-vi.mock("@/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   auth: vi.fn(),
 }));
 
 // DB mock — will be configured per-test
-const mockDb = {
+const mockDb = vi.hoisted(() => ({
   select: vi.fn(),
   insert: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
-};
+}));
 
 vi.mock("@/lib/db/client", () => ({ db: mockDb }));
 
@@ -54,8 +54,13 @@ vi.mock("@/lib/ratelimit", () => ({
   }),
 }));
 
+vi.mock("@/lib/inngest/client", () => ({
+  sendEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { auth } from "@/lib/auth/session";
 import { checkMutationRateLimit } from "@/lib/ratelimit";
+import { sendEvent } from "@/lib/inngest/client";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -263,6 +268,7 @@ describe("POST /api/memos", () => {
     expect(res.status).toBe(201);
     const data = await res.json() as typeof mockMemo;
     expect(data.id).toBe(mockMemo.id);
+    expect(sendEvent).toHaveBeenCalledOnce();
   });
 
   it("enforces rate limit (429)", async () => {

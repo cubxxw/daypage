@@ -25,6 +25,9 @@ public final class NetworkMonitor: ObservableObject {
 
     /// What the SwiftUI layer observes. Equals `realIsOnline && !simulateOffline`.
     @Published public private(set) var isOnline: Bool = true
+    /// True when the active route is cellular. Media sync consults this
+    /// separately from metadata reachability so text pull can keep moving.
+    @Published public private(set) var isCellular: Bool = false
 
     /// The raw NWPath verdict, before the debug override is applied.
     /// The NWPath callback writes here; `recomputeIsOnline()` then folds
@@ -37,6 +40,7 @@ public final class NetworkMonitor: ObservableObject {
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor [weak self] in
                 self?.realIsOnline = path.status == .satisfied
+                self?.isCellular = path.usesInterfaceType(.cellular)
                 self?.recomputeIsOnline()
             }
         }

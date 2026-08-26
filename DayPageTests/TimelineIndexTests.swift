@@ -8,7 +8,7 @@ import DayPageServices
 /// issue #345. Verifies:
 ///  - rebuild produces the same result as the underlying full scan
 ///  - incremental update/remove keeps the index consistent with a full rebuild
-///  - external modification (mtime change) is detectable
+///  - external additions and edits are detected from per-file metadata
 ///  - empty / single-day / no-summary edge cases
 ///
 /// TimelineIndex is a @MainActor singleton, so tests run on the main actor and
@@ -78,6 +78,8 @@ final class TimelineIndexTests: XCTestCase {
         let entry = try XCTUnwrap(TimelineIndex.shared.entries().first)
         XCTAssertEqual(entry.memoCount, 3)
         XCTAssertEqual(entry.summary, "今天写了代码")
+        XCTAssertEqual(entry.previewLines.count, 3)
+        XCTAssertEqual(entry.previewLines.first, "memo 2 for 2026-05-01")
     }
 
     func testEntries_noSummaryWhenUncompiled() throws {
@@ -90,23 +92,36 @@ final class TimelineIndexTests: XCTestCase {
 
     // MARK: - cold path (entries before first build)
 
-    func testEntries_coldPath_scansSynchronously() throws {
+    func testEntries_coldPath_returnsImmediatelyThenPublishesSnapshot() async throws {
         writeDay("2026-05-01", memoCount: 2)
-        // Do NOT call rebuild — exercise the not-yet-built cold path.
+        let update = expectation(description: "background index rebuild completes")
+        let token = NotificationCenter.default.addObserver(
+            forName: .timelineIndexDidUpdate, object: nil, queue: .main
+        ) { _ in update.fulfill() }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        // Do NOT call rebuild — exercise the not-yet-built cold path. The read
+        // must not synchronously parse the Vault on the MainActor.
         let entries = TimelineIndex.shared.entries()
-        XCTAssertEqual(entries.count, 1, "Cold-path read must still return correct data")
-        XCTAssertEqual(entries.first?.memoCount, 2)
+        XCTAssertTrue(entries.isEmpty, "Cold-path read returns the last snapshot without blocking")
+        XCTAssertFalse(TimelineIndex.shared.isReady)
+
+        await fulfillment(of: [update], timeout: 2)
+        XCTAssertTrue(TimelineIndex.shared.isReady)
+        XCTAssertEqual(TimelineIndex.shared.entries().first?.memoCount, 2)
     }
 
     // MARK: - incremental update consistency
 
-    func testIncrementalAppend_matchesRebuild() throws {
+    func testIncrementalAppend_matchesRebuild() async throws {
         writeDay("2026-05-01", memoCount: 1)
         TimelineIndex.shared.rebuildSynchronouslyForTesting()
 
         // Simulate a new day's write going through RawStorage's notification.
         writeDay("2026-05-02", memoCount: 4)
-        postDidWrite(forDateString: "2026-05-02")
+        await waitForIndexUpdate {
+            postDidWrite(forDateString: "2026-05-02")
+        }
 
         let afterIncremental = TimelineIndex.shared.entries()
         // Independent full rebuild as the source of truth.
@@ -118,20 +133,22 @@ final class TimelineIndexTests: XCTestCase {
         XCTAssertEqual(afterIncremental.count, 2)
     }
 
-    func testIncrementalUpdate_changesMemoCount() throws {
+    func testIncrementalUpdate_changesMemoCount() async throws {
         writeDay("2026-05-01", memoCount: 1)
         TimelineIndex.shared.rebuildSynchronouslyForTesting()
         XCTAssertEqual(TimelineIndex.shared.entries().first?.memoCount, 1)
 
         // Rewrite the same day with more memos (like adding a memo).
         writeDay("2026-05-01", memoCount: 6)
-        postDidWrite(forDateString: "2026-05-01")
+        await waitForIndexUpdate {
+            postDidWrite(forDateString: "2026-05-01")
+        }
 
         XCTAssertEqual(TimelineIndex.shared.entries().first?.memoCount, 6,
                        "Incremental update must reflect the new memo count")
     }
 
-    func testIncrementalRemove_dropsEmptyDay() throws {
+    func testIncrementalRemove_dropsEmptyDay() async throws {
         writeDay("2026-05-01", memoCount: 1)
         writeDay("2026-05-02", memoCount: 1)
         TimelineIndex.shared.rebuildSynchronouslyForTesting()
@@ -139,7 +156,9 @@ final class TimelineIndexTests: XCTestCase {
 
         // Delete the day file entirely (like deleting the last memo).
         try fm.removeItem(at: rawURL("2026-05-01"))
-        postDidWrite(forDateString: "2026-05-01")
+        await waitForIndexUpdate {
+            postDidWrite(forDateString: "2026-05-01")
+        }
 
         let remaining = TimelineIndex.shared.entries()
         XCTAssertEqual(remaining.count, 1, "Removed day must drop out of the index")
@@ -148,25 +167,34 @@ final class TimelineIndexTests: XCTestCase {
 
     // MARK: - external modification detection
 
-    func testExternalWrite_isDetectableViaMtime() throws {
+    func testExternalWrite_isDetectedOnForegroundRefresh() async throws {
         writeDay("2026-05-01", memoCount: 1)
         TimelineIndex.shared.rebuildSynchronouslyForTesting()
         XCTAssertEqual(TimelineIndex.shared.entries().count, 1)
 
-        // Simulate an external write (iCloud/Obsidian) the app never observed:
-        // add a file directly + bump the raw/ directory mtime, WITHOUT posting
-        // .rawStorageDidWrite. A foreground refresh would detect the mtime delta
-        // and rebuild — here we assert the detection precondition and that a
-        // forced rebuild then picks up the new day.
+        // Simulate iCloud/Obsidian adding a file without RawStorage's write
+        // notification. Foreground validation must discover and rebuild it.
         writeDay("2026-05-02", memoCount: 1)
-        bumpRawDirMtime()
-
-        XCTAssertNotNil(currentRawDirMtime(),
-                        "raw/ must have a readable mtime for external-change detection")
-
-        TimelineIndex.shared.rebuildSynchronouslyForTesting()
+        await waitForIndexUpdate {
+            TimelineIndex.shared.refreshIfExternallyModified()
+        }
         XCTAssertEqual(TimelineIndex.shared.entries().count, 2,
-                       "Rebuild after an external write must include the new day")
+                       "Foreground rebuild must include an externally added day")
+    }
+
+    func testExternalEditOfExistingFile_isDetectedWithoutDirectoryMtimeChange() async throws {
+        writeDay("2026-05-01", memoCount: 1)
+        TimelineIndex.shared.rebuildSynchronouslyForTesting()
+
+        // Editing an existing child does not reliably change raw/'s directory
+        // mtime. The file signature changes because both size and file mtime
+        // are tracked, so this must still refresh from one memo to four.
+        writeDay("2026-05-01", memoCount: 4)
+        await waitForIndexUpdate {
+            TimelineIndex.shared.refreshIfExternallyModified()
+        }
+
+        XCTAssertEqual(TimelineIndex.shared.entries().first?.memoCount, 4)
     }
 
     // MARK: - empty vault
@@ -209,15 +237,13 @@ final class TimelineIndexTests: XCTestCase {
         NotificationCenter.default.post(name: .rawStorageDidWrite, object: date)
     }
 
-    private func bumpRawDirMtime() {
-        let rawDir = tempDir.appendingPathComponent("raw")
-        try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(10)],
-                              ofItemAtPath: rawDir.path)
-    }
-
-    private func currentRawDirMtime() -> Date? {
-        let rawDir = tempDir.appendingPathComponent("raw")
-        let attrs = try? fm.attributesOfItem(atPath: rawDir.path)
-        return attrs?[.modificationDate] as? Date
+    private func waitForIndexUpdate(_ action: () -> Void) async {
+        let update = expectation(description: "single-day index update completes")
+        let token = NotificationCenter.default.addObserver(
+            forName: .timelineIndexDidUpdate, object: nil, queue: .main
+        ) { _ in update.fulfill() }
+        action()
+        await fulfillment(of: [update], timeout: 2)
+        NotificationCenter.default.removeObserver(token)
     }
 }

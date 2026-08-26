@@ -1,5 +1,7 @@
 -- Create private storage bucket for memo attachments (US-014)
--- Private: no public access; clients use signed URLs for upload/download
+-- Private: no public access. Web/Apple clients authenticate every transfer;
+-- Drizzle migration 0029 later narrows upload to exact reservations and removes
+-- authenticated deletion.
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -19,8 +21,9 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- RLS: only the authenticated user who owns the object may read/write
--- Storage path format: {user_id}/{memo_id}/{uuid}.{ext}
+-- Initial RLS, retained here for migration history. 0029 replaces the write
+-- policies with the verified v2 contract.
+-- Storage path format after 0029: {user_id}/{memo_id}/{sha256}.{ext}
 
 CREATE POLICY "memo_attachments_insert"
 ON storage.objects FOR INSERT
