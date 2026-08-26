@@ -9,6 +9,7 @@ import DayPageServices
 struct DailyPageSummarySection: View {
 
     let model: DailyPageModel
+    let memoDay: Date?
     var onMentionTap: ((String) -> Void)? = nil
     /// Issue #4: chip navigation is driven by the host NavigationStack via
     /// NavigationLink(value: UUID), so no closure needed here. Kept the
@@ -74,8 +75,8 @@ struct DailyPageSummarySection: View {
     /// state.
     @ViewBuilder
     private func evidenceRow(_ memoIDs: [UUID]) -> some View {
-        if let first = memoIDs.first {
-            NavigationLink(value: first) {
+        if let first = memoIDs.first, let memoDay {
+            NavigationLink(value: MemoDetailRef(id: first, day: memoDay, source: .daily)) {
                 HStack(spacing: 6) {
                     Image(systemName: "link")
                         .font(.system(size: 10, weight: .medium))

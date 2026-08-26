@@ -170,8 +170,10 @@ enum ShareCardImageLoader {
     private static let maxDimension: CGFloat = 1500
 
     static func firstPhoto(in memo: Memo) -> UIImage? {
-        guard let att = memo.attachments.first(where: { $0.kind == "photo" }) else { return nil }
-        return loadDownsampled(relativePath: att.file)
+        guard let path = memo.attachments
+            .first(where: { $0.kind == "photo" })?
+            .presentationFile else { return nil }
+        return loadDownsampled(relativePath: path)
     }
 
     static func daily(model: DailyPageModel) -> UIImage? {
@@ -180,7 +182,10 @@ enum ShareCardImageLoader {
     }
 
     private static func loadDownsampled(relativePath: String) -> UIImage? {
-        let url = VaultInitializer.vaultURL.appendingPathComponent(relativePath)
+        guard let safePath = MemoPresentationSafety.relativeAttachmentPath(relativePath) else {
+            return nil
+        }
+        let url = VaultInitializer.vaultURL.appendingPathComponent(safePath)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
 
         let opts: [CFString: Any] = [
@@ -244,20 +249,14 @@ struct PhotoSnapshot: Equatable {
     }
 
     private static func buildExif(_ memo: Memo) -> String? {
-        guard let att = memo.attachments.first(where: { $0.kind == "photo" }) else { return nil }
-        let url = VaultInitializer.vaultURL.appendingPathComponent(att.file)
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [String: Any],
-              let exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any]
-        else { return nil }
-        var parts: [String] = []
-        if let f = exif[kCGImagePropertyExifFNumber as String] as? Double { parts.append("f/\(f)") }
-        if let e = exif[kCGImagePropertyExifExposureTime as String] as? Double, e > 0, e.isFinite {
-            let denom = Int((1.0 / e).rounded())
-            parts.append("1/\(denom)s")
-        }
-        if let iso = (exif[kCGImagePropertyExifISOSpeedRatings as String] as? [Int])?.first { parts.append("ISO \(iso)") }
-        if let fl = exif[kCGImagePropertyExifFocalLength as String] as? Double { parts.append("\(Int(fl))mm") }
+        guard let attachment = memo.attachments.first(where: { $0.kind == "photo" }),
+              let relativePath = attachment.presentationFile,
+              let metadata = PhotoMetadataService.metadataSync(
+                at: VaultInitializer.vaultURL.appendingPathComponent(relativePath)
+              ) else { return nil }
+        var parts = [metadata.aperture, metadata.shutter].compactMap { $0 }
+        if let iso = metadata.iso { parts.append("ISO \(iso)") }
+        if let focalLength = metadata.focalLength { parts.append(focalLength) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
@@ -271,9 +270,10 @@ struct VoiceSnapshot: Equatable {
 
     static func from(_ memo: Memo) -> VoiceSnapshot? {
         guard let att = memo.attachments.first(where: { $0.kind == "audio" }),
-              let dur = att.duration else { return nil }
-        let mins = Int(dur) / 60
-        let secs = Int(dur) % 60
+              let duration = att.presentationDuration,
+              let wholeSeconds = MemoPresentationSafety.roundedInt(duration) else { return nil }
+        let mins = wholeSeconds / 60
+        let secs = wholeSeconds % 60
         let transcript = att.transcript.map { String($0.prefix(200)) } ?? String(memo.body.prefix(200))
         return VoiceSnapshot(
             id: memo.id,
@@ -810,4 +810,3 @@ struct ShareCardSheet: View {
         }
     }
 }
-
