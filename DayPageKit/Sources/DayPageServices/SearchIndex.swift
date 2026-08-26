@@ -43,9 +43,11 @@ public final class SearchIndex {
     /// precomputed at build time. Value type so query code can snapshot the
     /// whole index and match off the main actor.
     public struct MemoDocument: Equatable, Sendable {
+        public let id: UUID
         public let type: Memo.MemoType
         public let body: String
         public let foldedBody: String
+        public let entityMentions: [String]
         /// Attachment transcripts, raw + folded, in attachment order.
         public let transcripts: [TranscriptText]
         public let locationName: String?
@@ -125,6 +127,17 @@ public final class SearchIndex {
         let sorted = docsByDate.values.sorted { $0.dateString > $1.dateString }
         sortedSnapshot = sorted
         return sorted
+    }
+
+    /// Returns a complete in-memory snapshot, waiting asynchronously for the
+    /// first build when necessary. Search uses this instead of launching a
+    /// second legacy full-vault scan while warm-up is already in flight.
+    public func documents() async -> [DayDocument] {
+        if !isBuilt { scheduleRebuild() }
+        while let task = rebuildTask {
+            await task.value
+        }
+        return documentsIfBuilt() ?? []
     }
 
     // MARK: - Lifecycle hooks
@@ -219,9 +232,11 @@ public final class SearchIndex {
 
         let memoDocs = memos.map { memo in
             MemoDocument(
+                id: memo.id,
                 type: memo.type,
                 body: memo.body,
                 foldedBody: SearchService.foldForSearch(memo.body),
+                entityMentions: memo.entityMentions,
                 transcripts: memo.attachments.compactMap { att in
                     guard let t = att.transcript, !t.isEmpty else { return nil }
                     return MemoDocument.TranscriptText(

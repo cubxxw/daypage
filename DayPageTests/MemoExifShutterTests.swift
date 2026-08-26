@@ -1,4 +1,5 @@
 import Testing
+import UIKit
 @testable import DayPage
 
 // Regression suite for the MemoDetailView photo-detail crash (2026-07-19).
@@ -38,6 +39,11 @@ struct MemoExifShutterTests {
 
     @Test func nanExposureReturnsNil() {
         #expect(MemoExifFormat.shutterLabel(exposureTime: .nan) == nil)
+    }
+
+    @Test func finiteButNonRepresentableExposureReturnsNil() {
+        #expect(MemoExifFormat.shutterLabel(exposureTime: .greatestFiniteMagnitude) == nil)
+        #expect(MemoExifFormat.shutterLabel(exposureTime: .leastNonzeroMagnitude) == nil)
     }
 
     // MARK: - Valid exposures — format correctly
@@ -80,6 +86,7 @@ struct MemoExifShutterTests {
         #expect(MemoExifFormat.focalLengthLabel(-5) == nil)
         #expect(MemoExifFormat.focalLengthLabel(.infinity) == nil)
         #expect(MemoExifFormat.focalLengthLabel(.nan) == nil)
+        #expect(MemoExifFormat.focalLengthLabel(.greatestFiniteMagnitude) == nil)
     }
 
     // MARK: - Aperture
@@ -94,5 +101,45 @@ struct MemoExifShutterTests {
         #expect(MemoExifFormat.apertureLabel(0) == nil)
         #expect(MemoExifFormat.apertureLabel(.infinity) == nil)
         #expect(MemoExifFormat.apertureLabel(.nan) == nil)
+    }
+}
+
+@Suite("AttachmentImagePipeline")
+struct AttachmentImagePipelineTests {
+    @Test @MainActor
+    func downsampledDecodeRespectsPixelBound() async throws {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1_600, height: 1_200))
+        let source = renderer.image { context in
+            UIColor.systemOrange.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1_600, height: 1_200))
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AttachmentPipeline-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try #require(source.jpegData(compressionQuality: 0.9)).write(to: url)
+
+        let decoded = await AttachmentImagePipeline.shared.image(at: url, maxPixelSize: 320)
+        let cgImage = try #require(decoded?.cgImage)
+        #expect(max(cgImage.width, cgImage.height) <= 320)
+    }
+}
+
+@Suite("MemoDetailRef")
+struct MemoDetailRefTests {
+    @Test
+    func presentationHintDoesNotChangeRecordIdentity() {
+        let id = UUID()
+        let day = Date(timeIntervalSince1970: 1_777_000_000)
+        let plain = MemoDetailRef(id: id, day: day, source: .today)
+        let zoomed = MemoDetailRef(
+            id: id,
+            day: day,
+            source: .today,
+            usesZoomTransition: true
+        )
+
+        #expect(plain == zoomed)
+        #expect(Set([plain, zoomed]).count == 1)
+        #expect(plain != MemoDetailRef(id: id, day: day, source: .daily))
     }
 }

@@ -85,7 +85,7 @@ enum LoadState: Equatable {
 
 /// Manages state for TodayView: loading today's memos, tracking compiled state.
 @MainActor
-final class TodayViewModel: ObservableObject, MemoDetailViewModel {
+final class TodayViewModel: ObservableObject {
 
     // MARK: Published State
 
@@ -264,6 +264,7 @@ final class TodayViewModel: ObservableObject, MemoDetailViewModel {
         observeCompilationFailure()
         observeOnThisDay()
         observeConflictResolution()
+        observeRawStorageWrites()
         observeTimelineIndex()
     }
 
@@ -322,6 +323,24 @@ final class TodayViewModel: ObservableObject, MemoDetailViewModel {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.load()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Detail mutations are record-oriented and intentionally independent of
+    /// this list model. Re-read only when today's authoritative raw file was
+    /// written so the feed converges after edit/delete without shared object
+    /// ownership between a pushed destination and its source list.
+    private func observeRawStorageWrites() {
+        NotificationCenter.default
+            .publisher(for: .rawStorageDidWrite)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self,
+                      let writtenDate = notification.object as? Date,
+                      Calendar.current.isDate(writtenDate, inSameDayAs: self.date)
+                else { return }
+                self.load()
             }
             .store(in: &cancellables)
     }

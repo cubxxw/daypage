@@ -179,7 +179,7 @@ struct TodayView: View {
     /// Programmatic memo-detail navigation. The card body no longer uses a
     /// SwiftUI NavigationLink (the swipe gesture's UIKit host hit-tests to
     /// self, which would swallow the link's tap); instead a tap recognizer
-    /// fires `onOpen`, which W1 routes through `nav.push(ZoomedMemoRef…)` onto
+    /// fires `onOpen`, which routes a stable `MemoDetailRef` onto
     /// todayPath (path-unified) instead of a local `@State openedMemoID`.
 
     /// iOS 18+ zoom transition: the tapped card is the `matchedTransitionSource`
@@ -680,26 +680,14 @@ struct TodayView: View {
             // per-view .sheet recursion). Registered once; resolves recursive
             // entity→entity→daily chains via the shared todayPath.
             .entityDailyDestinations()
-            .navigationDestination(for: UUID.self) { memoID in
-                if let memo = viewModel.memos.first(where: { $0.id == memoID }) {
-                    MemoDetailView(memo: memo, vm: viewModel)
-                        // W0: re-arm edge-back suppressed by the stack root's
-                        // hidden nav bar (applyNavigationAndOverlays :670).
-                        .restoresInteractivePop()
-                }
-            }
-            // Card-body tap → MemoDetail with zoom hero. W1: PATH push
-            // (`ZoomedMemoRef` on todayPath), not isPresented — mixing an
-            // isPresented push with the path-driven entity/UUID pushes on this
-            // same stack made one back-gesture collapse two levels.
-            .navigationDestination(for: ZoomedMemoRef.self) { ref in
-                if let memo = viewModel.memos.first(where: { $0.id == ref.id }) {
-                    MemoDetailView(memo: memo, vm: viewModel)
-                        .modifier(CardZoomDestination(
-                            id: ref.id, namespace: detailZoomNamespace
-                        ))
-                        .restoresInteractivePop()
-                }
+            .navigationDestination(for: MemoDetailRef.self) { ref in
+                MemoDetailHost(reference: ref)
+                    .modifier(CardZoomDestination(
+                        id: ref.id,
+                        namespace: detailZoomNamespace,
+                        enabled: ref.usesZoomTransition
+                    ))
+                    .restoresInteractivePop()
             }
     }
 
@@ -3224,7 +3212,15 @@ struct TodayView: View {
                                 // open, so tap-into-detail feels identical
                                 // across today's cards and historical rows.
                                 Haptics.tapConfirm()
-                                nav.push(ZoomedMemoRef(id: memo.id), in: .today)
+                                nav.push(
+                                    MemoDetailRef(
+                                        id: memo.id,
+                                        day: memo.created,
+                                        source: .today,
+                                        usesZoomTransition: true
+                                    ),
+                                    in: .today
+                                )
                             }
                         )
                         .offset(x: idx == 0 ? memoCardHintOffset : 0)

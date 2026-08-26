@@ -281,7 +281,7 @@ struct MemoCardView: View {
         .solidCard(cornerRadius: 14)
         .contentShape(RoundedRectangle(cornerRadius: 14))
         .onTapGesture {
-            if memo.location?.lat != nil { showLocationSheet = true }
+            if memo.location?.presentationCoordinate != nil { showLocationSheet = true }
         }
         .a11yButton(label: L10n.MemoCard.locationA11yLabel, hint: L10n.MemoCard.locationA11yHint)
         .sheet(isPresented: $showLocationSheet) {
@@ -398,7 +398,9 @@ struct MemoCardView: View {
             // second image, which read as data loss). Tapping a chip
             // hero-zooms to the full-screen viewer where the original
             // composition and EXIF live.
-            let photoAtts = memo.attachments.filter { $0.kind == "photo" }
+            let photoAtts = memo.attachments.filter {
+                $0.kind == "photo" && $0.presentationFile != nil
+            }
             if !photoAtts.isEmpty {
                 photoGallery(photoAtts)
                     .padding(.horizontal, 14)
@@ -692,10 +694,13 @@ struct PhotoFullScreenViewer: View {
         }
         .task {
             isLoading = true
-            image = await Task.detached(priority: .userInitiated) {
-                guard let data = try? Data(contentsOf: fileURL) else { return nil }
-                return UIImage(data: data)
-            }.value
+            let screenPixels = Int(
+                max(UIScreen.main.bounds.width, UIScreen.main.bounds.height) * UIScreen.main.scale
+            )
+            image = await AttachmentImagePipeline.shared.image(
+                at: fileURL,
+                maxPixelSize: min(4_096, max(2_048, screenPixels))
+            )
             isLoading = false
         }
     }
@@ -711,8 +716,11 @@ struct LocationPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private var coordinate: CLLocationCoordinate2D? {
-        guard let lat = location?.lat, let lng = location?.lng else { return nil }
-        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+        guard let coordinate = location?.presentationCoordinate else { return nil }
+        return CLLocationCoordinate2D(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude
+        )
     }
 
     var body: some View {
@@ -1449,13 +1457,6 @@ struct PhotoDownloadPlaceholder: View {
 // the cache unbounded meant a scroll through 100 photos could pin ~500MB of
 // UIImages until iOS forced a purge, at which point every visible thumbnail
 // would reload mid-scroll. Pinning the limits keeps working-set steady.
-private let thumbnailCache: NSCache<NSURL, UIImage> = {
-    let cache = NSCache<NSURL, UIImage>()
-    cache.countLimit = 100                     // ~two full timeline pages of photos
-    cache.totalCostLimit = 50 * 1024 * 1024    // 50MB decoded — well below MemoryWarn threshold
-    return cache
-}()
-
 struct PhotoThumbnailView: View {
     let fileURL: URL
     /// Aspect the cell crops to. Solo photos keep the museum 4:5 portrait;
@@ -1504,13 +1505,7 @@ struct PhotoThumbnailView: View {
             // directly and skip the nil-then-set flicker. Only clear when the
             // decode has to hit disk, so returning to a previously-viewed
             // photo shows it instantly.
-            let cacheKey = fileURL as NSURL
-            if let cached = thumbnailCache.object(forKey: cacheKey) {
-                if thumbnail !== cached { thumbnail = cached }
-            } else {
-                thumbnail = nil
-                thumbnail = await loadThumbnailAsync(from: fileURL)
-            }
+            thumbnail = await loadThumbnailAsync(from: fileURL)
             // EXIF caption is only rendered on non-compact cells (the caption
             // overlay below is gated on `!compact`). Every card thumbnail is
             // now compact, so reading EXIF here was pure wasted disk I/O —
@@ -1572,68 +1567,19 @@ struct PhotoThumbnailView: View {
     /// credit, and leaks the file system into the museum surface. No params →
     /// no caption at all. Formatting is shared with the detail-view overlay via
     /// `MemoExifFormat`, which also carries the EXIF→Int crash guards.
-    static func exifText(for fileURL: URL) -> String? {
-        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
-              let exif = props[kCGImagePropertyExifDictionary as String] as? [String: Any]
-        else { return nil }
-
-        var parts: [String] = []
-        if let focal = exif[kCGImagePropertyExifFocalLength as String] as? Double,
-           let label = MemoExifFormat.focalLengthLabel(focal) {
-            parts.append(label)
-        }
-        if let aperture = exif[kCGImagePropertyExifFNumber as String] as? Double,
-           let label = MemoExifFormat.apertureLabel(aperture) {
-            parts.append(label)
-        }
+    nonisolated static func exifText(for fileURL: URL) -> String? {
+        guard let metadata = PhotoMetadataService.metadataSync(at: fileURL) else { return nil }
+        let parts = [metadata.focalLength, metadata.aperture].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// Convenience for callers that hold a vault-relative path (viewer).
-    static func exifText(forRelativePath relative: String) -> String? {
+    nonisolated static func exifText(forRelativePath relative: String) -> String? {
         exifText(for: VaultInitializer.vaultURL.appendingPathComponent(relative))
     }
 
     private func loadThumbnailAsync(from url: URL) async -> UIImage? {
-        // Check process-level cache first to avoid redundant disk reads.
-        let cacheKey = url as NSURL
-        if let cached = thumbnailCache.object(forKey: cacheKey) { return cached }
-
-        return await Task.detached(priority: .userInitiated) {
-            guard let data = try? Data(contentsOf: url) else { return nil }
-            let opts: [CFString: Any] = [
-                kCGImageSourceShouldCacheImmediately: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
-                // Card thumbnails now top out at a 112pt chip (~336px @3x); the
-                // old 600px target decoded ~3× the pixels the timeline can show,
-                // burning CPU on every scroll-in and inflating the cache. 448px
-                // keeps a retina-crisp chip with headroom for Dynamic Type. The
-                // full-screen viewer decodes the original separately, so zoom
-                // fidelity is untouched.
-                kCGImageSourceThumbnailMaxPixelSize: 448
-            ]
-            let image: UIImage?
-            if let source = CGImageSourceCreateWithData(data as CFData, nil),
-               let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) {
-                // Decode-on-load: force the bitmap now, off the main actor, so
-                // the first scroll frame that shows this chip isn't stalled by a
-                // lazy CA decode. `kCGImageSourceShouldCacheImmediately` +
-                // reading the pixels here moves that cost off the render path.
-                image = UIImage(cgImage: cgThumb)
-            } else {
-                image = UIImage(data: data)
-            }
-            if let image {
-                // Cost the entry by its real pixel footprint so NSCache's
-                // totalCostLimit (50MB) actually bounds the working set —
-                // setObject without a cost made the byte limit a no-op.
-                let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
-                thumbnailCache.setObject(image, forKey: cacheKey, cost: cost)
-            }
-            return image
-        }.value
+        await AttachmentImagePipeline.shared.image(at: url, maxPixelSize: 448)
     }
 }
 
