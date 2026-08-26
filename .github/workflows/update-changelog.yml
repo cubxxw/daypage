@@ -40,8 +40,13 @@ jobs:
   update_changelog:
     name: Update TestFlight changelog
     runs-on: ubuntu-latest
-    # Auto-trigger only on successful deploys; manual trigger is unconditional.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Only accept a successful deploy from this repository's trusted main
+    # branch. workflow_run events can otherwise point at untrusted fork code.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.head_repository.full_name == github.repository &&
+           github.event.workflow_run.head_branch == 'main') }}
     timeout-minutes: 35  # 30-min ASC processing wait + buffer
 
     steps:
@@ -57,22 +62,37 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "workflow_run" ]; then
-            echo "ref=$WR_HEAD_SHA"      >> "$GITHUB_OUTPUT"
+            if [[ ! "$WR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::workflow_run head SHA is invalid"
+              exit 1
+            fi
+            echo "deployed_sha=$WR_HEAD_SHA" >> "$GITHUB_OUTPUT"
             echo "run_id=$WR_RUN_ID"     >> "$GITHUB_OUTPUT"
             echo "manual_tag="           >> "$GITHUB_OUTPUT"
             echo "Triggered by deploy run $WR_RUN_ID on branch=$WR_HEAD_BR sha=$WR_HEAD_SHA"
           else
-            echo "ref=$INPUT_TAG"        >> "$GITHUB_OUTPUT"
+            if [[ ! "$INPUT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::release_tag must match vMAJOR.MINOR.PATCH"
+              exit 1
+            fi
+            if [[ ! "$INPUT_RUN" =~ ^[0-9]+$ ]]; then
+              echo "::error::run_id must be numeric"
+              exit 1
+            fi
+            echo "deployed_sha="          >> "$GITHUB_OUTPUT"
             echo "run_id=$INPUT_RUN"     >> "$GITHUB_OUTPUT"
             echo "manual_tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
             echo "Manual trigger for tag=$INPUT_TAG run_id=$INPUT_RUN"
           fi
 
-      - name: Checkout repository at deployed ref
+      # Repository scripts below always come from the trusted default branch.
+      # The deployed SHA or validated tag is used only as data for git queries.
+      - name: Checkout trusted repository code
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.resolve.outputs.ref }}
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0  # need full history for `git rev-list --count`
+          persist-credentials: false
 
       # Recompute the same identifiers fastlane's `increment_build` writes into
       # the IPA. Both runs see the same commit, so the values match.
@@ -80,24 +100,31 @@ jobs:
         id: ids
         env:
           MANUAL_TAG: ${{ steps.resolve.outputs.manual_tag }}
+          DEPLOYED_SHA: ${{ steps.resolve.outputs.deployed_sha }}
         run: |
           set -euo pipefail
-          BUILD_NUMBER=$(git rev-list --count HEAD)
 
           # Marketing version: prefer the manual tag input; otherwise derive from
-          # the most recent v* tag pointing at HEAD (deploy creates one).
+          # the most recent v* tag pointing at the deployed SHA (deploy creates one).
           if [ -n "$MANUAL_TAG" ]; then
             TAG="$MANUAL_TAG"
+            DEPLOYED_REF="$MANUAL_TAG"
           else
-            TAG=$(git tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1 || true)
+            DEPLOYED_REF="$DEPLOYED_SHA"
+            TAG=$(git tag --points-at "$DEPLOYED_SHA" --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1 || true)
             if [ -z "$TAG" ]; then
               TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)
             fi
+          fi
+          if ! git cat-file -e "${DEPLOYED_REF}^{commit}"; then
+            echo "::error::Deployed ref is not a repository commit"
+            exit 1
           fi
           if [ -z "$TAG" ]; then
             echo "::error::Could not determine release tag for ref"
             exit 1
           fi
+          BUILD_NUMBER=$(git rev-list --count "$DEPLOYED_REF")
           MARKETING="${TAG#v}"
 
           echo "build_number=$BUILD_NUMBER"   >> "$GITHUB_OUTPUT"
