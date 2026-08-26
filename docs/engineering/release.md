@@ -12,5 +12,9 @@ Before any release:
 4. Review configuration, privacy, migration, rollback, and monitoring.
 5. Perform only the authorized action and verify deployed state.
 
+The iOS beta/release lanes run `scripts/ci/validate_release_supabase_config.sh` before
+archive. The gate requires a real HTTPS `SUPABASE_URL` and a publishable/legacy anon
+client key, and rejects placeholders plus `sb_secret`/`service_role` credentials.
+
 See `.agents/workflows/release.md`. Never place credentials or private release evidence in
 the repository.

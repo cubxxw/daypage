@@ -96,7 +96,7 @@ describe("selectSuggestion", () => {
     mockDb.update.mockReturnValue(updateChain([]));
     mockDb.select.mockReturnValue(selectChain([ALREADY_ROW]));
 
-    const result = await selectSuggestion("sugg-1");
+    const result = await selectSuggestion("sugg-1", "user-1");
 
     expect(result.status).toBe("already");
     if (result.status === "already") {
@@ -111,7 +111,7 @@ describe("selectSuggestion", () => {
     mockDb.update.mockReturnValue(updateChain([]));
     mockDb.select.mockReturnValue(selectChain([]));
 
-    const result = await selectSuggestion("does-not-exist");
+    const result = await selectSuggestion("does-not-exist", "user-1");
 
     expect(result.status).toBe("not_found");
     expect(enqueueJob).not.toHaveBeenCalled();

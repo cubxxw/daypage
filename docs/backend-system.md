@@ -14,7 +14,7 @@ remain authoritative when details conflict.
 | Tenant isolation and operation idempotency | Implemented | RLS migrations and transactional negative verifier |
 | External agent access | Implemented | OAuth/PAT, Streamable HTTP MCP, SDK acceptance |
 | Local backend from an empty database | Implemented | pinned CLI, Edge bundle, Supabase + Drizzle migrations |
-| Photo/audio/PDF byte sync | Implemented locally; staging pending | ADR-0013, v2 RPCs, two-Vault + TUS live tests |
+| Photo/audio/PDF byte sync | Implemented locally; staging pending | ADR-0016, v2 RPCs, two-Vault + TUS live tests |
 | Delayed attachment deletion | Implemented locally; scheduler not deployed | 30-day queue + leased private Storage-API worker |
 | Guaranteed iOS background execution | Not promised | foreground/process-lifetime sync by ADR-0008 |
 | Production migration/deployment | Not authorized | staging evidence exists; production remains unchanged |
@@ -176,7 +176,7 @@ ADR budgets, rollback rehearsal, and explicit production authorization.
 ## Current boundaries and promotion state
 
 Issue [#884](https://github.com/getyak/daypage/issues/884) and
-[ADR-0013](architecture/decisions/ADR-0013-revisioned-attachment-sync.md) are accepted.
+[ADR-0016](architecture/decisions/ADR-0016-revisioned-attachment-sync.md) is accepted.
 The complete flow is implemented and proven against the empty-reset local stack.
 Production remains untouched. Staging deployment, real-device background/cellular
 rehearsal, and production migration still require separate authorization.

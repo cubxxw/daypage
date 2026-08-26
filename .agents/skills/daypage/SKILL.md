@@ -22,13 +22,22 @@ to GitHub, cloud services, production data, or a user vault.
 ## Procedure
 
 1. Classify the touched surface and load only its routed context.
-2. State acceptance criteria, non-goals, risks, owned paths, forbidden paths, and gates.
+   Treat `agent-platform` as the development control plane (`.agents/`, host adapters,
+   and `scripts/agent/`) unless the task explicitly scopes the `agentry/` product
+   runtime; never infer that boundary crossing from the role name alone.
+2. Select the matching workflow and role files from `.agents/manifest.yaml`, then state
+   acceptance criteria, non-goals, risks, owned paths, forbidden paths, and gates.
 3. Trace current behavior before editing. Treat `DayPageKit` as the shared
    models/storage/services source unless evidence shows a target-specific adapter is needed.
+   For a read-only plan, stop discovery once the manifest, relevant validator, matching
+   test pattern, and gate are grounded; do not inventory every adapter when representative
+   evidence answers the decision.
 4. For feature, design, architecture, or broad refactor work, confirm the required issue
    and decision record exist.
-5. Delegate only independent work with non-overlapping ownership. Preserve all unrelated
-   and concurrent changes.
+5. Delegate only independent work with non-overlapping ownership. Give every delegated
+   prompt the selected role path, task goal, owned and forbidden paths, required gates,
+   and handoff contract; a child does not inherit the lead conversation. Preserve all
+   unrelated and concurrent changes.
 6. Implement the smallest coherent change. Do not change persistence formats, dependencies,
    remote state, or release state implicitly.
 7. Run the scoped gates from `docs/engineering/testing.md`; inspect real isolated Markdown

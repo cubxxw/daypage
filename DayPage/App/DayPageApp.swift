@@ -208,6 +208,7 @@ struct DayPageApp: App {
                 options.dsn = Secrets.sentryDSN
                 options.tracesSampleRate = ProcessInfo.processInfo.environment["DEBUG"] != nil ? 1.0 : 0.2
                 options.enableCrashHandler = true
+                options.sendDefaultPii = false
                 // Issue #26: do NOT auto-capture screenshots or view
                 // hierarchy. DayPage screens often display the user's
                 // memo text, API-key entry fields, and named locations

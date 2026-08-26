@@ -41,13 +41,51 @@ enum DPAuthError: LocalizedError, Equatable {
             return message.isEmpty ? "请求失败，请稍后再试" : message
         }
     }
+
+    var diagnosticCode: String {
+        switch self {
+        case .missingCredential: return "missing_credential"
+        case .serviceUnavailable: return "service_unavailable"
+        case .invalidEmail: return "invalid_email"
+        case .rateLimited: return "rate_limited"
+        case .linkExpired: return "link_expired"
+        case .networkUnavailable: return "network_unavailable"
+        case .unknown: return "unknown"
+        }
+    }
+}
+
+/// The last content-free authentication failure retained for user support.
+/// Email, tokens, Apple credentials, and provider response text are excluded.
+struct AuthFailureDiagnostic: Codable, Equatable {
+    let occurredAt: Date
+    let provider: String
+    let stage: String
+    let code: String
+    let httpStatus: Int?
+    let networkState: String
+    let correlationID: String
+}
+
+private enum AuthFailureDiagnosticStore {
+    private static let key = "auth.lastFailureDiagnostic.v1"
+
+    static func load() -> AuthFailureDiagnostic? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(AuthFailureDiagnostic.self, from: data)
+    }
+
+    static func save(_ diagnostic: AuthFailureDiagnostic) {
+        guard let data = try? JSONEncoder().encode(diagnostic) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
 }
 
 // MARK: - AuthService
 
 /// Centralised auth service. Manages Supabase session lifecycle, exposes
 /// sign-in / sign-out methods, and publishes session state to views.
-/// Rate-limiting and lockout persistence are delegated to `AuthRateLimiter`.
+/// Email-link resend throttling is delegated to `AuthRateLimiter`.
 @MainActor
 final class AuthService: NSObject, ObservableObject {
 
@@ -62,6 +100,7 @@ final class AuthService: NSObject, ObservableObject {
     @Published var error: DPAuthError?
     /// `true` while the network path is unavailable (NWPathMonitor).
     @Published private(set) var isNetworkUnavailable: Bool = false
+    @Published private(set) var lastFailureDiagnostic = AuthFailureDiagnosticStore.load()
 
     // MARK: Derived — Login Provider
 
@@ -101,7 +140,7 @@ final class AuthService: NSObject, ObservableObject {
         guard
             let url = URL(string: Secrets.supabaseURL),
             !Secrets.supabaseURL.isEmpty,
-            !Secrets.supabaseAnonKey.isEmpty
+            !Secrets.supabasePublishableKey.isEmpty
         else {
             let fallback = URL(string: "https://placeholder.supabase.co") ?? URL(fileURLWithPath: "/")
             supabase = SupabaseClient(supabaseURL: fallback, supabaseKey: "placeholder")
@@ -109,7 +148,7 @@ final class AuthService: NSObject, ObservableObject {
             super.init()
             return
         }
-        supabase = SupabaseClient(supabaseURL: url, supabaseKey: Secrets.supabaseAnonKey)
+        supabase = SupabaseClient(supabaseURL: url, supabaseKey: Secrets.supabasePublishableKey)
         isPlaceholder = false
         super.init()
         migrateAppleEmailToKeychain()
@@ -201,13 +240,22 @@ final class AuthService: NSObject, ObservableObject {
     // MARK: - Apple Sign-In
 
     func signInWithApple() async throws {
+        let correlationID = UUID()
         guard !isNetworkUnavailable else {
             let err = DPAuthError.networkUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "apple",
+                stage: "preflight",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
         isLoading = true
         error = nil
+        var stage = "authorize"
 
         do {
             let (authorization, nonce) = try await requestAppleAuthorization()
@@ -232,6 +280,7 @@ final class AuthService: NSObject, ObservableObject {
             // Clear isLoading before the listener's session update triggers SwiftUI
             // diffing so the ProgressView overlay is already gone when onChange fires (RC3).
             isLoading = false
+            stage = "exchange"
             _ = try await supabase.auth.signInWithIdToken(
                 credentials: .init(provider: .apple, idToken: identityToken, nonce: nonce)
             )
@@ -241,6 +290,13 @@ final class AuthService: NSObject, ObservableObject {
             isLoading = false
             let mapped = mapSupabaseError(error)
             self.error = mapped
+            reportAuthFailure(
+                provider: "apple",
+                stage: stage,
+                mappedError: mapped,
+                sourceError: error,
+                correlationID: correlationID
+            )
             throw mapped
         }
     }
@@ -269,7 +325,7 @@ final class AuthService: NSObject, ObservableObject {
 
     // MARK: - Email Magic Link
 
-    /// Seconds the caller must wait before requesting a new OTP for `email`.
+    /// Seconds the caller must wait before requesting another magic link for `email`.
     /// Returns 0 when fully expired (or never set). Used by UI to seed its
     /// resend countdown even after the form is closed and reopened.
     func resendCooldownRemaining(email: String) -> Int {
@@ -279,14 +335,29 @@ final class AuthService: NSObject, ObservableObject {
     /// Requests the magic link configured by DayPage's Supabase email template.
     /// The PKCE callback must be opened on the same device that requested it.
     func sendMagicLink(email: String) async throws {
+        let correlationID = UUID()
         guard !isPlaceholder else {
             let err = DPAuthError.serviceUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
         guard !isNetworkUnavailable else {
             let err = DPAuthError.networkUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -297,6 +368,13 @@ final class AuthService: NSObject, ObservableObject {
         guard normalizedEmail.range(of: emailPattern, options: .regularExpression) != nil else {
             let err = DPAuthError.invalidEmail
             self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -306,6 +384,13 @@ final class AuthService: NSObject, ObservableObject {
         } catch {
             let err = DPAuthError.serviceUnavailable
             self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "send",
+                mappedError: err,
+                sourceError: error,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -313,6 +398,13 @@ final class AuthService: NSObject, ObservableObject {
         if remaining > 0 {
             let err = DPAuthError.rateLimited(retryAfter: remaining)
             self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "send",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             throw err
         }
 
@@ -331,6 +423,13 @@ final class AuthService: NSObject, ObservableObject {
         } catch {
             let mapped = mapSupabaseError(error)
             self.error = mapped
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "send",
+                mappedError: mapped,
+                sourceError: error,
+                correlationID: correlationID
+            )
             throw mapped
         }
     }
@@ -339,9 +438,30 @@ final class AuthService: NSObject, ObservableObject {
     /// still published exclusively by `authStateChanges`.
     @discardableResult
     func handleAuthCallback(_ url: URL) async -> Bool {
+        let correlationID = UUID()
         guard NativeAuthFlow.isCallback(url, for: .iOS) else { return false }
         guard !isPlaceholder else {
-            self.error = .serviceUnavailable
+            let err = DPAuthError.serviceUnavailable
+            self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "callback",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
+            return true
+        }
+        guard !isNetworkUnavailable else {
+            let err = DPAuthError.networkUnavailable
+            self.error = err
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "callback",
+                mappedError: err,
+                sourceError: nil,
+                correlationID: correlationID
+            )
             return true
         }
 
@@ -353,8 +473,13 @@ final class AuthService: NSObject, ObservableObject {
         } catch {
             let mapped = mapSupabaseError(error)
             self.error = mapped
-            SentrySDK.capture(error: error)
-            DayPageLogger.shared.error("[AuthService] Magic-link callback failed: \(mapped.localizedDescription)")
+            reportAuthFailure(
+                provider: "email_link",
+                stage: "callback",
+                mappedError: mapped,
+                sourceError: error,
+                correlationID: correlationID
+            )
         }
         return true
     }
@@ -362,6 +487,7 @@ final class AuthService: NSObject, ObservableObject {
     // MARK: - Sign-Out
 
     func signOut() async throws {
+        let correlationID = UUID()
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -379,6 +505,13 @@ final class AuthService: NSObject, ObservableObject {
             guard supabase.auth.currentSession == nil else {
                 let mapped = mapSupabaseError(error)
                 self.error = mapped
+                reportAuthFailure(
+                    provider: "session",
+                    stage: "sign_out",
+                    mappedError: mapped,
+                    sourceError: error,
+                    correlationID: correlationID
+                )
                 throw mapped
             }
             DayPageLogger.shared.info("[AuthService] Local sign-out completed; remote token invalidation deferred")
@@ -441,13 +574,60 @@ final class AuthService: NSObject, ObservableObject {
                 if case let .api(_, _, _, response) = sbError { return response.statusCode }
                 return nil
             }()
-            DayPageLogger.shared.error("[AuthService] Unmapped auth error code=\(code.rawValue) http=\(httpStatus.map(String.init) ?? "-") msg=\(sbError.message)")
+            DayPageLogger.shared.error("[AuthService] Unmapped auth error code=\(code.rawValue) http=\(httpStatus.map(String.init) ?? "-")")
             let suffix = "code=\(code.rawValue) http=\(httpStatus.map(String.init) ?? "-")"
             return .unknown(message: debugFallbackMessage(suffix: suffix))
         }
 
-        DayPageLogger.shared.error("[AuthService] Unknown error type: \(type(of: error)) desc=\(String(describing: error))")
+        DayPageLogger.shared.error("[AuthService] Unknown error type: \(type(of: error))")
         return .unknown(message: debugFallbackMessage(suffix: "type=\(type(of: error))"))
+    }
+
+    private func reportAuthFailure(
+        provider: String,
+        stage: String,
+        mappedError: DPAuthError,
+        sourceError: Error?,
+        correlationID: UUID
+    ) {
+        let status = sourceError.flatMap(authHTTPStatus)
+        let networkState: OperationalEvent.NetworkState = isNetworkUnavailable ? .offline : .online
+        let event = OperationalEvent(
+            area: "auth",
+            stage: stage,
+            code: mappedError.diagnosticCode,
+            correlationID: correlationID,
+            level: mappedError.diagnosticCode == "unknown" ? .error : .warning,
+            provider: provider,
+            httpStatus: status,
+            networkState: networkState
+        )
+        let diagnostic = AuthFailureDiagnostic(
+            occurredAt: Date(),
+            provider: event.provider ?? "unknown",
+            stage: event.stage,
+            code: event.code,
+            httpStatus: event.httpStatus,
+            networkState: event.networkState.rawValue,
+            correlationID: event.correlationID
+        )
+        lastFailureDiagnostic = diagnostic
+        AuthFailureDiagnosticStore.save(diagnostic)
+
+        let safeMessage = "provider=\(diagnostic.provider) stage=\(diagnostic.stage) code=\(diagnostic.code) correlation=\(diagnostic.correlationID)"
+        DayPageLogger.shared.warn("[Auth] \(safeMessage)")
+        SentryReporter.breadcrumb(
+            category: "auth",
+            level: .warning,
+            message: safeMessage
+        )
+        SentryReporter.captureOperationalEvent(event)
+    }
+
+    private func authHTTPStatus(from error: Error) -> Int? {
+        guard let authError = error as? Supabase.AuthError,
+              case let .api(_, _, _, response) = authError else { return nil }
+        return response.statusCode
     }
 
     /// Release builds never leak server detail to users. DEBUG builds append a

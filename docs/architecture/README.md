@@ -9,6 +9,10 @@
 - [ADR-0010](decisions/ADR-0010-vault-derived-read-models.md): asynchronous disposable read models over the Markdown Vault.
 - [ADR-0011](decisions/ADR-0011-action-button-voice-capture.md): superseded primary Action Button voice proposal; retained as a possible separate voice shortcut.
 - [ADR-0012](decisions/ADR-0012-action-button-screenshot-capture.md): proposed screenshot capture inbox with evidence-first multimodal understanding.
+- [ADR-0013](decisions/ADR-0013-privacy-safe-operational-diagnostics.md): privacy-safe auth and sync diagnostics with user-visible support references.
+- [ADR-0014](decisions/ADR-0014-deepseek-harness-host-adapter.md): DeepSeek Harness development-host adapter.
+- [ADR-0015](decisions/ADR-0015-stable-memo-detail-and-bounded-media.md): stable memo-detail identity, safe Vault presentation boundaries, and bounded image decoding.
+- [ADR-0016](decisions/ADR-0016-revisioned-attachment-sync.md): revisioned local-first attachment synchronization with resumable transfer and garbage collection.
 
 The overview is descriptive and should track executable reality. ADRs explain durable
 choices and trade-offs. Product requirements belong in a current PRD or issue, not in an

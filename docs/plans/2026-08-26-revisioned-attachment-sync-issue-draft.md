@@ -13,7 +13,7 @@ text and does not upload bytes. Neither path is evidence of cloud media durabili
 
 ## Proposed outcome
 
-Accept and implement ADR-0013. Keep `vault/raw/*.md` and `vault/raw/assets/**` as the
+Accept and implement ADR-0016. Keep `vault/raw/*.md` and `vault/raw/assets/**` as the
 local source of truth while adding:
 
 - versioned attachment descriptors and a canonical manifest hash;

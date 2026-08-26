@@ -5,11 +5,11 @@ import DayPageServices
 
 // MARK: - Runtime Key Resolution
 //
-// `GeneratedSecrets.swift` is gitignored and now intentionally empty (P0
-// security audit, see `scripts/generate_secrets.sh`). Real secrets must be
-// supplied at runtime through the Keychain (the in-app onboarding /
-// Settings → API Keys flow writes into the `com.daypage.apikeys` service
-// via `KeychainHelper`).
+// `GeneratedSecrets.swift` is gitignored (P0 security audit; see
+// `scripts/generate_secrets.sh`). Privileged credentials must be supplied at
+// runtime through Keychain. Public client configuration — including the
+// Supabase URL and publishable/legacy anon key — is generated into the app at
+// build time because mobile binaries cannot keep client keys secret.
 //
 // The compile-time `Secrets.xxx` fall-throughs are kept only so that
 // `KeychainHelper.getAPIKey(...) ?? Secrets.xxx` collapses to an empty
@@ -119,6 +119,30 @@ struct AppSentryAdapter: DayPageStorage.SentryAdapter {
     func captureError(_ error: Error) {
         guard isEnabled else { return }
         SentrySDK.capture(error: error)
+    }
+
+    func captureOperationalEvent(_ event: DayPageStorage.OperationalEvent) {
+        guard isEnabled else { return }
+        SentrySDK.capture(message: event.message) { scope in
+            scope.setLevel(event.level.sentrySDKLevel)
+            scope.setTag(value: event.area, key: "operational.area")
+            scope.setTag(value: event.stage, key: "operational.stage")
+            scope.setTag(value: event.code, key: "operational.code")
+            scope.setTag(value: event.correlationID, key: "correlation_id")
+            scope.setTag(value: event.networkState.rawValue, key: "network.state")
+            if let provider = event.provider {
+                scope.setTag(value: provider, key: "operational.provider")
+            }
+            if let status = event.httpStatus {
+                scope.setTag(value: String(status), key: "http.status_code")
+            }
+            if let pendingCount = event.pendingCount {
+                scope.setTag(value: String(pendingCount), key: "sync.pending_count")
+            }
+            if let count = event.consecutiveFailureCount {
+                scope.setTag(value: String(count), key: "operational.failure_count")
+            }
+        }
     }
 
     func startTransaction(name: String, operation: String) -> DayPageStorage.SentrySpan? {

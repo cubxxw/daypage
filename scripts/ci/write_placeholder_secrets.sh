@@ -11,12 +11,12 @@ OUTPUT_FILE="${1:-${REPO_ROOT}/DayPage/Config/GeneratedSecrets.swift}"
 mkdir -p "$(dirname "${OUTPUT_FILE}")"
 cat > "${OUTPUT_FILE}" <<'SWIFT'
 // GeneratedSecrets.swift — deterministic CI placeholder.
-// Real credentials are provided at runtime via Keychain. Never add them here.
+// Privileged credentials are provided at runtime via Keychain. Public client
+// configuration is injected only by the release generator; never add it here.
 enum Secrets {
     static let deepSeekApiKey: String = ""
     static let openAIWhisperApiKey: String = ""
     static let openWeatherApiKey: String = ""
-    static let supabaseAnonKey: String = ""
     static let sentryDSN: String = ""
     static let kubotGitHubToken: String = ""
     static let doubaoASRAppID: String = ""
@@ -26,6 +26,7 @@ enum Secrets {
     static let deepSeekBaseURL: String = "https://api.deepseek.com/v1"
     static let deepSeekModel: String = "deepseek-v4-pro"
     static let supabaseURL: String = "https://placeholder.supabase.co"
+    static let supabasePublishableKey: String = ""
     static let voiceASRProvider: String = "doubao"
     static let doubaoASRStreamURL: String = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
     static let doubaoASRFileURL: String = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"

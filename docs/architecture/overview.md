@@ -37,6 +37,10 @@ platform frameworks, secrets adapters, and SDK boundaries.
 
 The Kit supports iOS 16, macOS 13, and watchOS 10. App-specific Supabase/Sentry behavior
 stays at adapter boundaries instead of forcing those SDKs into the shared package.
+Operational auth/sync telemetry crosses that boundary through an allow-listed event
+contract; durable device diagnostics contain codes and timing metadata, never Vault
+content or account addresses. See
+[ADR-0013](decisions/ADR-0013-privacy-safe-operational-diagnostics.md).
 
 ## Data and compilation
 

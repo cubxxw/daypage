@@ -2,8 +2,8 @@
 
 `.agents/` is the canonical development-agent control plane for this repository.
 It defines portable roles, workflows, context routing, skills, and machine-checkable
-task/handoff/evidence contracts. Host files under `.codex/` and `.claude/` adapt this
-system; they must not become competing sources of truth.
+task/handoff/evidence contracts. Host files under `.codex/`, `.claude/`, and `.dsh/`
+adapt this system; they must not become competing sources of truth.
 
 This control plane coordinates repository development. The `agentry/` directory is a
 DayPage product runtime with its own sessions and tools; it does not own development

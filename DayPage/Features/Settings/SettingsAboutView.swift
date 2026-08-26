@@ -74,6 +74,16 @@ struct SettingsAboutView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings-build-row")
+
+            NavigationLink {
+                SettingsDiagnosticsView()
+            } label: {
+                SettingsLabel(
+                    title: NSLocalizedString("settings.diagnostics.entry", comment: "Diagnostics settings row"),
+                    systemImage: "stethoscope"
+                )
+            }
+            .accessibilityIdentifier("settings-diagnostics-link")
         } footer: {
             if !devUnlocked, buildTapCount >= 2 {
                 Text(String(format: NSLocalizedString("settings.about.dev_unlock_progress", comment: "N more taps to unlock"), 5 - buildTapCount))
@@ -119,6 +129,205 @@ struct SettingsAboutView: View {
             try? await Task.sleep(for: .seconds(1.5))
             withAnimation(Motion.fade) { didCopyVersion = false }
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+
+    private var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    }
+}
+
+// MARK: - SettingsDiagnosticsView
+
+/// User-visible, content-free support snapshot. This intentionally exposes
+/// operational metadata only; memo text, attachments, email, and tokens never
+/// enter the view or its clipboard summary.
+@MainActor
+struct SettingsDiagnosticsView: View {
+    @EnvironmentObject private var authService: AuthService
+    @StateObject private var syncQueue = SyncQueueService.shared
+    @StateObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var bannerCenter = BannerCenter.shared
+
+    var body: some View {
+        List {
+            Group {
+                runtimeSection
+                authSection
+                syncSection
+                copySection
+            }
+            .listRowBackground(DSColor.surfaceWhite)
+        }
+        .scrollContentBackground(.hidden)
+        .background(DSColor.bgWarm.ignoresSafeArea())
+        .tint(DSColor.primary)
+        .navigationTitle(NSLocalizedString("settings.diagnostics.title", comment: "Diagnostics page title"))
+        .navigationBarTitleDisplayMode(.inline)
+        .bannerOverlay()
+    }
+
+    private var runtimeSection: some View {
+        Section(NSLocalizedString("settings.diagnostics.runtime", comment: "Runtime diagnostics section")) {
+            diagnosticRow(
+                title: NSLocalizedString("settings.diagnostics.sentry", comment: "Sentry status"),
+                value: SentryReporter.isSentryEnabled
+                    ? NSLocalizedString("settings.diagnostics.enabled", comment: "Enabled")
+                    : NSLocalizedString("settings.diagnostics.disabled", comment: "Disabled")
+            )
+            diagnosticRow(
+                title: NSLocalizedString("settings.diagnostics.network", comment: "Network status"),
+                value: networkMonitor.isOnline
+                    ? NSLocalizedString("settings.diagnostics.online", comment: "Online")
+                    : NSLocalizedString("settings.diagnostics.offline", comment: "Offline")
+            )
+            diagnosticRow(
+                title: NSLocalizedString("settings.about.version", comment: "App version"),
+                value: "\(appVersion) (\(buildNumber))"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var authSection: some View {
+        Section(NSLocalizedString("settings.diagnostics.auth", comment: "Auth diagnostics section")) {
+            if let failure = authService.lastFailureDiagnostic {
+                diagnosticRow(
+                    title: NSLocalizedString("settings.diagnostics.last_failure", comment: "Last failure"),
+                    value: displayDate(failure.occurredAt)
+                )
+                diagnosticRow(
+                    title: NSLocalizedString("settings.diagnostics.stage_code", comment: "Stage and code"),
+                    value: "\(failure.stage) / \(failure.code)"
+                )
+                diagnosticRow(
+                    title: NSLocalizedString("settings.diagnostics.reference", comment: "Reference ID"),
+                    value: shortReference(failure.correlationID)
+                )
+            } else {
+                Text(NSLocalizedString("settings.diagnostics.no_auth_failure", comment: "No auth failure"))
+                    .font(DSType.labelSM)
+                    .foregroundColor(DSColor.onSurfaceVariant)
+            }
+        }
+    }
+
+    private var syncSection: some View {
+        let health = syncQueue.syncHealth
+        return Section(NSLocalizedString("settings.diagnostics.sync", comment: "Sync diagnostics section")) {
+            diagnosticRow(
+                title: NSLocalizedString("settings.diagnostics.pending", comment: "Pending sync count"),
+                value: String(syncQueue.pendingCount)
+            )
+            diagnosticRow(
+                title: NSLocalizedString("settings.diagnostics.last_attempt", comment: "Last sync attempt"),
+                value: health.lastAttemptAt.map(displayDate) ?? "—"
+            )
+            diagnosticRow(
+                title: NSLocalizedString("settings.diagnostics.last_success", comment: "Last sync success"),
+                value: health.lastSuccessAt.map(displayDate) ?? "—"
+            )
+            if let code = health.lastFailureCode {
+                diagnosticRow(
+                    title: NSLocalizedString("settings.diagnostics.last_error", comment: "Last sync error"),
+                    value: "\(health.lastFailureStage ?? "unknown") / \(code)"
+                )
+                diagnosticRow(
+                    title: NSLocalizedString("settings.diagnostics.failure_count", comment: "Failure count"),
+                    value: String(health.consecutiveFailureCount)
+                )
+            }
+            if let reference = health.lastCorrelationID {
+                diagnosticRow(
+                    title: NSLocalizedString("settings.diagnostics.reference", comment: "Reference ID"),
+                    value: shortReference(reference)
+                )
+            }
+        }
+    }
+
+    private var copySection: some View {
+        Section {
+            Button(action: copyDiagnostics) {
+                Label(
+                    NSLocalizedString("settings.diagnostics.copy", comment: "Copy diagnostics button"),
+                    systemImage: "doc.on.doc"
+                )
+            }
+            .accessibilityIdentifier("settings-diagnostics-copy")
+        } footer: {
+            Text(NSLocalizedString("settings.diagnostics.privacy", comment: "Diagnostics privacy note"))
+                .font(.caption)
+                .foregroundColor(DSColor.onSurfaceVariant)
+        }
+    }
+
+    private func diagnosticRow(title: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.md) {
+            Text(title)
+                .foregroundColor(DSColor.onSurface)
+            Spacer(minLength: DSSpacing.md)
+            Text(value)
+                .font(DSType.labelSM)
+                .foregroundColor(DSColor.onSurfaceVariant)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func copyDiagnostics() {
+        UIPasteboard.general.string = diagnosticSummary
+        Haptics.success()
+        bannerCenter.show(AppBannerModel(
+            kind: .info,
+            title: NSLocalizedString("settings.diagnostics.copied", comment: "Diagnostics copied banner"),
+            autoDismiss: true
+        ))
+    }
+
+    private var diagnosticSummary: String {
+        let health = syncQueue.syncHealth
+        let auth = authService.lastFailureDiagnostic
+        return [
+            "DayPage Diagnostics",
+            "app=\(appVersion)",
+            "build=\(buildNumber)",
+            "os=\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)",
+            "sentry=\(SentryReporter.isSentryEnabled ? "enabled" : "disabled")",
+            "network=\(networkMonitor.isOnline ? "online" : "offline")",
+            "auth_failure_at=\(isoDate(auth?.occurredAt))",
+            "auth_provider=\(auth?.provider ?? "-")",
+            "auth_stage=\(auth?.stage ?? "-")",
+            "auth_code=\(auth?.code ?? "-")",
+            "auth_http_status=\(auth?.httpStatus.map(String.init) ?? "-")",
+            "auth_correlation_id=\(auth?.correlationID ?? "-")",
+            "sync_pending=\(syncQueue.pendingCount)",
+            "sync_last_attempt=\(isoDate(health.lastAttemptAt))",
+            "sync_last_success=\(isoDate(health.lastSuccessAt))",
+            "sync_last_failure=\(isoDate(health.lastFailureAt))",
+            "sync_stage=\(health.lastFailureStage ?? "-")",
+            "sync_code=\(health.lastFailureCode ?? "-")",
+            "sync_http_status=\(health.lastHTTPStatus.map(String.init) ?? "-")",
+            "sync_correlation_id=\(health.lastCorrelationID ?? "-")",
+            "sync_consecutive_failures=\(health.consecutiveFailureCount)",
+        ].joined(separator: "\n")
+    }
+
+    private func shortReference(_ value: String) -> String {
+        String(value.prefix(8)).uppercased()
+    }
+
+    private func displayDate(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .standard)
+    }
+
+    private func isoDate(_ date: Date?) -> String {
+        guard let date else { return "-" }
+        return ISO8601DateFormatter().string(from: date)
     }
 
     private var appVersion: String {
@@ -240,4 +449,5 @@ struct SettingsDeveloperView: View {
 
 #Preview {
     NavigationStack { SettingsAboutView() }
+        .environmentObject(AuthService.shared)
 }

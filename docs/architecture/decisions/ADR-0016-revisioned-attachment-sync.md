@@ -1,4 +1,4 @@
-# ADR-0013: Revisioned local-first attachment synchronization
+# ADR-0016: Revisioned local-first attachment synchronization
 
 - **Status:** Accepted
 - **Date:** 2026-08-26
