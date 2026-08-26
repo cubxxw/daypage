@@ -52,25 +52,45 @@ struct DailyRef: Hashable {
     let dateString: String
 }
 
-/// Pushes a MemoDetailView with the card-zoom hero transition. A distinct type
-/// from a bare `Memo.ID` (UUID) push so Today can register both: `UUID` for
-/// plain memo pushes (DailyPage chips) and `ZoomedMemoRef` for the card-body tap
-/// that animates out of the tapped card. W1 unifies this onto the path (it was
-/// an `isPresented`-driven push, which collapsed two levels when combined with
-/// the path-driven entity pushes on the same stack).
-struct ZoomedMemoRef: Hashable {
-    let id: UUID
+enum MemoDetailSource: Hashable {
+    case today
+    case daily
+
+    var backLabel: String {
+        switch self {
+        case .today:
+            return NSLocalizedString(
+                "memo.detail.nav.back", value: "Today",
+                comment: "Detail view — back-to-today button label"
+            )
+        case .daily:
+            return NSLocalizedString(
+                "memo.detail.nav.back.daily", value: "Daily",
+                comment: "Detail view — back label when pushed from a daily page"
+            )
+        }
+    }
 }
 
-/// Pushes a MemoDetailView from inside an embedded DailyPageView, looked up in
-/// the daily page's OWN `memoVM`. A distinct wrapper (not bare `Memo.ID`/UUID)
-/// is REQUIRED: an embedded DailyPage registers its memo destination on the host
-/// stack, and if it used bare UUID it would collide with TodayView's
-/// `navigationDestination(for: UUID.self)` — SwiftUI resolves duplicate
-/// same-type destinations to the one nearest the root, so the host's builder
-/// (wrong memos array) would service the tap and the memo would appear missing.
-struct DailyMemoRef: Hashable {
+/// The single memo-detail route used by every entry point.  It carries stable
+/// identity and the owning day, never a mutable list snapshot.  The destination
+/// resolves the current memo through `MemoRecordStore`; `usesZoomTransition`
+/// is presentation-only and does not change record identity.
+struct MemoDetailRef: Hashable {
     let id: UUID
+    let day: Date
+    let source: MemoDetailSource
+    var usesZoomTransition = false
+
+    static func == (lhs: MemoDetailRef, rhs: MemoDetailRef) -> Bool {
+        lhs.id == rhs.id && lhs.day == rhs.day && lhs.source == rhs.source
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(day)
+        hasher.combine(source)
+    }
 }
 
 /// Pushes WeeklyRecapDetailView onto the Archive path. W1 fix: this page used to

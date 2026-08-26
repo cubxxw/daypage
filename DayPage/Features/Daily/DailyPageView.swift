@@ -18,7 +18,6 @@ struct DailyPageView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var nav: AppNavigationModel
-    @StateObject private var memoVM = DailyPageMemoVM()
     @ObservedObject private var compilationService = CompilationService.shared
     @State private var selectedTab: DailyPageTab = .digest
     @Namespace private var tabPillNS
@@ -120,29 +119,9 @@ struct DailyPageView: View {
                     }
                 }
             }
-            // W1 fix: DailyMemoRef (not bare Memo.ID) so an embedded DailyPage's
-            // memo destination doesn't collide with the host stack's
-            // `for: UUID.self` — see DailyMemoRef doc. Looked up in this page's
-            // own memoVM.
-            .navigationDestination(for: DailyMemoRef.self) { ref in
-                if let memo = memoVM.memos.first(where: { $0.id == ref.id }) {
-                    MemoDetailView(
-                        memo: memo,
-                        vm: memoVM,
-                        backLabel: NSLocalizedString(
-                            "memo.detail.nav.back.daily",
-                            value: "Daily",
-                            comment: "Detail view — back label when pushed from a daily page"
-                        )
-                    )
-                    // W0: when DailyPage is embedded in a bar-hidden host stack
-                    // (Today/Archive → DayDetail), this MemoDetail push inherits
-                    // the suppressed pop gesture; re-arm it. Harmless (idempotent)
-                    // in the modal path where the bar is already visible.
+            .navigationDestination(for: MemoDetailRef.self) { ref in
+                MemoDetailHost(reference: ref)
                     .restoresInteractivePop()
-                } else {
-                    Text(NSLocalizedString("memo.not_found", comment: "Memo missing fallback")).foregroundColor(DSColor.inkMuted)
-                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -227,6 +206,12 @@ struct DailyPageView: View {
             }
         }
         .onAppear { loadPage() }
+        .onReceive(NotificationCenter.default.publisher(for: .rawStorageDidWrite)) { notification in
+            guard let writtenDate = notification.object as? Date,
+                  DateFormatters.isoDate.string(from: writtenDate) == dateString
+            else { return }
+            loadPage()
+        }
         .alert(NSLocalizedString("daily.recompile.confirm.title", comment: "Recompile confirm alert title"), isPresented: $showRecompileConfirm) {
             Button(NSLocalizedString("common.cancel", comment: "Cancel button"), role: .cancel) {}
             Button(NSLocalizedString("daily.recompile.confirm.action", comment: "Recompile confirm alert action"), role: .destructive) {
@@ -422,8 +407,12 @@ struct DailyPageView: View {
                 .padding(.bottom, DSSpacing.xs)
 
             VStack(spacing: 0) {
-                ForEach(memoVM.memos) { memo in
-                    NavigationLink(value: DailyMemoRef(id: memo.id)) {
+                ForEach(rawMemos) { memo in
+                    NavigationLink(value: MemoDetailRef(
+                        id: memo.id,
+                        day: memo.created,
+                        source: .daily
+                    )) {
                         SourceSignalRow(memo: memo)
                     }
                     .buttonStyle(.plain)
@@ -544,7 +533,10 @@ struct DailyPageView: View {
                 .lineSpacing(2)
                 .padding(.bottom, 22)
 
-            DailyPageSummarySection(model: model, onMentionTap: { mention in
+            DailyPageSummarySection(
+                model: model,
+                memoDay: DateFormatters.isoDate.date(from: model.dateString),
+                onMentionTap: { mention in
                 let slug = mention.hasPrefix("@") ? String(mention.dropFirst()) : mention
                 let (type, resolved) = resolveEntityTypeAndSlug(slug)
                 openEntity(type: type, slug: resolved)
@@ -829,6 +821,5 @@ struct DailyPageView: View {
             loaded = []
         }
         rawMemos = loaded.sorted { $0.created < $1.created }
-        memoVM.memos = rawMemos
     }
 }

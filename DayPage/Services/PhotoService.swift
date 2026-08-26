@@ -123,17 +123,16 @@ final class PhotoService {
         var exif = PhotoEXIF()
         if let exifDict = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] {
             if let fnum = exifDict[kCGImagePropertyExifFNumber] as? Double {
-                exif.aperture = String(format: "f/%.1f", fnum)
+                exif.aperture = MemoExifFormat.apertureLabel(fnum)
             }
-            if let shutterExp = exifDict[kCGImagePropertyExifExposureTime] as? Double, shutterExp > 0 {
-                let denom = Int(round(1.0 / shutterExp))
-                exif.shutterSpeed = denom > 1 ? "1/\(denom)s" : String(format: "%.1fs", shutterExp)
+            if let shutterExp = exifDict[kCGImagePropertyExifExposureTime] as? Double {
+                exif.shutterSpeed = MemoExifFormat.shutterLabel(exposureTime: shutterExp)
             }
             if let isoArr = exifDict[kCGImagePropertyExifISOSpeedRatings] as? [Int], let isoVal = isoArr.first {
                 exif.iso = "ISO \(isoVal)"
             }
             if let fl = exifDict[kCGImagePropertyExifFocalLength] as? Double {
-                exif.focalLength = "\(Int(fl))mm"
+                exif.focalLength = MemoExifFormat.focalLengthLabel(fl)
             }
             if let dateStr = exifDict[kCGImagePropertyExifDateTimeOriginal] as? String {
                 let df = DateFormatter()
@@ -160,7 +159,7 @@ final class PhotoService {
         ]
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary)
-        else { return UIImage(data: data) }
+        else { return nil }
         return UIImage(cgImage: cgThumb)
     }
 
@@ -176,18 +175,17 @@ final class PhotoService {
         // 光圈：EXIF FNumber（如 1.8 -> "f/1.8"）
         if let exifDict = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] {
             if let fnum = exifDict[kCGImagePropertyExifFNumber] as? Double {
-                exif.aperture = String(format: "f/%.1f", fnum)
+                exif.aperture = MemoExifFormat.apertureLabel(fnum)
             }
-            if let shutterExp = exifDict[kCGImagePropertyExifExposureTime] as? Double, shutterExp > 0 {
-                let denom = Int(round(1.0 / shutterExp))
-                exif.shutterSpeed = denom > 1 ? "1/\(denom)s" : String(format: "%.1fs", shutterExp)
+            if let shutterExp = exifDict[kCGImagePropertyExifExposureTime] as? Double {
+                exif.shutterSpeed = MemoExifFormat.shutterLabel(exposureTime: shutterExp)
             }
             if let isoArr = exifDict[kCGImagePropertyExifISOSpeedRatings] as? [Int],
                let isoVal = isoArr.first {
                 exif.iso = "ISO \(isoVal)"
             }
             if let fl = exifDict[kCGImagePropertyExifFocalLength] as? Double {
-                exif.focalLength = "\(Int(fl))mm"
+                exif.focalLength = MemoExifFormat.focalLengthLabel(fl)
             }
             // 从 EXIF DateTimeOriginal 获取拍摄日期
             if let dateStr = exifDict[kCGImagePropertyExifDateTimeOriginal] as? String {
@@ -224,10 +222,7 @@ final class PhotoService {
         ]
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary)
-        else {
-            // 回退：解码全图并缩小
-            return UIImage(data: data)
-        }
+        else { return nil }
         return UIImage(cgImage: cgThumb)
     }
 }

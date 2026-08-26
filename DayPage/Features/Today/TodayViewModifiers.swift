@@ -133,9 +133,10 @@ struct CardZoomSource<ID: Hashable>: ViewModifier {
 struct CardZoomDestination<ID: Hashable>: ViewModifier {
     let id: ID
     let namespace: Namespace.ID
+    var enabled = true
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, *), enabled {
             content.navigationTransition(.zoom(sourceID: id, in: namespace))
         } else {
             content

@@ -1,8 +1,12 @@
 import Foundation
+import DayPageModels
 
 extension TimeInterval {
     var mmss: String {
-        let t = Int(self)
+        guard let safeDuration = MemoPresentationSafety.duration(self),
+              let t = MemoPresentationSafety.roundedInt(safeDuration) else {
+            return "00:00"
+        }
         return String(format: "%02d:%02d", t / 60, t % 60)
     }
 }
