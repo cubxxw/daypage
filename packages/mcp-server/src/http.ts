@@ -65,11 +65,25 @@ function challenge(config: DayPageMcpConfig): string {
   return `Bearer resource_metadata="${metadataUrl}", scope="openid email profile"`;
 }
 
-function bearerToken(request: IncomingMessage): string | null {
-  const raw = request.headers.authorization;
+export function parseBearerAuthorization(raw: string | undefined): string | null {
   if (!raw) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(raw.trim());
-  return match?.[1]?.trim() || null;
+
+  const value = raw.trim();
+  const schemeLength = "Bearer".length;
+  if (value.length <= schemeLength || value.slice(0, schemeLength).toLowerCase() !== "bearer") {
+    return null;
+  }
+
+  let tokenStart = schemeLength;
+  if (value[tokenStart] !== " " && value[tokenStart] !== "\t") return null;
+  while (value[tokenStart] === " " || value[tokenStart] === "\t") tokenStart += 1;
+
+  const token = value.slice(tokenStart).trim();
+  return token || null;
+}
+
+function bearerToken(request: IncomingMessage): string | null {
+  return parseBearerAuthorization(request.headers.authorization);
 }
 
 async function readJsonBody(request: IncomingMessage, limitBytes: number): Promise<unknown> {

@@ -171,6 +171,44 @@ jobs:
           fi
           echo "✅ Generated tokens match design-tokens/tokens.json"
 
+  backend-security:
+    name: Backend security and contract checks
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.4 --activate
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run backend contracts and security regressions
+        run: pnpm backend:check
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: agentry/go.mod
+          cache-dependency-path: agentry/go.sum
+
+      - name: Test, vet, and build Agentry
+        working-directory: agentry
+        run: |
+          go test ./...
+          go vet ./...
+          go build ./...
+
   xcode-tests:
     name: Xcode Unit Tests (DayPageTests)
     runs-on: macos-15

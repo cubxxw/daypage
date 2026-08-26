@@ -777,7 +777,7 @@ func (r *renderer) renderAnchor(n *html.Node) {
 	href := ""
 	for _, a := range n.Attr {
 		if strings.EqualFold(a.Key, "href") {
-			href = strings.TrimSpace(a.Val)
+			href = safeAnchorHref(a.Val)
 			break
 		}
 	}
@@ -792,13 +792,33 @@ func (r *renderer) renderAnchor(n *html.Node) {
 	switch {
 	case href == "" && label == "":
 		return
-	case href == "" || strings.HasPrefix(href, "#") || strings.HasPrefix(href, "javascript:"):
+	case href == "" || strings.HasPrefix(href, "#"):
 		// No meaningful destination — keep just the label as a plain token.
 		r.emit(label)
 	case label == "":
 		r.emit(href)
 	default:
 		r.emit(fmt.Sprintf("[%s](%s)", label, href))
+	}
+}
+
+// safeAnchorHref accepts only links that remain inert when emitted as
+// Markdown. Parsing and allow-listing the normalized scheme closes mixed-case,
+// data:, vbscript:, and control-character variants that prefix checks miss.
+func safeAnchorHref(raw string) string {
+	href := strings.TrimSpace(raw)
+	if href == "" {
+		return ""
+	}
+	parsed, err := url.Parse(href)
+	if err != nil {
+		return ""
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "", "http", "https", "mailto", "tel":
+		return href
+	default:
+		return ""
 	}
 }
 

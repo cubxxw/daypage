@@ -11,6 +11,7 @@ pnpm contracts:test
 pnpm --filter daypage-mcp-server typecheck
 pnpm --filter daypage-mcp-server test
 pnpm --filter daypage-web exec vitest run \
+    src/lib/__tests__/sanitize.test.ts \
     src/lib/auth/__tests__/safe-next.test.ts \
     src/lib/oauth/__tests__/form-origin.test.ts \
     src/lib/oauth/__tests__/consent.test.ts \
