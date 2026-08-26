@@ -28,5 +28,6 @@ struct MacSentryAdapter: SentryAdapter {
     var isEnabled: Bool { false }
     func breadcrumb(category: String, level: SentryLevel, message: String) {}
     func captureError(_ error: Error) {}
+    func captureOperationalEvent(_ event: OperationalEvent) {}
     func startTransaction(name: String, operation: String) -> SentrySpan? { nil }
 }
