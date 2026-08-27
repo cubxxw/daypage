@@ -226,6 +226,7 @@
 		KC0000001 /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = KC1000001 /* KeychainHelperTests.swift */; };
 		LLM0000002 /* LLMClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LLM1000002 /* LLMClientTests.swift */; };
 		LS0000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = LS1000001 /* Localizable.strings */; };
+		SA000B029 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = SA000F028 /* InfoPlist.strings */; };
 		LS0000002 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = LS1000004 /* L10n.swift */; };
 		MD0000001 /* MemoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MD1000001 /* MemoDetailView.swift */; };
 		MD0000003 /* DropToAskGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = MD1000003 /* DropToAskGesture.swift */; };
@@ -279,6 +280,34 @@
 		WR0000003 /* WeeklyCompilationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WR1000003 /* WeeklyCompilationServiceTests.swift */; };
 		WRA0000001 /* WeeklyRecapAutoTriggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WRA1000001 /* WeeklyRecapAutoTriggerTests.swift */; };
 		WS0000001 /* WelcomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = WS1000001 /* WelcomeScreen.swift */; };
+		SA000B001 /* SystemActionPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F001 /* SystemActionPresentation.swift */; };
+		SA000B002 /* SystemActionCenterModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F002 /* SystemActionCenterModel.swift */; };
+		SA000B003 /* SystemActionEditableDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F003 /* SystemActionEditableDraft.swift */; };
+		SA000B004 /* SystemActionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F004 /* SystemActionCenterView.swift */; };
+		SA000B005 /* SystemActionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F005 /* SystemActionReviewView.swift */; };
+		SA000B006 /* SystemActionRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F006 /* SystemActionRuntime.swift */; };
+		SA000B007 /* SystemActionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F007 /* SystemActionIntents.swift */; };
+		SA000B008 /* AppleActivityAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F008 /* AppleActivityAdapter.swift */; };
+		SA000B009 /* AppleAdapterSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F009 /* AppleAdapterSupport.swift */; };
+		SA000B010 /* AppleContactsAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F010 /* AppleContactsAdapter.swift */; };
+		SA000B011 /* AppleEventKitAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F011 /* AppleEventKitAdapters.swift */; };
+		SA000B012 /* AppleHealthWeatherAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F012 /* AppleHealthWeatherAdapters.swift */; };
+		SA000B013 /* AppleLocationMapAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F013 /* AppleLocationMapAdapters.swift */; };
+		SA000B014 /* AppleNotificationAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F014 /* AppleNotificationAdapter.swift */; };
+		SA000B015 /* ApplePhotosVisionPencilAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F015 /* ApplePhotosVisionPencilAdapters.swift */; };
+		SA000B016 /* AppleSpotlightAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F016 /* AppleSpotlightAdapter.swift */; };
+		SA000B017 /* SystemActionAppleAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F017 /* SystemActionAppleAdapters.swift */; };
+		SA000B018 /* SystemActionAppleAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F018 /* SystemActionAppleAdapterTests.swift */; };
+		SA000B019 /* SystemActionWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F019 /* SystemActionWidget.swift */; };
+		SA000B020 /* FocusSessionLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F020 /* FocusSessionLiveActivity.swift */; };
+		SA000B021 /* SystemActionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F007 /* SystemActionIntents.swift */; };
+		SA000B022 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = SA000F021 /* PrivacyInfo.xcprivacy */; };
+		SA000B023 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = SA000F022 /* PrivacyInfo.xcprivacy */; };
+		SA000B024 /* SystemActionUIBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F024 /* SystemActionUIBroker.swift */; };
+		SA000B025 /* SystemActionNativePresentationHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F025 /* SystemActionNativePresentationHost.swift */; };
+		SA000B026 /* SystemActionContextComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F026 /* SystemActionContextComposerView.swift */; };
+		SA000B027 /* SystemActionUIModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SA000F027 /* SystemActionUIModelTests.swift */; };
+		SA000B028 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = LS1000001 /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -520,6 +549,33 @@
 		FE7DDC58EC6F656636E66120 /* DayPageMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DayPageMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE91252BA9167A50BFF79FF0 /* StartRecordingIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartRecordingIntent.swift; sourceTree = "<group>"; };
 		FT1000001 /* DayOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayOrbView.swift; sourceTree = "<group>"; };
+		SA000F001 /* SystemActionPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionPresentation.swift; sourceTree = "<group>"; };
+		SA000F002 /* SystemActionCenterModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionCenterModel.swift; sourceTree = "<group>"; };
+		SA000F003 /* SystemActionEditableDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionEditableDraft.swift; sourceTree = "<group>"; };
+		SA000F004 /* SystemActionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionCenterView.swift; sourceTree = "<group>"; };
+		SA000F005 /* SystemActionReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionReviewView.swift; sourceTree = "<group>"; };
+		SA000F006 /* SystemActionRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionRuntime.swift; sourceTree = "<group>"; };
+		SA000F007 /* SystemActionIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionIntents.swift; sourceTree = "<group>"; };
+		SA000F008 /* AppleActivityAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleActivityAdapter.swift; sourceTree = "<group>"; };
+		SA000F009 /* AppleAdapterSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleAdapterSupport.swift; sourceTree = "<group>"; };
+		SA000F010 /* AppleContactsAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleContactsAdapter.swift; sourceTree = "<group>"; };
+		SA000F011 /* AppleEventKitAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleEventKitAdapters.swift; sourceTree = "<group>"; };
+		SA000F012 /* AppleHealthWeatherAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleHealthWeatherAdapters.swift; sourceTree = "<group>"; };
+		SA000F013 /* AppleLocationMapAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleLocationMapAdapters.swift; sourceTree = "<group>"; };
+		SA000F014 /* AppleNotificationAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleNotificationAdapter.swift; sourceTree = "<group>"; };
+		SA000F015 /* ApplePhotosVisionPencilAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePhotosVisionPencilAdapters.swift; sourceTree = "<group>"; };
+		SA000F016 /* AppleSpotlightAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpotlightAdapter.swift; sourceTree = "<group>"; };
+		SA000F017 /* SystemActionAppleAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionAppleAdapters.swift; sourceTree = "<group>"; };
+		SA000F018 /* SystemActionAppleAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionAppleAdapterTests.swift; sourceTree = "<group>"; };
+		SA000F019 /* SystemActionWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionWidget.swift; sourceTree = "<group>"; };
+		SA000F020 /* FocusSessionLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSessionLiveActivity.swift; sourceTree = "<group>"; };
+		SA000F021 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		SA000F022 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		SA000F023 /* DayPageWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DayPageWidget.entitlements; sourceTree = "<group>"; };
+		SA000F024 /* SystemActionUIBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionUIBroker.swift; sourceTree = "<group>"; };
+		SA000F025 /* SystemActionNativePresentationHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionNativePresentationHost.swift; sourceTree = "<group>"; };
+		SA000F026 /* SystemActionContextComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionContextComposerView.swift; sourceTree = "<group>"; };
+		SA000F027 /* SystemActionUIModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionUIModelTests.swift; sourceTree = "<group>"; };
 		GSM1000002 /* GraphSimulationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GraphSimulationTests.swift; sourceTree = "<group>"; };
 		I280000001 /* ErrorPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorPresenter.swift; sourceTree = "<group>"; };
 		I280000002 /* InsightActionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightActionService.swift; sourceTree = "<group>"; };
@@ -541,6 +597,8 @@
 		LLM1000002 /* LLMClientTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LLMClientTests.swift; sourceTree = "<group>"; };
 		LS1000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		LS1000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		SA000F029 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		SA000F030 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		LS1000004 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		MD1000001 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
 		MD1000003 /* DropToAskGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropToAskGesture.swift; sourceTree = "<group>"; };
@@ -691,6 +749,10 @@
 				7909ED56F96754E4C4FA21CC /* QuickCaptureWidget.swift */,
 				CRL1000001 /* CaptureReminderLiveActivity.swift */,
 				519B9B12CB68C0E6E2A06292 /* QuickCaptureControl.swift */,
+				SA000F019 /* SystemActionWidget.swift */,
+				SA000F020 /* FocusSessionLiveActivity.swift */,
+				SA000F022 /* PrivacyInfo.xcprivacy */,
+				SA000F023 /* DayPageWidget.entitlements */,
 				E54B333332A1175CD3B31883 /* Info.plist */,
 			);
 			name = DayPageWidget;
@@ -791,6 +853,7 @@
 				ES5000002 /* Resources */,
 				A50000009 /* Products */,
 				CACBEB57B683CFE3B3FC434A /* Intents */,
+				SA000G002 /* Platform */,
 			);
 			path = DayPage;
 			sourceTree = "<group>";
@@ -809,6 +872,7 @@
 				A20000304 /* DSDot.swift */,
 				A20000024 /* Info.plist */,
 				A20000071 /* DayPage.entitlements */,
+				SA000F021 /* PrivacyInfo.xcprivacy */,
 				A20000029 /* Assets.xcassets */,
 				AF2000001 /* Fonts */,
 				C551D36362FF97C44EB4D5DE /* SidebarHeatmapView.swift */,
@@ -859,6 +923,7 @@
 				MD5000001 /* MemoDetail */,
 				08775C73D4E048DD3BC96559 /* Ask */,
 				A50000023 /* Schedule */,
+				SA000G001 /* SystemActions */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -869,6 +934,47 @@
 				SCH1000001 /* ScheduleHubView.swift */,
 			);
 			path = Schedule;
+			sourceTree = "<group>";
+		};
+		SA000G001 /* SystemActions */ = {
+			isa = PBXGroup;
+			children = (
+				SA000F001 /* SystemActionPresentation.swift */,
+				SA000F002 /* SystemActionCenterModel.swift */,
+				SA000F003 /* SystemActionEditableDraft.swift */,
+				SA000F004 /* SystemActionCenterView.swift */,
+				SA000F005 /* SystemActionReviewView.swift */,
+				SA000F006 /* SystemActionRuntime.swift */,
+				SA000F025 /* SystemActionNativePresentationHost.swift */,
+				SA000F026 /* SystemActionContextComposerView.swift */,
+			);
+			path = SystemActions;
+			sourceTree = "<group>";
+		};
+		SA000G002 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+				SA000G003 /* Apple */,
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+		SA000G003 /* Apple */ = {
+			isa = PBXGroup;
+			children = (
+				SA000F008 /* AppleActivityAdapter.swift */,
+				SA000F009 /* AppleAdapterSupport.swift */,
+				SA000F010 /* AppleContactsAdapter.swift */,
+				SA000F011 /* AppleEventKitAdapters.swift */,
+				SA000F012 /* AppleHealthWeatherAdapters.swift */,
+				SA000F013 /* AppleLocationMapAdapters.swift */,
+				SA000F014 /* AppleNotificationAdapter.swift */,
+				SA000F015 /* ApplePhotosVisionPencilAdapters.swift */,
+				SA000F016 /* AppleSpotlightAdapter.swift */,
+				SA000F017 /* SystemActionAppleAdapters.swift */,
+				SA000F024 /* SystemActionUIBroker.swift */,
+			);
+			path = Apple;
 			sourceTree = "<group>";
 		};
 		A50000005 /* Models */ = {
@@ -1141,6 +1247,7 @@
 				IN2000001 /* QuickCaptureTextIntent.swift */,
 				IN2000002 /* OpenDailyPageIntent.swift */,
 				IN2000003 /* AskTodayIntent.swift */,
+				SA000F007 /* SystemActionIntents.swift */,
 			);
 			name = Intents;
 			path = Intents;
@@ -1225,6 +1332,7 @@
 			isa = PBXGroup;
 			children = (
 				LS1000001 /* Localizable.strings */,
+				SA000F028 /* InfoPlist.strings */,
 				LS1000004 /* L10n.swift */,
 				SR20000009 /* DoubaoTestSample.wav */,
 			);
@@ -1294,6 +1402,8 @@
 				MSE1000001 /* MemoSyncE2EIntegrationTests.swift */,
 				MST1000001 /* MemoSyncUploaderTests.swift */,
 				WRA1000001 /* WeeklyRecapAutoTriggerTests.swift */,
+				SA000F018 /* SystemActionAppleAdapterTests.swift */,
+				SA000F027 /* SystemActionUIModelTests.swift */,
 			);
 			path = DayPageTests;
 			sourceTree = "<group>";
@@ -1472,6 +1582,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				SA000B023 /* PrivacyInfo.xcprivacy in Resources */,
+				SA000B028 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1509,7 +1621,9 @@
 				AF0000013 /* Fraunces-VariableFont.ttf in Resources */,
 				A10000029 /* Assets.xcassets in Resources */,
 				LS0000001 /* Localizable.strings in Resources */,
+				SA000B029 /* InfoPlist.strings in Resources */,
 				SR10000009 /* DoubaoTestSample.wav in Resources */,
+				SA000B022 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1553,6 +1667,9 @@
 				CRL0000001 /* CaptureReminderLiveActivity.swift in Sources */,
 				97FA675FF46459D5CE5E8CF3 /* QuickCaptureControl.swift in Sources */,
 				485EFA11789212D87CB1B74B /* StartRecordingIntent.swift in Sources */,
+				SA000B019 /* SystemActionWidget.swift in Sources */,
+				SA000B020 /* FocusSessionLiveActivity.swift in Sources */,
+				SA000B021 /* SystemActionIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1757,6 +1874,26 @@
 				1BA5F2B78351EFB69F085A65 /* AskPastView.swift in Sources */,
 				9BDB4C3E0410203CCA77F758 /* TodayViewComponents.swift in Sources */,
 				70E7D20C0140322FFC8487D0 /* TodayViewModifiers.swift in Sources */,
+				SA000B001 /* SystemActionPresentation.swift in Sources */,
+				SA000B002 /* SystemActionCenterModel.swift in Sources */,
+				SA000B003 /* SystemActionEditableDraft.swift in Sources */,
+				SA000B004 /* SystemActionCenterView.swift in Sources */,
+				SA000B005 /* SystemActionReviewView.swift in Sources */,
+				SA000B006 /* SystemActionRuntime.swift in Sources */,
+				SA000B007 /* SystemActionIntents.swift in Sources */,
+				SA000B008 /* AppleActivityAdapter.swift in Sources */,
+				SA000B009 /* AppleAdapterSupport.swift in Sources */,
+				SA000B010 /* AppleContactsAdapter.swift in Sources */,
+				SA000B011 /* AppleEventKitAdapters.swift in Sources */,
+				SA000B012 /* AppleHealthWeatherAdapters.swift in Sources */,
+				SA000B013 /* AppleLocationMapAdapters.swift in Sources */,
+				SA000B014 /* AppleNotificationAdapter.swift in Sources */,
+				SA000B015 /* ApplePhotosVisionPencilAdapters.swift in Sources */,
+				SA000B016 /* AppleSpotlightAdapter.swift in Sources */,
+				SA000B017 /* SystemActionAppleAdapters.swift in Sources */,
+				SA000B024 /* SystemActionUIBroker.swift in Sources */,
+				SA000B025 /* SystemActionNativePresentationHost.swift in Sources */,
+				SA000B026 /* SystemActionContextComposerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1808,6 +1945,8 @@
 				MSE0000001 /* MemoSyncE2EIntegrationTests.swift in Sources */,
 				MST0000001 /* MemoSyncUploaderTests.swift in Sources */,
 				WRA0000001 /* WeeklyRecapAutoTriggerTests.swift in Sources */,
+				SA000B018 /* SystemActionAppleAdapterTests.swift in Sources */,
+				SA000B027 /* SystemActionUIModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1843,6 +1982,15 @@
 			name = Localizable.strings;
 			sourceTree = "<group>";
 		};
+		SA000F028 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				SA000F029 /* en */,
+				SA000F030 /* zh-Hans */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
@@ -1853,12 +2001,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = DayPageWidget/DayPageWidget.entitlements;
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6RG2F8YY59;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DayPageWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1884,6 +2033,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = DayPageWidget/DayPageWidget.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Distribution";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
@@ -1891,7 +2041,7 @@
 				DEVELOPMENT_TEAM = 6RG2F8YY59;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DayPageWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

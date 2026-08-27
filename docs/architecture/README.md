@@ -13,6 +13,8 @@
 - [ADR-0014](decisions/ADR-0014-deepseek-harness-host-adapter.md): DeepSeek Harness development-host adapter.
 - [ADR-0015](decisions/ADR-0015-stable-memo-detail-and-bounded-media.md): stable memo-detail identity, safe Vault presentation boundaries, and bounded image decoding.
 - [ADR-0016](decisions/ADR-0016-revisioned-attachment-sync.md): revisioned local-first attachment synchronization with resumable transfer and garbage collection.
+- [ADR-0017](decisions/ADR-0017-apple-system-actions.md): local-first Apple System Actions with native confirmation, device execution, immutable receipts, and bounded agent proposals.
+- [Issue #887 verification matrix](../verification-issue-887-apple-system-actions.md): automated gates plus the matching-OS and real-device release checklist.
 
 The overview is descriptive and should track executable reality. ADRs explain durable
 choices and trade-offs. Product requirements belong in a current PRD or issue, not in an

@@ -1,4 +1,5 @@
 import SwiftUI
+import DayPageModels
 import DayPageStorage
 import DayPageServices
 
@@ -17,6 +18,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var sidebarVM = SidebarViewModel()
+    @StateObject private var systemActionModel = SystemActionRuntime.shared.model
     @ObservedObject private var appSettings = AppSettings.shared
     @State private var syncAccountError: String?
 
@@ -72,8 +74,23 @@ struct RootView: View {
                     Task { await SyncQueueService.shared.flushIfOnline() }
                 } else {
                     SyncQueueObserver.shared.clearSession()
+                    DayPageReadOnlyEntitySnapshotStore.clear()
                     let skipped = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
                     if phase == .ready && !skipped { phase = .auth }
+                }
+            }
+            .onChange(of: authService.session?.user.id) { accountID in
+                guard let accountID else { return }
+                Task {
+                    // Account-bound System Action cleanup must finish before
+                    // any read-only entity snapshot for the new account is
+                    // published into the shared App Group.
+                    guard await prepareReadOnlyEntityAccountBoundary(expectedAccountID: accountID) else { return }
+                    await systemActionModel.refresh()
+                    guard authService.session?.user.id == accountID else { return }
+                    await DayPageReadOnlyEntitySnapshotPublisher.refresh(
+                        spotlightEnabled: systemActionModel.isCapabilityOffered(.spotlight)
+                    )
                 }
             }
             .onAppear {
@@ -92,9 +109,40 @@ struct RootView: View {
                 installSessionBackedSyncUploader()
                 Task { await SyncQueueService.shared.reconcileVault() }
             }
+            .task {
+                consumeSystemActionNavigationRequest()
+                await consumeFocusControlRequest()
+                consumeFocusDraftRequest()
+                consumeReadOnlyEntityNavigationRequest()
+                await ingestShareInboxEnvelopes()
+                if let accountID = authService.session?.user.id,
+                   await prepareReadOnlyEntityAccountBoundary(expectedAccountID: accountID) {
+                    // Device-local first; authenticated sessions may reconcile
+                    // in the background when the user opens the center.
+                    await systemActionModel.refresh()
+                    await DayPageReadOnlyEntitySnapshotPublisher.refresh(
+                        spotlightEnabled: systemActionModel.isCapabilityOffered(.spotlight)
+                    )
+                } else {
+                    await systemActionModel.refresh()
+                }
+            }
             .onChange(of: scenePhase) { phase in
-                guard phase == .active, authService.session != nil else { return }
-                Task { await SyncQueueService.shared.flushIfOnline() }
+                guard phase == .active else { return }
+                consumeSystemActionNavigationRequest()
+                Task { await consumeFocusControlRequest() }
+                consumeFocusDraftRequest()
+                consumeReadOnlyEntityNavigationRequest()
+                Task { await ingestShareInboxEnvelopes() }
+                guard authService.session != nil else { return }
+                Task {
+                    await SyncQueueService.shared.flushIfOnline()
+                    await refreshReadOnlyEntitySnapshotIfPrepared()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .rawStorageDidWrite)) { _ in
+                guard authService.session != nil else { return }
+                Task { await refreshReadOnlyEntitySnapshotIfPrepared() }
             }
             .alert(
                 "无法开启云同步",
@@ -154,6 +202,112 @@ struct RootView: View {
             )
         }
     }
+
+    private func consumeSystemActionNavigationRequest() {
+        let request = SystemActionSharedSummaryStore.consumeOpenCenterRequest()
+        guard request.requested else { return }
+        nav.systemActionPresentation = .center(selectedProposalID: request.proposalID)
+    }
+
+    private func consumeFocusDraftRequest() {
+        guard let request = SystemActionSharedSummaryStore.consumeFocusDraftRequest() else { return }
+        nav.systemActionPresentation = .focus(.init(
+            title: request.title,
+            durationSeconds: request.durationMinutes * 60
+        ))
+    }
+
+    @MainActor
+    private func consumeFocusControlRequest() async {
+        guard let request = SystemActionSharedSummaryStore.pendingFocusControlRequest() else { return }
+        do {
+            try await AppleFocusSessionControlService.apply(request)
+            SystemActionSharedSummaryStore.acknowledgeFocusControlRequest(request)
+        } catch {
+            SentryReporter.breadcrumb(
+                category: "system_actions.focus_control",
+                level: .warning,
+                message: "focus control reconciliation failed"
+            )
+        }
+    }
+
+    private func ingestShareInboxEnvelopes() async {
+        for envelope in SystemActionSharedSummaryStore.pendingShareInboxEnvelopes() {
+            guard let kind = SystemActionCaptureKind(rawValue: envelope.captureKind) else {
+                SystemActionSharedSummaryStore.acknowledgeShareInboxEnvelope(id: envelope.id)
+                continue
+            }
+            do {
+                let proposal = try SystemActionProposal(
+                    id: envelope.id,
+                    payload: .capture(.init(
+                        captureKind: kind,
+                        suggestedTitle: String(envelope.boundedTitle.prefix(200)),
+                        attachesToSource: envelope.attachesToSource
+                    )),
+                    title: String(envelope.boundedTitle.prefix(160)),
+                    rationale: "由 Share Inbox 本地证据生成；原始内容与 OCR 不在动作提案中。",
+                    sourceReferences: [.init(kind: .shareInbox, identifier: envelope.captureReference)],
+                    creatorSource: .systemEntry,
+                    creatorDeviceID: systemActionModel.deviceID,
+                    redactionLevel: .privateOnLockScreen,
+                    targetDevice: .creatingDevice,
+                    createdAt: envelope.createdAt
+                )
+                guard await systemActionModel.save(proposal) else { return }
+                SystemActionSharedSummaryStore.acknowledgeShareInboxEnvelope(id: envelope.id)
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func consumeReadOnlyEntityNavigationRequest() {
+        guard let request = DayPageReadOnlyEntitySnapshotStore.consumeNavigationRequest() else { return }
+        switch request.kind {
+        case .memo:
+            guard let id = UUID(uuidString: request.identifier),
+                  let dateString = request.dateString,
+                  let day = Self.entityDateFormatter.date(from: dateString) else { return }
+            nav.navigate(to: .archive)
+            nav.push(MemoDetailRef(id: id, day: day, source: .daily), in: .archive)
+        case .dailyPage:
+            nav.openArchive(at: request.identifier)
+        case .place:
+            guard let slug = DayPageReadOnlyEntitySnapshotStore.resolvePlaceSlug(request.identifier) else { return }
+            nav.navigate(to: .archive)
+            nav.push(EntityRef(type: "places", slug: slug), in: .archive)
+        }
+    }
+
+    private func refreshReadOnlyEntitySnapshotIfPrepared() async {
+        guard let accountID = authService.session?.user.id,
+              await prepareReadOnlyEntityAccountBoundary(expectedAccountID: accountID) else { return }
+        await DayPageReadOnlyEntitySnapshotPublisher.refresh(
+            spotlightEnabled: systemActionModel.isCapabilityOffered(.spotlight)
+        )
+    }
+
+    private func prepareReadOnlyEntityAccountBoundary(expectedAccountID: UUID) async -> Bool {
+        do {
+            try await SystemActionRuntime.shared.prepareAccountBoundary()
+            return authService.session?.user.id == expectedAccountID
+        } catch {
+            // The runtime persists quarantine before cleanup. Keep every
+            // shared system surface empty until cleanup can be retried.
+            DayPageReadOnlyEntitySnapshotStore.clear()
+            return false
+        }
+    }
+
+    private static let entityDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = AppSettings.currentTimeZone()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     @ViewBuilder
     private var phaseContent: some View {
@@ -256,6 +410,24 @@ struct RootView: View {
                 TodayView()
                     .opacity(nav.selectedTab == .today ? 1 : 0)
                     .allowsHitTesting(nav.selectedTab == .today)
+                    .overlay(alignment: .topTrailing) {
+                        if nav.selectedTab == .today,
+                           let proposal = systemActionModel.reviewableProposals.first,
+                           !nav.isSidebarOpen,
+                           !nav.isFeedbackPanelOpen {
+                            SystemActionTodayProposalCard(
+                                model: systemActionModel,
+                                proposal: proposal
+                            ) {
+                                nav.systemActionPresentation = .center(selectedProposalID: proposal.id)
+                            }
+                            .frame(maxWidth: 430)
+                            .padding(.top, 58)
+                            .padding(.trailing, 16)
+                            .padding(.leading, 16)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
                     .accessibilityHidden(
                         nav.selectedTab != .today
                             || nav.isSidebarOpen
@@ -469,6 +641,12 @@ struct RootView: View {
         // 后 SidebarView 被离屏隐藏,其 @State 不可靠,sheet 呈现会被丢(实测)。
         .sheet(isPresented: $nav.showScheduleHub) {
             NavigationStack { ScheduleHubView() }
+        }
+        .sheet(item: $nav.systemActionPresentation) { presentation in
+            SystemActionPresentationHost(
+                model: systemActionModel,
+                presentation: presentation
+            )
         }
     }
 

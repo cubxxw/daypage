@@ -728,6 +728,8 @@ export const mcp_client_grants = pgTable(
     client_id: text("client_id").notNull(),
     can_read: boolean("can_read").notNull().default(true),
     can_write: boolean("can_write").notNull().default(false),
+    can_read_actions: boolean("can_read_actions").notNull().default(false),
+    can_propose_actions: boolean("can_propose_actions").notNull().default(false),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     revoked_at: timestamp("revoked_at", { withTimezone: true }),
@@ -742,6 +744,178 @@ export type SyncOperation = typeof sync_operations.$inferSelect;
 export type AttachmentUploadReservation = typeof attachment_upload_reservations.$inferSelect;
 export type AttachmentGcQueueItem = typeof attachment_gc_queue.$inferSelect;
 export type McpClientGrant = typeof mcp_client_grants.$inferSelect;
+
+// ─── #887: local-first Apple system action cloud replica ─────────────────────
+
+export const system_action_proposals = pgTable(
+  "system_action_proposals",
+  {
+    user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    proposal_id: uuid("proposal_id").notNull(),
+    schema_version: integer("schema_version").notNull().default(1),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").notNull(),
+    payload_hash: text("payload_hash").notNull(),
+    title: text("title").notNull(),
+    rationale: text("rationale").notNull().default(""),
+    source_refs: jsonb("source_refs").notNull().default(sql`'[]'::jsonb`),
+    creator_source: text("creator_source").notNull(),
+    creator_device_id_hash: text("creator_device_id_hash"),
+    redaction_level: text("redaction_level").notNull(),
+    target_device_preference: text("target_device_preference").notNull(),
+    target_device_id_hash: text("target_device_id_hash"),
+    state: text("state").notNull().default("pending"),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+    change_sequence: bigint("change_sequence", { mode: "number" }).notNull()
+      .default(sql`nextval('public.daypage_system_action_change_sequence')`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.proposal_id] }),
+    index("system_action_proposals_user_change").on(t.user_id, t.change_sequence),
+    index("system_action_proposals_user_state_updated").on(t.user_id, t.state, t.updated_at),
+  ],
+);
+
+export const system_action_approvals = pgTable(
+  "system_action_approvals",
+  {
+    user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    approval_id: uuid("approval_id").notNull(),
+    proposal_id: uuid("proposal_id").notNull(),
+    schema_version: integer("schema_version").notNull().default(1),
+    phase: text("phase").notNull(),
+    proposal_revision: bigint("proposal_revision", { mode: "number" }).notNull(),
+    payload_hash: text("payload_hash").notNull(),
+    decision: text("decision").notNull(),
+    device_id_hash: text("device_id_hash").notNull(),
+    replacement_proposal_id: uuid("replacement_proposal_id"),
+    change_sequence: bigint("change_sequence", { mode: "number" }).notNull()
+      .default(sql`nextval('public.daypage_system_action_change_sequence')`),
+    decided_at: timestamp("decided_at", { withTimezone: true }).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.approval_id] }),
+    uniqueIndex("system_action_approvals_exact_decision").on(t.user_id, t.proposal_id, t.phase, t.proposal_revision),
+    index("system_action_approvals_user_change").on(t.user_id, t.change_sequence),
+  ],
+);
+
+export const system_action_receipts = pgTable(
+  "system_action_receipts",
+  {
+    user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    receipt_id: uuid("receipt_id").notNull(),
+    proposal_id: uuid("proposal_id").notNull(),
+    schema_version: integer("schema_version").notNull().default(1),
+    phase: text("phase").notNull(),
+    proposal_revision: bigint("proposal_revision", { mode: "number" }).notNull(),
+    payload_hash: text("payload_hash").notNull(),
+    attempt: integer("attempt").notNull(),
+    outcome: text("outcome").notNull(),
+    device_id_hash: text("device_id_hash").notNull(),
+    execution_mode: text("execution_mode").notNull(),
+    lease_id: uuid("lease_id"),
+    result: jsonb("result").notNull().default(sql`'{}'::jsonb`),
+    error_code: text("error_code"),
+    reconciliation_state: text("reconciliation_state").notNull(),
+    undo_capability: text("undo_capability").notNull(),
+    external_id_hash: text("external_id_hash"),
+    change_sequence: bigint("change_sequence", { mode: "number" }).notNull()
+      .default(sql`nextval('public.daypage_system_action_change_sequence')`),
+    started_at: timestamp("started_at", { withTimezone: true }).notNull(),
+    completed_at: timestamp("completed_at", { withTimezone: true }).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.receipt_id] }),
+    uniqueIndex("system_action_receipts_attempt").on(
+      t.user_id,
+      t.proposal_id,
+      t.phase,
+      t.device_id_hash,
+      t.attempt,
+    ),
+    index("system_action_receipts_user_change").on(t.user_id, t.change_sequence),
+  ],
+);
+
+export const system_action_capability_policies = pgTable(
+  "system_action_capability_policies",
+  {
+    user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    policy_id: uuid("policy_id").notNull(),
+    schema_version: integer("schema_version").notNull().default(1),
+    capability: text("capability").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    is_offered: boolean("is_offered").notNull(),
+    sync_enabled: boolean("sync_enabled").notNull(),
+    disclosure_level: text("disclosure_level").notNull(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+    change_sequence: bigint("change_sequence", { mode: "number" }).notNull()
+      .default(sql`nextval('public.daypage_system_action_change_sequence')`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.policy_id] }),
+    uniqueIndex("system_action_capability_policies_capability").on(t.user_id, t.capability),
+    index("system_action_capability_policies_user_change").on(t.user_id, t.change_sequence),
+  ],
+);
+
+export const system_action_sync_operations = pgTable(
+  "system_action_sync_operations",
+  {
+    user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    operation_id: uuid("operation_id").notNull(),
+    entity_type: text("entity_type").notNull(),
+    entity_id: uuid("entity_id").notNull(),
+    operation_kind: text("operation_kind").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    request_fingerprint: text("request_fingerprint").notNull(),
+    result: jsonb("result").notNull(),
+    applied_at: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.operation_id] }),
+    index("system_action_sync_operations_entity").on(t.user_id, t.entity_type, t.entity_id),
+  ],
+);
+
+export const system_action_execution_leases = pgTable(
+  "system_action_execution_leases",
+  {
+    user_id: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    lease_id: uuid("lease_id").notNull(),
+    claim_operation_id: uuid("claim_operation_id").notNull(),
+    proposal_id: uuid("proposal_id").notNull(),
+    phase: text("phase").notNull(),
+    proposal_revision: bigint("proposal_revision", { mode: "number" }).notNull(),
+    payload_hash: text("payload_hash").notNull(),
+    device_id_hash: text("device_id_hash").notNull(),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    released_at: timestamp("released_at", { withTimezone: true }),
+    release_reason: text("release_reason"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.lease_id] }),
+    uniqueIndex("system_action_execution_leases_claim").on(t.user_id, t.claim_operation_id),
+    index("system_action_execution_leases_lookup").on(t.user_id, t.proposal_id, t.phase, t.expires_at),
+  ],
+);
+
+export type SystemActionProposal = typeof system_action_proposals.$inferSelect;
+export type SystemActionApproval = typeof system_action_approvals.$inferSelect;
+export type SystemActionReceipt = typeof system_action_receipts.$inferSelect;
+export type SystemActionCapabilityPolicy = typeof system_action_capability_policies.$inferSelect;
+export type SystemActionSyncOperation = typeof system_action_sync_operations.$inferSelect;
+export type SystemActionExecutionLease = typeof system_action_execution_leases.$inferSelect;
 
 // ─── US-013: ingest_sources (external ingest channel configuration) ──────────
 

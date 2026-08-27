@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "policy_id": "66666666-6666-4666-8666-666666666666",
+  "capability": "calendar",
+  "revision": 1,
+  "is_offered": true,
+  "sync_enabled": true,
+  "disclosure_level": "full_proposal",
+  "authorization_status": "full_access",
+  "updated_at": "2026-08-26T10:00:00.000Z",
+  "deleted_at": null
+}

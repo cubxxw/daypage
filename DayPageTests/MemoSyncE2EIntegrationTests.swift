@@ -53,7 +53,13 @@ struct MemoSyncE2EIntegrationTests {
             body: "iOS→web E2E integration \(UUID().uuidString.prefix(8))"
         )
         let fileURL = rawDir.appendingPathComponent("2026-06-24.md")
-        try memo.toMarkdown().write(to: fileURL, atomically: true, encoding: .utf8)
+        // Exercise the real Vault wire format, including the canonical memo
+        // separator consumed by `RawStorage.parse` and production sync lookup.
+        try RawStorage.serialize([memo]).write(
+            to: fileURL,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // Snapshot + restore the real sync config so this test can't poison it.
         let priorURL = SyncSettings.baseURLString

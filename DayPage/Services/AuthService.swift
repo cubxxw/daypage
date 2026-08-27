@@ -233,6 +233,20 @@ final class AuthService: NSObject, ObservableObject {
                         DayPageLogger.shared.info("[AuthService] Auth event: \(String(describing: event)), session cleared")
                     }
                 }
+                let mustClearSystemActions = event == .signedOut
+                    || event == .userDeleted
+                    || (event == .initialSession && session == nil)
+                if mustClearSystemActions {
+                    do {
+                        try await SystemActionRuntime.shared.clearForSignOut()
+                    } catch {
+                        // The account boundary has already entered durable
+                        // quarantine. Do not restore the old session or expose
+                        // underlying framework/account details from this
+                        // asynchronous auth-state path.
+                        DayPageLogger.shared.error("[AuthService] System action sign-out cleanup remains quarantined")
+                    }
+                }
             }
         }
     }
@@ -493,6 +507,19 @@ final class AuthService: NSObject, ObservableObject {
         defer { isLoading = false }
 
         do {
+            // Close the action coordinator while this account's token is still
+            // present. A lost claim or unconfirmed lease must block logout
+            // before Supabase revokes the only identity that can reconcile it.
+            try await SystemActionRuntime.shared.beginSignOutTransition()
+        } catch {
+            let cleanupError = DPAuthError.unknown(
+                message: "系统动作仍有待确认的执行记录，请联网完成同步后再退出登录。"
+            )
+            self.error = cleanupError
+            throw cleanupError
+        }
+
+        do {
             // "Sign out" is intentionally device-local. Other DayPage clients
             // continue syncing, matching the wording in Account Center.
             try await supabase.auth.signOut(scope: .local)
@@ -503,6 +530,7 @@ final class AuthService: NSObject, ObservableObject {
             // them behind a misleading error. If a local session remains, the
             // logout genuinely failed and should be recoverable in the UI.
             guard supabase.auth.currentSession == nil else {
+                await SystemActionRuntime.shared.cancelSignOutTransition()
                 let mapped = mapSupabaseError(error)
                 self.error = mapped
                 reportAuthFailure(
@@ -520,6 +548,17 @@ final class AuthService: NSObject, ObservableObject {
         SyncQueueObserver.shared.clearSession()
         session = nil   // listener will confirm; local clear takes effect immediately in UI
         SentrySDK.setUser(nil)
+        do {
+            try await SystemActionRuntime.shared.finishSignOutTransition()
+        } catch {
+            // The runtime persists a quarantine before attempting cleanup, so
+            // a later account cannot execute or sync the previous account's
+            // ledger/outbox. Surface a bounded recovery error without exposing
+            // framework or account details.
+            let cleanupError = DPAuthError.unknown(message: "已退出登录，但本机系统动作数据尚未完成清理。重新登录前将保持停用。")
+            self.error = cleanupError
+            throw cleanupError
+        }
         DayPageLogger.shared.info("[AuthService] User signed out")
     }
 

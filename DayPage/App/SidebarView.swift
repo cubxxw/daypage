@@ -342,6 +342,7 @@ struct SidebarView: View {
             // ask" ladder.
             searchRow
             askRow
+            systemActionsRow
             // Schedule hub — capture-reminder CRUD lives here. Gated by the
             // same feature flag as the reminder scheduler, so it disappears
             // entirely when the flag is off (kill switch parity).
@@ -350,6 +351,43 @@ struct SidebarView: View {
             }
         }
         .padding(.horizontal, DSSpacing.md)
+    }
+
+    /// The trust boundary is a first-class destination, not a settings toggle:
+    /// pending proposals, exact approval revisions, receipts, reconciliation
+    /// and undo are all visible from this single surface.
+    private var systemActionsRow: some View {
+        Button {
+            Haptics.light()
+            nav.closeSidebar()
+            nav.systemActionPresentation = .center(selectedProposalID: nil)
+        } label: {
+            HStack(spacing: DSSpacing.md) {
+                Image(systemName: "checkmark.shield")
+                    .font(.system(size: 15, weight: .medium))
+                    .frame(width: 26, height: 26)
+                    .foregroundColor(DSColor.inkMuted)
+                Text("动作中心")
+                    .font(DSType.bodyMD)
+                    .foregroundColor(DSColor.inkMuted)
+                Spacer(minLength: DSSpacing.sm)
+                Text("REVIEW")
+                    .font(DSType.mono9)
+                    .tracking(1.1)
+                    .foregroundColor(DSColor.accentOnBg)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(DSColor.amberSoft, in: Capsule())
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("sidebar.system-actions")
+        .accessibilityLabel("动作中心")
+        .accessibilityHint("查看并审批 DayPage 的系统动作提案")
     }
 
     /// Entry to the "调度中心" (ScheduleHubView). Mirrors `askRow`/`searchRow`

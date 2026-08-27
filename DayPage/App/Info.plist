@@ -75,13 +75,27 @@
 		<string>com.daypage.daily-compilation</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>DayPage 需要访问相机，以便拍摄照片并附加到 memo 中。</string>
+	<string>DayPage 只在您启动采集时使用相机，以拍摄照片、扫描文档或识别文字。</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>只有当您批准一条日历动作时，DayPage 才会为您创建或更新该日程。</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>只有当您批准一条日历动作时，DayPage 才会把该日程写入系统日历。</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>DayPage 仅在您要求检查或撤销已批准的日程时读取相关日历数据。</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>只有当您批准一条提醒事项动作时，DayPage 才会访问系统提醒事项。</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>DayPage 需要读写您明确批准的提醒事项，以便创建、检查或撤销它。</string>
+	<key>NSContactsUsageDescription</key>
+	<string>DayPage 优先使用系统联系人选择器；只有当您确认保存联系人时才请求访问。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>DayPage 需要访问麦克风，以便录制语音 memo 并自动转写为文字。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>DayPage 需要使用语音识别，以便在反馈表单中将您的语音输入转写为文字。</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>DayPage 需要访问相册，以便将照片附加到 memo 并保留原始 EXIF 数据。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>当您选择“保存到相册”时，DayPage 需要添加访问权限来保存这一份 Moment。</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>当您主动点按“今日步数摘要”时，DayPage 只在设备上读取所选时间范围内的步数，不会请求写入健康数据。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>DayPage 需要在后台持续感知您的位置，以自动记录您到访的地点。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

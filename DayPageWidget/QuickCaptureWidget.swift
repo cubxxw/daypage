@@ -95,6 +95,7 @@ private struct QuickCaptureEntry: TimelineEntry {
 
 // MARK: - View
 
+@available(iOS 17.0, *)
 private struct QuickCaptureWidgetView: View {
 
     let entry: QuickCaptureEntry

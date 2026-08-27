@@ -150,8 +150,8 @@ export function createDayPageHttpServer(
       sendJson(response, 503, { error: "Authorization grant lookup unavailable" });
       return;
     }
-    if (!grant.canRead) {
-      sendJson(response, 403, { error: "This credential has no active DayPage read permission" });
+    if (!grant.canRead && !grant.canWrite && !grant.canReadActions && !grant.canProposeActions) {
+      sendJson(response, 403, { error: "This credential has no active DayPage permission" });
       return;
     }
 

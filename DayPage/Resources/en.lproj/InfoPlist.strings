@@ -1,0 +1,14 @@
+"NSCameraUsageDescription" = "DayPage uses the camera only when you start a capture, to take a photo, scan a document, or recognize text.";
+"NSCalendarsUsageDescription" = "DayPage creates or updates an event only after you approve a calendar action.";
+"NSCalendarsWriteOnlyAccessUsageDescription" = "DayPage writes an event to your system calendar only after you approve that calendar action.";
+"NSCalendarsFullAccessUsageDescription" = "DayPage reads relevant calendar data only when you ask it to check or undo an approved event.";
+"NSRemindersUsageDescription" = "DayPage accesses system reminders only after you approve a reminder action.";
+"NSRemindersFullAccessUsageDescription" = "DayPage reads and writes the reminder you explicitly approved so it can create, verify, or undo it.";
+"NSContactsUsageDescription" = "DayPage prefers the system contact picker and requests access only when you confirm saving a contact.";
+"NSMicrophoneUsageDescription" = "DayPage uses the microphone to record a voice memo and transcribe it into text.";
+"NSSpeechRecognitionUsageDescription" = "DayPage uses speech recognition to transcribe your voice input in the feedback form.";
+"NSPhotoLibraryAddUsageDescription" = "DayPage requests add-only photo access when you choose Save to Photos for a Moment.";
+"NSHealthShareUsageDescription" = "When you request today's step summary, DayPage reads only step counts for the selected time range on this device and never requests health write access.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "DayPage uses background location only after you enable visit automation, so it can create local drafts for places you visit.";
+"NSLocationWhenInUseUsageDescription" = "DayPage uses your location when you ask to add a place to a memo or approved action.";
+"NSAlarmKitUsageDescription" = "DayPage uses alarms at times you choose to remind you to capture the moment on iOS 26 or later.";

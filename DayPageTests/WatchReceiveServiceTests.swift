@@ -44,7 +44,7 @@ final class WatchReceiveServiceTests: XCTestCase {
         let now = Date()
         let audioPath = "raw/assets/watch_20260714_101500_ABCD.m4a"
 
-        let memo = WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: 12.0, created: now)
+        let memo = try WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: 12.0, created: now)
 
         let readBack = try RawStorage.read(for: now)
         XCTAssertEqual(readBack.count, 1, "Receiving a watch clip must create exactly one memo")
@@ -53,13 +53,32 @@ final class WatchReceiveServiceTests: XCTestCase {
         XCTAssertEqual(saved.type, .voice, "Watch audio memo must be typed .voice")
     }
 
+    func testAppendVoiceMemo_sameStableAudioPathIsIdempotent() throws {
+        let now = Date()
+        let audioPath = "raw/assets/watch_stable-transfer.m4a"
+
+        let first = try WatchReceiveService.appendVoiceMemo(
+            audioPath: audioPath,
+            duration: 12,
+            created: now
+        )
+        let second = try WatchReceiveService.appendVoiceMemo(
+            audioPath: audioPath,
+            duration: 12,
+            created: now
+        )
+
+        XCTAssertEqual(first.id, second.id)
+        XCTAssertEqual(try RawStorage.read(for: now).count, 1)
+    }
+
     /// The attachment must carry the audio metadata and start in `.pending` so
     /// the card shows the shimmer placeholder and the queue can later match it.
     func testAppendVoiceMemo_attachmentIsPendingAudioMatchingAudioPath() throws {
         let now = Date()
         let audioPath = "raw/assets/watch_20260714_101500_WXYZ.m4a"
 
-        WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: 8.5, created: now)
+        try WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: 8.5, created: now)
 
         let saved = try XCTUnwrap(try RawStorage.read(for: now).first)
         XCTAssertEqual(saved.attachments.count, 1)
@@ -79,7 +98,7 @@ final class WatchReceiveServiceTests: XCTestCase {
         let now = Date()
         let audioPath = "raw/assets/watch_nodur.m4a"
 
-        WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: nil, created: now)
+        try WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: nil, created: now)
 
         let saved = try XCTUnwrap(try RawStorage.read(for: now).first)
         let att = try XCTUnwrap(saved.attachments.first)
@@ -90,7 +109,7 @@ final class WatchReceiveServiceTests: XCTestCase {
     /// The memo must be tagged so it's distinguishable from phone captures.
     func testAppendVoiceMemo_taggedAsAppleWatch() throws {
         let now = Date()
-        WatchReceiveService.appendVoiceMemo(audioPath: "raw/assets/watch_x.m4a", duration: 3, created: now)
+        try WatchReceiveService.appendVoiceMemo(audioPath: "raw/assets/watch_x.m4a", duration: 3, created: now)
         let saved = try XCTUnwrap(try RawStorage.read(for: now).first)
         XCTAssertEqual(saved.device, "Apple Watch", "Watch-sourced memos must be tagged for provenance")
     }
@@ -102,7 +121,12 @@ final class WatchReceiveServiceTests: XCTestCase {
     func testAppendedMemo_canReceiveTranscriptWriteback() throws {
         let now = Date()
         let audioPath = "raw/assets/watch_writeback.m4a"
-        WatchReceiveService.appendVoiceMemo(audioPath: audioPath, duration: 5, created: now)
+        let pending = try WatchReceiveService.appendVoiceMemo(
+            audioPath: audioPath,
+            duration: 5,
+            created: now
+        )
+        XCTAssertTrue(WatchReceiveService.needsTranscription(pending, audioPath: audioPath))
 
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
@@ -121,5 +145,46 @@ final class WatchReceiveServiceTests: XCTestCase {
         let att = try XCTUnwrap(saved.attachments.first)
         XCTAssertEqual(att.transcript, "hello from the watch")
         XCTAssertEqual(att.transcriptionStatus, .done)
+        XCTAssertFalse(WatchReceiveService.needsTranscription(saved, audioPath: audioPath))
+    }
+
+    func testDurableObligationSurvivesAppendFailureAndRetriesExactlyOnce() throws {
+        enum ExpectedFailure: Error { case appendUnavailable }
+
+        let transferID = String(repeating: "a", count: 64)
+        let assetName = "watch_\(transferID).m4a"
+        let assets = try VaultInitializer.assetsDirectory()
+        let asset = assets.appendingPathComponent(assetName)
+        try Data("watch-audio".utf8).write(to: asset)
+        let createdAt = Date()
+        let obligation = WatchReceiveService.DeliveryObligation(
+            version: 1,
+            transferID: transferID,
+            assetFileName: assetName,
+            createdAt: createdAt,
+            duration: 4
+        )
+        try WatchReceiveService.persist(obligation)
+
+        XCTAssertThrowsError(try WatchReceiveService.materializeVoiceMemo(
+            for: obligation,
+            append: { _, _, _ in throw ExpectedFailure.appendUnavailable }
+        ))
+        let retained = try XCTUnwrap(WatchReceiveService.pendingObligations().first)
+        XCTAssertEqual(retained.transferID, obligation.transferID)
+        XCTAssertEqual(retained.assetFileName, obligation.assetFileName)
+        XCTAssertEqual(retained.duration, obligation.duration)
+        XCTAssertLessThan(abs(retained.createdAt.timeIntervalSince(obligation.createdAt)), 1)
+        XCTAssertTrue(fm.fileExists(atPath: asset.path))
+
+        _ = try WatchReceiveService.materializeVoiceMemo(for: obligation)
+        _ = try WatchReceiveService.materializeVoiceMemo(for: obligation)
+        XCTAssertEqual(try RawStorage.read(for: createdAt).count, 1)
+        try WatchReceiveService.complete(obligation)
+        XCTAssertTrue(try WatchReceiveService.pendingObligations().isEmpty)
+
+        try WatchReceiveService.recoverOrphanedAssets()
+        XCTAssertTrue(try WatchReceiveService.pendingObligations().isEmpty)
+        XCTAssertEqual(try RawStorage.read(for: createdAt).count, 1)
     }
 }

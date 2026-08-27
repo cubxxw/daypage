@@ -14,10 +14,19 @@ import SwiftUI
 @main
 struct DayPageWidgetBundle: WidgetBundle {
     var body: some Widget {
-        QuickCaptureWidget()
+        if #available(iOS 17.0, *) {
+            QuickCaptureWidget()
+        }
+        SystemActionWidget()
+
+        if #available(iOS 16.1, *) {
+            FocusSessionLiveActivity()
+        }
 
         if #available(iOS 18.0, *) {
             QuickCaptureControl()
+            SystemActionControl()
+            FocusSessionControl()
         }
 
         // 「记录提醒」的 AlarmKit 灵动岛/锁屏呈现(iOS 26+ 真灵动岛)。

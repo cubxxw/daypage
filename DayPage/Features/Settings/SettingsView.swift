@@ -109,6 +109,14 @@ struct SettingsView: View {
                 SettingsRemindersView()
             }
             hubRow(
+                title: "系统访问",
+                systemImage: "hand.raised",
+                summary: "按需授权",
+                identifier: "hub-system-access"
+            ) {
+                SystemAccessView(model: SystemActionRuntime.shared.model)
+            }
+            hubRow(
                 title: NSLocalizedString("settings.appearance.section", comment: "Appearance row"),
                 systemImage: "circle.lefthalf.filled",
                 summary: appSettings.themeMode.label,

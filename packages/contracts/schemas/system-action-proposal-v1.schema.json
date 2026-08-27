@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/system-action-proposal-v1.schema.json",
+  "title": "DayPage system action proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "proposal_id", "revision", "kind", "payload", "payload_hash",
+    "title", "rationale", "source_refs", "creator_source", "creator_device_id_hash",
+    "redaction_level", "target_device_preference", "state", "created_at", "expires_at", "deleted_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "proposal_id": { "$ref": "#/$defs/uuid" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "kind": { "$ref": "#/$defs/actionKind" },
+    "payload": { "$ref": "#/$defs/payload" },
+    "payload_hash": { "$ref": "#/$defs/hash" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 160 },
+    "rationale": { "type": "string", "maxLength": 500, "x-daypage-maxUtf8Bytes": 500 },
+    "source_refs": {
+      "type": "array", "maxItems": 20, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "enum": ["memo", "daily_page", "entity", "place", "system_entry"] },
+          "id": { "type": "string", "minLength": 1, "maxLength": 160, "x-daypage-maxUtf8Bytes": 160 }
+        }
+      }
+    },
+    "creator_source": { "enum": ["native", "mcp", "local_inference", "shortcut", "widget", "share"] },
+    "creator_device_id_hash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "redaction_level": { "enum": ["private", "sensitive", "summary"] },
+    "target_device_preference": { "enum": ["any", "creating_device", "specific_device"] },
+    "target_device_id_hash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "state": { "enum": ["pending", "approved", "rejected", "executing", "completed", "failed", "cancelled", "needs_review"] },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "expires_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+    "deleted_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "target_device_preference": { "const": "specific_device" } }, "required": ["target_device_preference"] },
+      "then": { "required": ["target_device_id_hash"], "properties": { "target_device_id_hash": { "$ref": "#/$defs/hash" } } },
+      "else": { "properties": { "target_device_id_hash": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "target_device_preference": { "const": "creating_device" } }, "required": ["target_device_preference"] },
+      "then": { "properties": { "creator_device_id_hash": { "$ref": "#/$defs/hash" } } }
+    },
+    {
+      "if": { "properties": { "creator_source": { "const": "mcp" } }, "required": ["creator_source"] },
+      "then": { "properties": { "redaction_level": { "const": "private" } } }
+    },
+    { "if": { "properties": { "kind": { "const": "calendar_event" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/calendarEvent" } } } },
+    { "if": { "properties": { "kind": { "const": "reminder" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/reminder" } } } },
+    { "if": { "properties": { "kind": { "const": "contact_draft" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/contactDraft" } } } },
+    { "if": { "properties": { "kind": { "const": "notification" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/notification" } } } },
+    { "if": { "properties": { "kind": { "const": "route" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/route" } } } },
+    { "if": { "properties": { "kind": { "const": "capture" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/capture" } } } },
+    { "if": { "properties": { "kind": { "const": "focus_session" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/focusSession" } } } },
+    { "if": { "properties": { "kind": { "const": "moment" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/moment" } } } },
+    { "if": { "properties": { "kind": { "const": "local_context_attachment" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/localContextAttachment" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", "x-daypage-canonicalTimestamp": true },
+    "actionKind": { "enum": ["calendar_event", "reminder", "contact_draft", "notification", "route", "capture", "focus_session", "moment", "local_context_attachment"] },
+    "payload": { "oneOf": [
+      { "$ref": "#/$defs/calendarEvent" }, { "$ref": "#/$defs/reminder" }, { "$ref": "#/$defs/contactDraft" },
+      { "$ref": "#/$defs/notification" }, { "$ref": "#/$defs/route" }, { "$ref": "#/$defs/capture" },
+      { "$ref": "#/$defs/focusSession" }, { "$ref": "#/$defs/moment" }, { "$ref": "#/$defs/localContextAttachment" }
+    ] },
+    "calendarEvent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "title", "start_at", "end_at", "all_day", "time_zone", "location_label", "notes"],
+      "properties": {
+        "kind": { "const": "calendar_event" }, "title": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 160 },
+        "start_at": { "$ref": "#/$defs/timestamp" }, "end_at": { "type": "string", "$ref": "#/$defs/timestamp", "x-daypage-after": "start_at" },
+        "all_day": { "type": "boolean" }, "time_zone": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 64 },
+        "location_label": { "type": ["string", "null"], "maxLength": 240, "x-daypage-maxUtf8Bytes": 240 }, "notes": { "type": ["string", "null"], "maxLength": 2000, "x-daypage-maxUtf8Bytes": 2000 }
+      }
+    },
+    "reminder": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "title", "due_at", "time_zone", "priority", "notes"],
+      "properties": {
+        "kind": { "const": "reminder" }, "title": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 160 },
+        "due_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "time_zone": { "type": ["string", "null"], "maxLength": 64, "x-daypage-maxUtf8Bytes": 64 }, "priority": { "type": "integer", "minimum": 0, "maximum": 9 },
+        "notes": { "type": ["string", "null"], "maxLength": 2000, "x-daypage-maxUtf8Bytes": 2000 }
+      }
+    },
+    "contactDraft": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "given_name", "family_name", "organization", "phones", "emails"],
+      "properties": {
+        "kind": { "const": "contact_draft" }, "given_name": { "type": "string", "maxLength": 100, "x-daypage-maxUtf8Bytes": 100 },
+        "family_name": { "type": "string", "maxLength": 100, "x-daypage-maxUtf8Bytes": 100 }, "organization": { "type": ["string", "null"], "maxLength": 160, "x-daypage-maxUtf8Bytes": 160 },
+        "phones": { "type": "array", "maxItems": 5, "items": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 40 } },
+        "emails": { "type": "array", "maxItems": 5, "items": { "type": "string", "minLength": 3, "maxLength": 254, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 254 } }
+      },
+      "anyOf": [
+        { "required": ["given_name"], "properties": { "given_name": { "type": "string", "minLength": 1, "pattern": "\\S" } } },
+        { "required": ["family_name"], "properties": { "family_name": { "type": "string", "minLength": 1, "pattern": "\\S" } } },
+        { "required": ["organization"], "properties": { "organization": { "type": "string", "minLength": 1, "pattern": "\\S" } } }
+      ]
+    },
+    "notification": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "title", "body", "fire_at", "time_zone", "interruption_level"],
+      "properties": {
+        "kind": { "const": "notification" }, "title": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 160 },
+        "body": { "type": "string", "maxLength": 500, "x-daypage-maxUtf8Bytes": 500 }, "fire_at": { "$ref": "#/$defs/timestamp" },
+        "time_zone": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 64 }, "interruption_level": { "enum": ["passive", "active", "time_sensitive"] }
+      }
+    },
+    "route": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "destination_label", "transport"],
+      "properties": {
+        "kind": { "const": "route" }, "destination_label": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 240 },
+        "destination_address": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 500 },
+        "destination_latitude": { "type": "number", "minimum": -90, "maximum": 90, "multipleOf": 0.000001 },
+        "destination_longitude": { "type": "number", "minimum": -180, "maximum": 180, "multipleOf": 0.000001 },
+        "transport": { "enum": ["any", "walking", "driving", "transit", "cycling"] }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "destination_address": false,
+            "destination_latitude": { "type": "number", "minimum": -90, "maximum": 90, "multipleOf": 0.000001 },
+            "destination_longitude": { "type": "number", "minimum": -180, "maximum": 180, "multipleOf": 0.000001 }
+          },
+          "required": ["destination_latitude", "destination_longitude"]
+        },
+        {
+          "properties": {
+            "destination_address": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 500 },
+            "destination_latitude": false,
+            "destination_longitude": false
+          },
+          "required": ["destination_address"],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "capture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "mode", "destination", "suggested_title"],
+      "properties": { "kind": { "const": "capture" }, "mode": { "enum": ["text", "photo", "camera", "file", "scan", "ocr", "ink", "voice"] }, "destination": { "enum": ["new_memo", "current_draft"] }, "suggested_title": { "type": ["string", "null"], "maxLength": 200, "x-daypage-maxUtf8Bytes": 200 } }
+    },
+    "focusSession": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "title", "duration_seconds", "schedule_end_alert", "allow_live_activity"],
+      "properties": { "kind": { "const": "focus_session" }, "title": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 160 }, "duration_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 }, "schedule_end_alert": { "type": "boolean" }, "allow_live_activity": { "type": "boolean" } }
+    },
+    "moment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "captured_at", "title", "place_label", "people_refs", "include_one_shot_location"],
+      "properties": { "kind": { "const": "moment" }, "captured_at": { "$ref": "#/$defs/timestamp" }, "title": { "type": ["string", "null"], "maxLength": 160, "x-daypage-maxUtf8Bytes": 160 }, "place_label": { "type": ["string", "null"], "minLength": 1, "maxLength": 240, "pattern": "\\S", "x-daypage-maxUtf8Bytes": 240 }, "people_refs": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 160, "x-daypage-maxUtf8Bytes": 160 } }, "include_one_shot_location": { "type": "boolean" } },
+      "allOf": [
+        { "if": { "properties": { "include_one_shot_location": { "const": true } } }, "then": { "properties": { "place_label": { "type": "string" } } }, "else": { "properties": { "place_label": { "type": "null" } } } }
+      ]
+    },
+    "localContextAttachment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "context_kind", "local_reference", "observed_at", "disclosure"],
+      "properties": { "kind": { "const": "local_context_attachment" }, "context_kind": { "enum": ["photo", "health_summary", "weather_summary", "location_summary", "contact_selection"] }, "local_reference": { "$ref": "#/$defs/uuid" }, "observed_at": { "$ref": "#/$defs/timestamp" }, "disclosure": { "const": "summary_only" } }
+    }
+  }
+}

@@ -1,6 +1,5 @@
 import SwiftUI
 import CoreLocation
-import Photos
 import PhotosUI
 import UIKit
 import DayPageModels
@@ -87,7 +86,6 @@ struct InputBarV4: View {
     /// Opens the AI chat surface (AskPastView). Optional so previews and unit
     /// tests can leave it nil; the dock then hides the sparkle slot.
     var onAskAI: (() -> Void)? = nil
-    var onAddPhotoAsset: ((PHAsset) -> Void)? = nil
     // US-012: batch photo progress bar
     var batchPhotoProgress: Double = 0
     var batchPhotoTotal: Int = 0
@@ -796,10 +794,8 @@ struct InputBarV4: View {
                     .padding(.horizontal, DSSpacing.lg)
             }
 
-            // US-016: Inline Lens Strip — recent 24 h thumbnails for one-tap attach.
-            InlineLensStrip { asset in
-                onAddPhotoAsset?(asset)
-            }
+            // US-016: Inline Lens Strip — explicit, picker-scoped photo selection.
+            InlineLensStrip(selection: $photosPickerItems)
 
             // US-015: Smart Template hint row — only when draft is empty.
             if text.isEmpty && pendingAttachments.isEmpty {

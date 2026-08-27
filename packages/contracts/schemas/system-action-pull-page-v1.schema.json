@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/system-action-pull-page-v1.schema.json",
+  "title": "DayPage system action pull page v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["changes", "next_cursor", "has_more"],
+  "properties": {
+    "changes": {
+      "type": "array", "maxItems": 200,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["change_sequence", "entity_type", "entity_id", "record"],
+        "properties": {
+          "change_sequence": { "type": "integer", "minimum": 1 },
+          "entity_type": { "enum": ["proposal", "approval", "receipt", "policy"] },
+          "entity_id": { "$ref": "#/$defs/uuid" },
+          "record": {
+            "type": "object", "minProperties": 1, "maxProperties": 18,
+            "propertyNames": { "$ref": "#/$defs/recordField" }
+          }
+        }
+      }
+    },
+    "next_cursor": { "type": "integer", "minimum": 0 },
+    "has_more": { "type": "boolean" }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "recordField": { "enum": [
+      "schema_version", "proposal_id", "approval_id", "receipt_id", "policy_id",
+      "revision", "kind", "payload", "payload_hash", "title", "rationale", "source_refs",
+      "creator_source", "creator_device_id_hash", "redaction_level", "target_device_preference",
+      "target_device_id_hash", "state", "expires_at", "deleted_at", "created_at", "phase",
+      "proposal_revision", "decision", "device_id_hash", "has_replacement", "decided_at",
+      "attempt", "outcome", "execution_mode", "lease_id", "result", "error_code",
+      "reconciliation_state", "undo_capability", "external_id_hash", "started_at", "completed_at",
+      "capability", "is_offered", "sync_enabled", "disclosure_level", "updated_at"
+    ] }
+  }
+}
