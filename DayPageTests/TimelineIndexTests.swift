@@ -106,7 +106,8 @@ final class TimelineIndexTests: XCTestCase {
         XCTAssertTrue(entries.isEmpty, "Cold-path read returns the last snapshot without blocking")
         XCTAssertFalse(TimelineIndex.shared.isReady)
 
-        await fulfillment(of: [update], timeout: 2)
+        await TimelineIndex.shared.waitUntilIdleForTesting()
+        await fulfillment(of: [update], timeout: 1)
         XCTAssertTrue(TimelineIndex.shared.isReady)
         XCTAssertEqual(TimelineIndex.shared.entries().first?.memoCount, 2)
     }
@@ -243,7 +244,8 @@ final class TimelineIndexTests: XCTestCase {
             forName: .timelineIndexDidUpdate, object: nil, queue: .main
         ) { _ in update.fulfill() }
         action()
-        await fulfillment(of: [update], timeout: 2)
+        await TimelineIndex.shared.waitUntilIdleForTesting()
+        await fulfillment(of: [update], timeout: 1)
         NotificationCenter.default.removeObserver(token)
     }
 }

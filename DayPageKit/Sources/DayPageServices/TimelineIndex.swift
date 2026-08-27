@@ -295,6 +295,20 @@ public final class TimelineIndex {
         pendingWriteDates.removeAll()
     }
 
+    /// Test-only: await the actual asynchronous work instead of relying on a
+    /// short wall-clock timeout. The loop also follows work chained by a
+    /// refresh (for example, metadata capture scheduling a full rebuild).
+    public func waitUntilIdleForTesting() async {
+        while true {
+            let tasks = [rebuildTask, refreshTask].compactMap { $0 }
+                + Array(dayUpdateTasks.values)
+            guard !tasks.isEmpty else { return }
+            for task in tasks {
+                await task.value
+            }
+        }
+    }
+
     /// Test-only: clear all state so a test starts from a known-empty index.
     public func resetForTesting() {
         rebuildTask?.cancel()
