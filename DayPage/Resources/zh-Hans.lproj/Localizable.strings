@@ -788,7 +788,7 @@
 
 /* Sidebar profile */
 "sidebar.profile.local_account"              = "本地账户";
-"sidebar.profile.tap_to_sync"                = "本地 · 点击同步";
+"sidebar.profile.sync"                       = "同步";
 
 /* Settings — iCloud */
 "settings.icloud_drive"                      = "iCloud Drive";
@@ -1123,7 +1123,14 @@
 "sidebar.recent.hint"        = "展开或收起最近记录列表";
 "a11y.expanded"              = "已展开";
 "a11y.collapsed"             = "已收起";
-"heatmap.entries"            = "条";
+"sidebar.activity"                       = "活动";
+"sidebar.activity.entries.one"           = "%d 条记录";
+"sidebar.activity.entries.other"         = "%d 条记录";
+"sidebar.activity.streak.one"            = "连续 %d 天";
+"sidebar.activity.streak.other"          = "连续 %d 天";
+"sidebar.activity.pages.one"             = "%d 页";
+"sidebar.activity.pages.other"           = "%d 页";
+"sidebar.activity.words"                 = "%@ 字";
 "archive.title"              = "归档";
 "archive.today"              = "今日";
 "archive.heatmap.higher"     = "密度更高";

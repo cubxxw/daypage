@@ -39,8 +39,12 @@ struct SidebarHeatmapView: View {
     let totalEntries: Int
     /// Current consecutive-day streak (footer pill).
     let streak: Int
-    /// All-time longest consecutive-day streak (footer fallback when streak == 0).
+    /// All-time longest streak, retained in the accessible activity summary.
     let longestStreak: Int
+    /// Compiled Daily Pages across the vault.
+    let totalPages: Int
+    /// Total words across compiled pages.
+    let totalWordCount: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -70,7 +74,7 @@ struct SidebarHeatmapView: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
             header
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityText)
@@ -82,24 +86,10 @@ struct SidebarHeatmapView: View {
             // VoiceOver users navigate days via the Recent rows below the grid.
             gridView.accessibilityHidden(true)
             footer
-                // Footer = LESS/MORE swatches + streak pill — the swatches are a
-                // pure legend (no signal beyond the accessibilityText already
-                // exposed by `header`), and the streak pill duplicates the
-                // streak phrase in `accessibilityText`. Hide the whole row from
-                // VoiceOver so users land on the next focusable element instead
-                // of trekking through 7+ decorative children.
+                // The header already exposes the richer summary. Keep this
+                // compact visual line out of the VoiceOver rotor.
                 .accessibilityHidden(true)
         }
-        .padding(.init(top: 16, leading: 16, bottom: 14, trailing: 16))
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(DSColor.surfaceWhite)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(DSColor.borderSubtle, lineWidth: 0.5)
-        )
-        .shadow(color: Color.black.opacity(0.04), radius: 1, x: 0, y: 1)
         .onAppear {
             if grid.columns.isEmpty {
                 grid = HeatGrid.build(counts: counts, weeks: weeks)
@@ -130,21 +120,15 @@ struct SidebarHeatmapView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("LAST 16 WEEKS")
-                .font(DSType.mono10)
-                .tracking(1.6)
-                .foregroundColor(DSColor.inkMuted)
+        HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
+            Text(NSLocalizedString("sidebar.activity", value: "Activity", comment: "Sidebar activity overview"))
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(DSColor.inkPrimary)
             Spacer()
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text("\(totalEntries)")
-                    .font(DSFonts.serif(size: 18, weight: .semibold, relativeTo: .headline))
-                    .foregroundColor(DSColor.inkPrimary)
-                Text(NSLocalizedString("heatmap.entries", comment: "Entries unit"))
-                    .font(DSType.mono9)
-                    .tracking(1.2)
-                    .foregroundColor(DSColor.inkMuted)
-            }
+            Text(entrySummary)
+                .font(.footnote)
+                .foregroundColor(DSColor.inkMuted)
+                .monospacedDigit()
         }
     }
 
@@ -346,59 +330,76 @@ struct SidebarHeatmapView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack {
-            HStack(spacing: 5) {
-                Text("LESS")
-                    .font(DSType.mono9).tracking(1.2)
-                    .foregroundColor(DSColor.inkMuted)
-                ForEach(Self.palette.indices, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Self.palette[i])
-                        .frame(width: 9, height: 9)
-                }
-                Text("MORE")
-                    .font(DSType.mono9).tracking(1.2)
-                    .foregroundColor(DSColor.inkMuted)
-            }
-            Spacer()
-            if streak > 0 {
-                streakPill(
-                    icon: "flame.fill",
-                    text: "\(streak) \(Self.dayUnit(streak))",
-                    fg: DSColor.accentAmber,
-                    bg: DSColor.accentSoft,
-                    border: DSColor.accentBorder
-                )
-            } else if longestStreak > 0 {
-                streakPill(
-                    icon: "flame",
-                    text: "BEST \(longestStreak) \(Self.dayUnit(longestStreak))",
-                    fg: DSColor.inkSubtle,
-                    bg: DSColor.glassStd,
-                    border: DSColor.borderSubtle
-                )
-            }
+        HStack(spacing: DSSpacing.sm) {
+            Image(systemName: streak > 0 ? "flame.fill" : "flame")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(streak > 0 ? DSColor.accentAmber : DSColor.inkSubtle)
+            Text(streakSummary)
+            metricSeparator
+            Text(pageSummary)
+            metricSeparator
+            Text(wordSummary)
         }
+        .font(.caption)
+        .foregroundColor(DSColor.inkMuted)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
     }
 
-    /// Archival mono label unit (intentionally untranslated, FINDING-010) —
-    /// but never "1 DAYS".
-    private static func dayUnit(_ n: Int) -> String { n == 1 ? "DAY" : "DAYS" }
+    private var metricSeparator: some View {
+        Circle()
+            .fill(DSColor.inkFaint)
+            .frame(width: 3, height: 3)
+            .accessibilityHidden(true)
+    }
 
-    private func streakPill(icon: String, text: String, fg: Color, bg: Color, border: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(fg)
-            Text(text)
-                .font(DSType.mono9)
-                .tracking(1.2)
-                .foregroundColor(fg)
-                .fixedSize()
+    private var entrySummary: String {
+        String(
+            format: NSLocalizedString(
+                totalEntries == 1 ? "sidebar.activity.entries.one" : "sidebar.activity.entries.other",
+                value: totalEntries == 1 ? "%d entry" : "%d entries",
+                comment: "Sidebar activity entry count"
+            ),
+            totalEntries
+        )
+    }
+
+    private var streakSummary: String {
+        let key = streak == 1 ? "sidebar.activity.streak.one" : "sidebar.activity.streak.other"
+        let fallback = streak == 1 ? "%d day" : "%d days"
+        return String(format: NSLocalizedString(key, value: fallback, comment: "Sidebar streak summary"), streak)
+    }
+
+    private var pageSummary: String {
+        String(
+            format: NSLocalizedString(
+                totalPages == 1 ? "sidebar.activity.pages.one" : "sidebar.activity.pages.other",
+                value: totalPages == 1 ? "%d page" : "%d pages",
+                comment: "Sidebar compiled pages count"
+            ),
+            totalPages
+        )
+    }
+
+    private var wordSummary: String {
+        String(
+            format: NSLocalizedString(
+                "sidebar.activity.words",
+                value: "%@ words",
+                comment: "Sidebar word count"
+            ),
+            Self.compactCount(totalWordCount)
+        )
+    }
+
+    private static func compactCount(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
         }
-        .padding(.init(top: 4, leading: 7, bottom: 4, trailing: 9))
-        .background(bg, in: Capsule())
-        .overlay(Capsule().strokeBorder(border, lineWidth: 0.5))
+        if value >= 1_000 {
+            return "\(value / 1_000)k"
+        }
+        return "\(value)"
     }
 
     private var accessibilityText: String {
@@ -412,8 +413,9 @@ struct SidebarHeatmapView: View {
             ),
             totalEntries
         )
+        let streakText: String
         if streak > 0 {
-            return String(
+            streakText = String(
                 format: NSLocalizedString(
                     "heatmap.a11y.current_streak",
                     comment: "Heatmap VoiceOver: %1$@ = base summary, %2$d = current streak days"
@@ -421,15 +423,17 @@ struct SidebarHeatmapView: View {
                 base, streak
             )
         } else if longestStreak > 0 {
-            return String(
+            streakText = String(
                 format: NSLocalizedString(
                     "heatmap.a11y.best_streak",
                     comment: "Heatmap VoiceOver: %1$@ = base summary, %2$d = longest streak days"
                 ),
                 base, longestStreak
             )
+        } else {
+            streakText = base
         }
-        return base
+        return "\(streakText), \(pageSummary), \(wordSummary)"
     }
 }
 

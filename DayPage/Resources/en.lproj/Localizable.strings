@@ -781,7 +781,7 @@
 
 /* Sidebar profile */
 "sidebar.profile.local_account"              = "Local Account";
-"sidebar.profile.tap_to_sync"                = "LOCAL · TAP TO SYNC";
+"sidebar.profile.sync"                       = "Sync";
 
 /* Settings — iCloud */
 "settings.icloud_drive"                      = "iCloud Drive";
@@ -1116,7 +1116,14 @@
 "sidebar.recent.hint"        = "Shows or hides the recent-day list";
 "a11y.expanded"              = "Expanded";
 "a11y.collapsed"             = "Collapsed";
-"heatmap.entries"            = "ENTRIES";
+"sidebar.activity"                       = "Activity";
+"sidebar.activity.entries.one"           = "%d entry";
+"sidebar.activity.entries.other"         = "%d entries";
+"sidebar.activity.streak.one"            = "%d day";
+"sidebar.activity.streak.other"          = "%d days";
+"sidebar.activity.pages.one"             = "%d page";
+"sidebar.activity.pages.other"           = "%d pages";
+"sidebar.activity.words"                 = "%@ words";
 "archive.title"              = "Archive";
 "archive.today"              = "TODAY";
 "archive.heatmap.higher"     = "Higher Density";

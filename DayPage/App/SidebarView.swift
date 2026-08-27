@@ -43,24 +43,19 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 0) {
                 brandHeader
 
-                Rectangle()
-                    .fill(DSColor.inkFaint)
-                    .frame(height: 0.5)
-                    .padding(.bottom, DSSpacing.sm)
-
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        // Museum-aesthetic hero stack: profile → heatmap → stats.
                         profileRow
-                        heatmapSection
-                        statsSection
+                        if hasActivity {
+                            heatmapSection
+                        }
 
                         navSection
-                            .padding(.top, 22)
+                            .padding(.top, DSSpacing.xl2)
 
                         if !sidebarVM.recentDays.isEmpty {
                             recentSection
-                                .padding(.top, 22)
+                                .padding(.top, DSSpacing.sm)
                         }
                     }
                     .padding(.bottom, DSSpacing.xl2)
@@ -117,8 +112,8 @@ struct SidebarView: View {
 
     // MARK: - Brand Header
 
-    /// Museum-aesthetic utility bar: a quiet close button + a tiny mono
-    /// wordmark, replacing the old oversized serif logo.
+    /// A single dismissal control is enough here. The app name and year were
+    /// decorative chrome that competed with the account and navigation.
     private var brandHeader: some View {
         HStack {
             Button {
@@ -129,94 +124,69 @@ struct SidebarView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(DSColor.inkPrimary)
                     .frame(width: 44, height: 44)
-                    .background(DSColor.surfaceSunken, in: Circle())
+                    .background(DSColor.surfaceWhite.opacity(0.56), in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(NSLocalizedString("a11y.nav.close", comment: "Sidebar close button"))
 
             Spacer()
-
-            Text("DAYPAGE · 2026")
-                .font(DSType.mono10)
-                .tracking(2.0)
-                .foregroundColor(DSColor.inkMuted)
-                // Wordmark — purely decorative; VoiceOver users land on the
-                // close button and then go straight into the profile row.
-                .accessibilityHidden(true)
         }
         .padding(.horizontal, DSSpacing.xl)
         .padding(.top, 44)
-        .padding(.bottom, DSSpacing.md)
+        .padding(.bottom, DSSpacing.sm)
     }
 
-    // MARK: - Profile Row (museum-aesthetic)
+    // MARK: - Profile Row
 
-    /// 46pt amber-gradient avatar + serif name + mono membership + chevron.
+    /// Identity and one clear action. Membership metadata belongs in the
+    /// account sheet, not in the navigation drawer.
     private var profileRow: some View {
         Button {
             Haptics.tapConfirm()
             showAccountSheet = true
         } label: {
-            HStack(spacing: 14) {
+            HStack(spacing: DSSpacing.md) {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: "C9A677"), Color(hex: "5D3000")],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 46, height: 46)
+                        .fill(DSColor.surfaceSunken)
+                        .frame(width: 40, height: 40)
                     if sidebarVM.isLoggedIn {
                         Text(sidebarVM.accountInitial)
-                            .font(DSFonts.serif(
-                                size: 20,
-                                weight: .semibold,
-                                relativeTo: .title3,
-                                maxSize: 28
-                            ))
-                            .foregroundColor(Color(hex: "FAF8F6"))
+                            .font(.headline.weight(.semibold))
+                            .foregroundColor(DSColor.accentOnBg)
                     } else {
-                        Image(systemName: "person.crop.circle.badge.plus")
-                            .font(.system(size: 19, weight: .medium))
-                            .foregroundColor(Color(hex: "FAF8F6"))
+                        Image(systemName: "person")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(DSColor.inkSecondary)
                             .accessibilityHidden(true)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(profileName)
-                        .font(DSFonts.serif(
-                            size: 19,
-                            weight: .semibold,
-                            relativeTo: .title3,
-                            maxSize: 28
-                        ))
-                        .foregroundColor(DSColor.inkPrimary)
-                        .lineLimit(1)
-                    Text(membershipLine)
-                        .font(DSType.mono10)
-                        .tracking(1.2)
-                        .foregroundColor(DSColor.inkMuted)
-                }
+                Text(profileName)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(DSColor.inkPrimary)
+                    .lineLimit(1)
 
                 Spacer()
 
+                if !sidebarVM.isLoggedIn {
+                    Text(NSLocalizedString("sidebar.profile.sync", value: "Sync", comment: "Account sync action"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(DSColor.accentOnBg)
+                }
+
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(DSColor.inkMuted)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(DSColor.inkSubtle)
             }
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, DSSpacing.xl)
-        .padding(.vertical, 10)
-        // Merge avatar + name + membership line into a single VoiceOver focus
-        // so the user hears "<name>, <membership>" once instead of three
-        // separate elements that read as "·, Local Account, LOCAL · TAP TO SYNC".
+        .padding(.vertical, DSSpacing.xs)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(profileName), \(membershipLine)")
+        .accessibilityLabel(profileName)
         .accessibilityHint(sidebarVM.isLoggedIn
             ? "Opens account details"
             : "Opens sign-in"
@@ -230,95 +200,25 @@ struct SidebarView: View {
         return String(sidebarVM.accountEmail.prefix(while: { $0 != "@" }))
     }
 
-    /// "MEMBER · SINCE <year>" using the real account creation year from the
-    /// auth session. Falls back to a local-account hint when signed out.
-    private var membershipLine: String {
-        if let year = sidebarVM.joinYear {
-            return "MEMBER · SINCE \(year)"
-        }
-        if sidebarVM.isLoggedIn {
-            return "MEMBER"
-        }
-        return NSLocalizedString("sidebar.profile.tap_to_sync", comment: "")
-    }
+    // MARK: - Activity
 
-    // MARK: - Heatmap + Stats
+    private var hasActivity: Bool {
+        sidebarVM.totalEntries16Weeks > 0
+            || sidebarVM.totalPages > 0
+            || sidebarVM.totalWordCount > 0
+    }
 
     private var heatmapSection: some View {
         SidebarHeatmapView(
             counts: sidebarVM.heatmapCounts,
             totalEntries: sidebarVM.totalEntries16Weeks,
             streak: sidebarVM.currentStreak,
-            longestStreak: sidebarVM.longestStreak
+            longestStreak: sidebarVM.longestStreak,
+            totalPages: sidebarVM.totalPages,
+            totalWordCount: sidebarVM.totalWordCount
         )
-        .padding(.horizontal, DSSpacing.xl)
-        .padding(.top, DSSpacing.xs)
-    }
-
-    /// STREAK / PAGES / WORDS triplet on a single hairline-divided white card.
-    private var statsSection: some View {
-        HStack(spacing: 0) {
-            let streakUnit = sidebarVM.longestStreak > sidebarVM.currentStreak
-                ? "BEST \(sidebarVM.longestStreak)"
-                : "DAYS"
-            statCell(label: "STREAK", value: "\(sidebarVM.currentStreak)", unit: streakUnit, first: true)
-                .accessibilityLabel(sidebarVM.longestStreak > sidebarVM.currentStreak
-                    ? "Streak \(sidebarVM.currentStreak) days, personal best \(sidebarVM.longestStreak) days"
-                    : "Streak \(sidebarVM.currentStreak) days"
-                )
-            statDivider
-            statCell(label: "DAILIES", value: "\(sidebarVM.totalPages)", unit: "COMPILED", first: false)
-                .accessibilityLabel("\(sidebarVM.totalPages) dailies compiled")
-            statDivider
-            statCell(label: "WORDS", value: formatWords(sidebarVM.totalWordCount), unit: "TOTAL", first: false)
-                .accessibilityLabel("\(sidebarVM.totalWordCount) words total")
-        }
-        .background(
-            RoundedRectangle(cornerRadius: DSRadius.md, style: .continuous)
-                .fill(DSColor.surfaceWhite)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.md, style: .continuous)
-                .strokeBorder(DSColor.borderSubtle, lineWidth: 0.5)
-        )
-        .shadow(color: Color.black.opacity(0.04), radius: 1, x: 0, y: 1)
         .padding(.horizontal, DSSpacing.xl)
         .padding(.top, DSSpacing.md)
-    }
-
-    private func statCell(label: String, value: String, unit: String, first: Bool) -> some View {
-        VStack(spacing: DSSpacing.xs) {
-            Text(label)
-                .font(DSType.mono9).tracking(1.4)
-                .foregroundColor(DSColor.inkMuted)
-            Text(value)
-                .font(DSFonts.serif(size: 22, weight: .semibold, relativeTo: .title2))
-                .foregroundColor(DSColor.inkPrimary)
-            Text(unit)
-                .font(DSType.mono9).tracking(1.2)
-                .foregroundColor(DSColor.inkMuted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        // Each stat cell reads as one focus (e.g. "STREAK 5 BEST 12") instead
-        // of three separate StaticText nodes. Call sites that need a richer
-        // phrase override via `.accessibilityLabel(...)`.
-        .accessibilityElement(children: .combine)
-    }
-
-    private var statDivider: some View {
-        Rectangle()
-            .fill(DSColor.borderSubtle)
-            .frame(width: 0.5)
-            .padding(.vertical, DSSpacing.md)
-            .accessibilityHidden(true)
-    }
-
-    /// "58k" style compaction for the word stat.
-    private func formatWords(_ n: Int) -> String {
-        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
-        if n >= 1_000 { return "\(n / 1000)k" }
-        return "\(n)"
     }
 
     // MARK: - Nav Items
@@ -404,28 +304,11 @@ struct SidebarView: View {
             nav.closeSidebar()
             nav.showScheduleHub = true
         } label: {
-            HStack(spacing: DSSpacing.md) {
-                Image(systemName: "clock")
-                    .font(.system(size: 15, weight: .medium))
-                    .frame(width: 26, height: 26)
-                    .foregroundColor(DSColor.inkMuted)
-                Text(NSLocalizedString("sidebar.nav.schedule", value: "调度", comment: "Schedule hub nav row"))
-                    .font(DSType.bodyMD)
-                    .foregroundColor(DSColor.inkMuted)
-                if upcomingCount > 0 {
-                    Spacer(minLength: DSSpacing.sm)
-                    Text("\(upcomingCount)")
-                        .font(DSType.mono9)
-                        .foregroundColor(DSColor.inkMuted)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(DSColor.amberSoft, in: Capsule())
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            sidebarRowLabel(
+                icon: "clock",
+                label: NSLocalizedString("sidebar.nav.schedule", value: "调度", comment: "Schedule hub nav row"),
+                badge: upcomingCount > 0 ? "\(upcomingCount)" : nil
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("sidebar.schedule")
@@ -448,19 +331,10 @@ struct SidebarView: View {
             nav.selectedTab = .archive
             nav.pendingSearchQuery = ""
         } label: {
-            HStack(spacing: DSSpacing.md) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .medium))
-                    .frame(width: 26, height: 26)
-                    .foregroundColor(DSColor.inkMuted)
-                Text(NSLocalizedString("sidebar.nav.search", comment: "Search nav row"))
-                    .font(DSType.bodyMD)
-                    .foregroundColor(DSColor.inkMuted)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            sidebarRowLabel(
+                icon: "magnifyingglass",
+                label: NSLocalizedString("sidebar.nav.search", comment: "Search nav row")
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("sidebar.search")
@@ -477,22 +351,10 @@ struct SidebarView: View {
             nav.closeSidebar()
             nav.pendingAskQuery = ""
         } label: {
-            HStack(spacing: DSSpacing.md) {
-                // `sparkles` — the AI-voice glyph. The old compound
-                // `sparkle.magnifyingglass` collided with the search row's
-                // magnifier one row above.
-                Image(systemName: "sparkles")
-                    .font(.system(size: 15, weight: .medium))
-                    .frame(width: 26, height: 26)
-                    .foregroundColor(DSColor.inkMuted)
-                Text(NSLocalizedString("sidebar.ask_past", comment: "Ask the past chat entry"))
-                    .font(DSType.bodyMD)
-                    .foregroundColor(DSColor.inkMuted)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            sidebarRowLabel(
+                icon: "sparkles",
+                label: NSLocalizedString("sidebar.ask_past", comment: "Ask the past chat entry")
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(NSLocalizedString("sidebar.ask_past", comment: "Ask the past chat entry"))
@@ -514,49 +376,13 @@ struct SidebarView: View {
                 nav.navigate(to: tab)
             }
         } label: {
-            HStack(spacing: DSSpacing.md) {
-                // Icon on a soft 26pt backing when active — the selection
-                // reads as one warm rounded block instead of the old edge-to-
-                // edge fill + 2pt "toothpick" strip.
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(
-                        disabled ? DSColor.inkSubtle
-                        : isActive ? DSColor.accentOnBg
-                        : DSColor.inkMuted
-                    )
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(isActive ? DSColor.accentOnBg.opacity(0.12) : Color.clear)
-                    )
-
-                Text(label)
-                    .font(isActive ? DSType.titleSM : DSType.bodyMD)
-                    .foregroundColor(
-                        disabled ? DSColor.inkSubtle
-                        : isActive ? DSColor.inkPrimary
-                        : DSColor.inkMuted
-                    )
-
-                if disabled {
-                    Spacer()
-                    Text("Post-MVP")
-                        .font(DSType.mono9)
-                        .foregroundColor(DSColor.inkMuted)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(DSColor.amberSoft, in: Capsule())
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isActive ? DSColor.amberSoft : Color.clear)
+            sidebarRowLabel(
+                icon: icon,
+                label: label,
+                isActive: isActive,
+                isDisabled: disabled,
+                badge: disabled ? "Post-MVP" : nil
             )
-            .contentShape(Rectangle())
         }
         .disabled(disabled)
         .buttonStyle(.plain)
@@ -569,6 +395,52 @@ struct SidebarView: View {
             : (tab == .feedback ? "Opens feedback" : "Navigates to \(label)")
         )
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func sidebarRowLabel(
+        icon: String,
+        label: String,
+        isActive: Bool = false,
+        isDisabled: Bool = false,
+        badge: String? = nil
+    ) -> some View {
+        HStack(spacing: DSSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(
+                    isDisabled ? DSColor.inkSubtle
+                    : isActive ? DSColor.accentOnBg
+                    : DSColor.inkSecondary
+                )
+                .frame(width: 24, height: 24)
+
+            Text(label)
+                .font(.body.weight(isActive ? .semibold : .regular))
+                .foregroundColor(
+                    isDisabled ? DSColor.inkSubtle
+                    : isActive ? DSColor.inkPrimary
+                    : DSColor.inkSecondary
+                )
+
+            Spacer(minLength: DSSpacing.sm)
+
+            if let badge {
+                Text(badge)
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(DSColor.inkMuted)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(DSColor.surfaceSunken, in: Capsule())
+            }
+        }
+        .padding(.horizontal, DSSpacing.md)
+        .frame(minHeight: 52)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DSRadius.sm, style: .continuous)
+                .fill(isActive ? DSColor.amberSoft : Color.clear)
+        )
+        .contentShape(Rectangle())
     }
 
     // MARK: - Recent Section
@@ -697,19 +569,10 @@ struct SidebarView: View {
                 Haptics.tapConfirm()
                 showSettings = true
             } label: {
-                HStack(spacing: DSSpacing.md) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 15, weight: .medium))
-                        .frame(width: 26, height: 26)
-                        .foregroundColor(DSColor.inkMuted)
-                    Text(NSLocalizedString("sidebar.settings", comment: "Settings row"))
-                        .font(DSType.bodyMD)
-                        .foregroundColor(DSColor.inkMuted)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 9)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                sidebarRowLabel(
+                    icon: "gearshape",
+                    label: NSLocalizedString("sidebar.settings", comment: "Settings row")
+                )
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
