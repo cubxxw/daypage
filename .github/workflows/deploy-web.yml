@@ -3,6 +3,16 @@ name: Deploy web production
 on:
   push:
     branches: [main]
+    paths:
+      - "web/**"
+      - "packages/**"
+      - "deploy/**"
+      - "design-tokens/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".dockerignore"
+      - ".github/workflows/deploy-web.yml"
   workflow_dispatch:
 
 permissions:
