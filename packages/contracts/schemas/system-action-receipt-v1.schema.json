@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/system-action-receipt-v1.schema.json",
+  "title": "DayPage system action receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "proposal_id", "phase", "proposal_revision", "payload_hash", "attempt", "outcome", "device_id_hash", "execution_mode", "lease_id", "result", "error_code", "reconciliation_state", "undo_capability", "external_id_hash", "started_at", "completed_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "receipt_id": { "$ref": "#/$defs/uuid" },
+    "proposal_id": { "$ref": "#/$defs/uuid" },
+    "phase": { "enum": ["execute", "undo"] },
+    "proposal_revision": { "type": "integer", "minimum": 1 },
+    "payload_hash": { "$ref": "#/$defs/hash" },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 1000 },
+    "outcome": { "enum": ["succeeded", "failed", "cancelled", "ambiguous"] },
+    "device_id_hash": { "$ref": "#/$defs/hash" },
+    "execution_mode": { "enum": ["online_lease", "offline_owner"] },
+    "lease_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string", "maxLength": 240, "x-daypage-maxUtf8Bytes": 240 },
+        "resource_kind": { "type": "string", "maxLength": 64, "x-daypage-maxUtf8Bytes": 64 },
+        "scheduled_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "ended_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+      }
+    },
+    "error_code": { "type": ["string", "null"], "maxLength": 80, "pattern": "^[a-z0-9_.-]*$" },
+    "reconciliation_state": { "enum": ["confirmed", "pending", "needs_review", "not_applicable"] },
+    "undo_capability": { "enum": ["reversible", "compensating", "manual", "none"] },
+    "external_id_hash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+    "started_at": { "$ref": "#/$defs/timestamp" },
+    "completed_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "allOf": [
+    { "if": { "properties": { "execution_mode": { "const": "online_lease" } }, "required": ["execution_mode"] }, "then": { "properties": { "lease_id": { "$ref": "#/$defs/uuid" } } }, "else": { "properties": { "lease_id": { "type": "null" } } } },
+    { "if": { "properties": { "outcome": { "const": "succeeded" } }, "required": ["outcome"] }, "then": { "properties": { "error_code": { "type": "null" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", "x-daypage-canonicalTimestamp": true }
+  }
+}

@@ -47,7 +47,7 @@ export async function GET() {
 // User-creatable scopes only. "admin" (which api-auth treats as all-scopes) is
 // deliberately excluded so a user cannot mint a key that escalates to every
 // permission — any non-whitelisted value (including "admin") is rejected.
-const USER_SCOPES = ["read", "write"] as const;
+const USER_SCOPES = ["read", "write", "actions:read", "actions:propose"] as const;
 
 const CreateKeySchema = z.object({
   name: z.string().min(1).max(100),

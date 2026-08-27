@@ -5,10 +5,7 @@ const mocks = vi.hoisted(() => ({
   getAuthorizationDetails: vi.fn(),
   approveAuthorization: vi.fn(),
   denyAuthorization: vi.fn(),
-  upsert: vi.fn(),
-  update: vi.fn(),
-  firstEq: vi.fn(),
-  secondEq: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -25,17 +22,6 @@ const details = {
 };
 
 function configureClient() {
-  const updateChain = {
-    eq: mocks.firstEq,
-  };
-  mocks.firstEq.mockReturnValue({ eq: mocks.secondEq });
-  mocks.secondEq.mockResolvedValue({ error: null });
-  mocks.update.mockReturnValue(updateChain);
-
-  const grants = {
-    upsert: mocks.upsert,
-    update: mocks.update,
-  };
   const client = {
     auth: {
       oauth: {
@@ -44,7 +30,7 @@ function configureClient() {
         denyAuthorization: mocks.denyAuthorization,
       },
     },
-    from: vi.fn().mockReturnValue(grants),
+    rpc: mocks.rpc,
   };
   mocks.createClient.mockResolvedValue(client);
   return client;
@@ -55,7 +41,7 @@ describe("OAuth consent grant transaction", () => {
     vi.clearAllMocks();
     configureClient();
     mocks.getAuthorizationDetails.mockResolvedValue({ data: details, error: null });
-    mocks.upsert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
     mocks.approveAuthorization.mockResolvedValue({
       data: { redirect_url: "http://client.example/callback?code=accepted" },
       error: null,
@@ -70,17 +56,11 @@ describe("OAuth consent grant transaction", () => {
     const result = await approveConsent("authorization-1", "client-1", true);
 
     expect(result.redirectUrl).toContain("code=accepted");
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: "user-1",
-        client_id: "client-1",
-        can_read: true,
-        can_write: true,
-        revoked_at: null,
-      }),
-      { onConflict: "user_id,client_id" },
-    );
-    expect(mocks.upsert.mock.invocationCallOrder[0])
+    expect(mocks.rpc).toHaveBeenCalledWith("daypage_upsert_mcp_client_grant_v1", {
+      p_client_id: "client-1",
+      p_can_write: true,
+    });
+    expect(mocks.rpc.mock.invocationCallOrder[0])
       .toBeLessThan(mocks.approveAuthorization.mock.invocationCallOrder[0]);
     expect(mocks.approveAuthorization).toHaveBeenCalledWith(
       "authorization-1",
@@ -91,12 +71,12 @@ describe("OAuth consent grant transaction", () => {
   it("rejects an authorization ID paired with another client", async () => {
     await expect(approveConsent("authorization-1", "client-2", false))
       .rejects.toThrow("OAuth client mismatch");
-    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.approveAuthorization).not.toHaveBeenCalled();
   });
 
   it("does not approve OAuth when the DayPage grant cannot be saved", async () => {
-    mocks.upsert.mockResolvedValueOnce({ error: { message: "database unavailable" } });
+    mocks.rpc.mockResolvedValueOnce({ error: { message: "database unavailable" } });
 
     await expect(approveConsent("authorization-1", "client-1", false))
       .rejects.toThrow("DayPage permission could not be saved");
@@ -111,12 +91,9 @@ describe("OAuth consent grant transaction", () => {
 
     await expect(approveConsent("authorization-1", "client-1", false))
       .rejects.toThrow("OAuth authorization could not be completed");
-    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
-      revoked_at: expect.any(String),
-      updated_at: expect.any(String),
-    }));
-    expect(mocks.firstEq).toHaveBeenCalledWith("user_id", "user-1");
-    expect(mocks.secondEq).toHaveBeenCalledWith("client_id", "client-1");
+    expect(mocks.rpc).toHaveBeenLastCalledWith("daypage_revoke_mcp_client_grant_v1", {
+      p_client_id: "client-1",
+    });
   });
 
   it("denies through Supabase without creating a DayPage grant", async () => {
@@ -127,6 +104,6 @@ describe("OAuth consent grant transaction", () => {
       "authorization-1",
       { skipBrowserRedirect: true },
     );
-    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

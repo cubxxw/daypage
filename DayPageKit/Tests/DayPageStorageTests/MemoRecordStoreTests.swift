@@ -67,4 +67,31 @@ final class MemoRecordStoreTests: XCTestCase {
 
         XCTAssertEqual(try RawStorage.read(for: day), [memo])
     }
+
+    func testCaptureAttachmentFilingIsSourceBoundAndIdempotent() throws {
+        let memo = Memo(id: UUID(), created: day, body: "source")
+        try RawStorage.rewrite([memo], for: day)
+        let attachment = Memo.Attachment(
+            file: "raw/assets/capture_fixed.pdf",
+            kind: "file"
+        )
+
+        let first = try XCTUnwrap(try RawStorage.appendAttachment(
+            attachment,
+            toMemoID: memo.id
+        ))
+        let replay = try XCTUnwrap(try RawStorage.appendAttachment(
+            attachment,
+            toMemoID: memo.id
+        ))
+
+        XCTAssertEqual(first.attachments, [attachment])
+        XCTAssertEqual(replay.attachments, [attachment])
+        XCTAssertEqual(RawStorage.memo(id: memo.id)?.attachments, [attachment])
+        XCTAssertNil(try RawStorage.appendAttachment(attachment, toMemoID: UUID()))
+        XCTAssertNil(try RawStorage.appendAttachment(
+            .init(file: "../outside", kind: "file"),
+            toMemoID: memo.id
+        ))
+    }
 }

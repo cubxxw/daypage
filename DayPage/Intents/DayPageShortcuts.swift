@@ -66,5 +66,35 @@ struct DayPageShortcuts: AppShortcutsProvider {
             shortTitle: "问问今天",
             systemImageName: "magnifyingglass"
         )
+        AppShortcut(
+            intent: OpenSystemActionCenterIntent(),
+            phrases: [
+                "打开 \(.applicationName) 动作中心",
+                "查看 \(.applicationName) 待审批动作",
+                "Review actions in \(.applicationName)"
+            ],
+            shortTitle: "动作中心",
+            systemImageName: "checkmark.shield"
+        )
+        AppShortcut(
+            intent: DraftSystemActionIntent(),
+            phrases: [
+                "用 \(.applicationName) 起草系统动作",
+                "在 \(.applicationName) 准备一个动作",
+                "Draft an action in \(.applicationName)"
+            ],
+            shortTitle: "起草动作",
+            systemImageName: "wand.and.stars"
+        )
+        AppShortcut(
+            intent: DraftFocusSessionIntent(),
+            phrases: [
+                "用 \(.applicationName) 准备专注",
+                "在 \(.applicationName) 开始专注",
+                "Prepare focus in \(.applicationName)"
+            ],
+            shortTitle: "准备专注",
+            systemImageName: "timer"
+        )
     }
 }

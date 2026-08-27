@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/system-action-execution-claim-v1.schema.json",
+  "title": "DayPage system action execution claim v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation_id", "proposal_id", "phase", "proposal_revision", "payload_hash", "device_id_hash", "status", "lease_id", "issued_at", "expires_at", "receipt_id"],
+  "properties": {
+    "operation_id": { "$ref": "#/$defs/uuid" },
+    "proposal_id": { "$ref": "#/$defs/uuid" },
+    "phase": { "enum": ["execute", "undo"] },
+    "proposal_revision": { "type": "integer", "minimum": 1 },
+    "payload_hash": { "$ref": "#/$defs/hash" },
+    "device_id_hash": { "$ref": "#/$defs/hash" },
+    "status": { "enum": ["claimed", "busy", "already_completed", "attempt_completed", "replayed"] },
+    "lease_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+    "issued_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+    "expires_at": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+    "receipt_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "claimed" } }, "required": ["status"] }, "then": { "properties": { "lease_id": { "$ref": "#/$defs/uuid" }, "issued_at": { "$ref": "#/$defs/timestamp" }, "expires_at": { "$ref": "#/$defs/timestamp" }, "receipt_id": { "type": "null" } } } },
+    { "if": { "properties": { "status": { "enum": ["busy", "replayed"] } }, "required": ["status"] }, "then": { "properties": { "lease_id": { "$ref": "#/$defs/uuid" }, "issued_at": { "$ref": "#/$defs/timestamp" }, "expires_at": { "$ref": "#/$defs/timestamp" }, "receipt_id": { "type": "null" } } } },
+    { "if": { "properties": { "status": { "enum": ["already_completed", "attempt_completed"] } }, "required": ["status"] }, "then": { "properties": { "receipt_id": { "$ref": "#/$defs/uuid" }, "lease_id": { "type": "null" }, "issued_at": { "type": "null" }, "expires_at": { "type": "null" } } } }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", "x-daypage-canonicalTimestamp": true }
+  }
+}

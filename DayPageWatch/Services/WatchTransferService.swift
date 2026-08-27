@@ -1,6 +1,7 @@
 import Foundation
 import WatchConnectivity
 import os
+import CryptoKit
 import DayPageServices
 
 // MARK: - WatchTransferService
@@ -70,11 +71,17 @@ import DayPageServices
     }
 
     private func metadata(for fileURL: URL, duration: Double?) -> [String: Any] {
+        let resourceValues = try? fileURL.resourceValues(forKeys: [.creationDateKey])
+        let stableCreatedAt = resourceValues?.creationDate ?? Date()
+        let transferID = (try? Data(contentsOf: fileURL)).map {
+            SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined()
+        } ?? fileURL.lastPathComponent
         var metadata: [String: Any] = [
             "type": "watchAudio",
             "source": "daypage-watch",
-            "timestamp": Date().timeIntervalSince1970,
+            "timestamp": stableCreatedAt.timeIntervalSince1970,
             "filename": fileURL.lastPathComponent,
+            "transfer_id": transferID,
         ]
         if let duration { metadata["duration"] = duration }
         return metadata

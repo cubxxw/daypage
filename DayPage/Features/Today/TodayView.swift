@@ -2685,7 +2685,6 @@ struct TodayView: View {
                 Haptics.tapConfirm()
                 showTodayCoach = true
             },
-            onAddPhotoAsset: nil,
             batchPhotoProgress: viewModel.batchPhotoProgress,
             batchPhotoTotal: viewModel.batchPhotoTotal,
             requestFocusToggle: orbFocusToggle,

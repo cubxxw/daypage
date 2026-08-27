@@ -1,0 +1,10 @@
+{
+  "changes": [{
+    "change_sequence": 0,
+    "entity_type": "execution_lease",
+    "entity_id": "55555555-5555-4555-8555-555555555555",
+    "record": { "lease_token": "must-not-sync" }
+  }],
+  "next_cursor": -1,
+  "has_more": false
+}

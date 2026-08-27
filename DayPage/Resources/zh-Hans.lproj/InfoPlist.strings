@@ -1,0 +1,14 @@
+"NSCameraUsageDescription" = "DayPage 只在您启动采集时使用相机，以拍摄照片、扫描文档或识别文字。";
+"NSCalendarsUsageDescription" = "只有当您批准一条日历动作时，DayPage 才会为您创建或更新该日程。";
+"NSCalendarsWriteOnlyAccessUsageDescription" = "只有当您批准一条日历动作时，DayPage 才会把该日程写入系统日历。";
+"NSCalendarsFullAccessUsageDescription" = "DayPage 仅在您要求检查或撤销已批准的日程时读取相关日历数据。";
+"NSRemindersUsageDescription" = "只有当您批准一条提醒事项动作时，DayPage 才会访问系统提醒事项。";
+"NSRemindersFullAccessUsageDescription" = "DayPage 需要读写您明确批准的提醒事项，以便创建、检查或撤销它。";
+"NSContactsUsageDescription" = "DayPage 优先使用系统联系人选择器；只有当您确认保存联系人时才请求访问。";
+"NSMicrophoneUsageDescription" = "DayPage 需要访问麦克风，以便录制语音 memo 并自动转写为文字。";
+"NSSpeechRecognitionUsageDescription" = "DayPage 需要使用语音识别，以便在反馈表单中将您的语音输入转写为文字。";
+"NSPhotoLibraryAddUsageDescription" = "当您选择“保存到相册”时，DayPage 需要添加访问权限来保存这一份 Moment。";
+"NSHealthShareUsageDescription" = "当您主动点按“今日步数摘要”时，DayPage 只在设备上读取所选时间范围内的步数，不会请求写入健康数据。";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "只有当您启用访问自动化后，DayPage 才会使用后台位置，为到访地点创建本地草稿。";
+"NSLocationWhenInUseUsageDescription" = "DayPage 仅在您要求为 memo 或已批准动作添加地点时使用当前位置。";
+"NSAlarmKitUsageDescription" = "DayPage 需要在您设定的时间点提醒您记录当下（仅 iOS 26 及以上）。";

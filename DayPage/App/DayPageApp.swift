@@ -98,6 +98,14 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
 @main
 struct DayPageApp: App {
 
+    private static let readOnlyEntityDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = AppSettings.currentTimeZone()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     // MARK: - UI Test Launch Bridge
 
     /// Allow-list of UserDefaults keys that can be set via launch arguments.
@@ -337,6 +345,21 @@ struct DayPageApp: App {
                         return
                     }
 
+                    // Read-only AppEntity navigation. The system surface holds
+                    // only UUID/date metadata; the memo body is resolved by
+                    // the app after launch from the account-bound local Vault.
+                    if url.host?.lowercased() == "memo",
+                       url.pathComponents.dropFirst().first?.lowercased() == "open",
+                       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                       let idString = components.queryItems?.first(where: { $0.name == "id" })?.value,
+                       let id = UUID(uuidString: idString),
+                       let dateString = components.queryItems?.first(where: { $0.name == "date" })?.value,
+                       let day = Self.readOnlyEntityDateFormatter.date(from: dateString) {
+                        navModel.navigate(to: .archive)
+                        navModel.push(MemoDetailRef(id: id, day: day, source: .daily), in: .archive)
+                        return
+                    }
+
                     // daypage://daily?date=YYYY-MM-DD — open Archive at that date.
                     // (Driven by `OpenDailyPageIntent`.) Validate the format
                     // before consuming so a malformed shortcut payload is
@@ -358,6 +381,55 @@ struct DayPageApp: App {
                     // (there is no user-facing UI that generates this URL).
                     if url.host?.lowercased() == "archive" {
                         navModel.openArchiveOverview()
+                        return
+                    }
+
+                    // Place AppEntity links carry only a keyed opaque identifier.
+                    // The raw slug is resolved from app-private defaults and
+                    // never enters the App Group snapshot or URL.
+                    if url.host?.lowercased() == "place",
+                       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                       let identifier = components.queryItems?.first(where: { $0.name == "id" })?.value,
+                       let slug = DayPageReadOnlyEntitySnapshotStore.resolvePlaceSlug(identifier) {
+                        navModel.navigate(to: .archive)
+                        navModel.push(EntityRef(type: "places", slug: slug), in: .archive)
+                        return
+                    }
+
+                    // daypage://actions and daypage://actions/new are the only
+                    // App Intents handoff for Apple System Actions. They open a
+                    // review surface; they never execute an effect from a URL.
+                    if url.host?.lowercased() == "actions" {
+                        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                        if url.pathComponents.dropFirst().first?.lowercased() == "new" {
+                            let kind = components?.queryItems?.first(where: { $0.name == "kind" })?.value ?? "reminder"
+                            let title = components?.queryItems?.first(where: { $0.name == "title" })?.value ?? ""
+                            let notes = components?.queryItems?.first(where: { $0.name == "notes" })?.value
+                            navModel.systemActionPresentation = .draft(
+                                SystemActionDraftSeed(kind: kind, title: title, notes: notes)
+                            )
+                        } else {
+                            let proposalID = components?.queryItems?
+                                .first(where: { $0.name == "proposal" })?.value
+                                .flatMap(UUID.init(uuidString:))
+                            navModel.systemActionPresentation = .center(selectedProposalID: proposalID)
+                        }
+                        return
+                    }
+
+                    // daypage://focus/new opens a bounded focus draft. Clamp
+                    // external values before the review UI receives them.
+                    if url.host?.lowercased() == "focus",
+                       url.pathComponents.dropFirst().first?.lowercased() == "new" {
+                        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                        let title = components?.queryItems?.first(where: { $0.name == "title" })?.value ?? "专注"
+                        let minutes = Int(components?.queryItems?.first(where: { $0.name == "minutes" })?.value ?? "25") ?? 25
+                        navModel.systemActionPresentation = .focus(
+                            SystemActionFocusSeed(
+                                title: String(title.prefix(160)),
+                                durationSeconds: min(max(minutes, 1), 1_440) * 60
+                            )
+                        )
                         return
                     }
 

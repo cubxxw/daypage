@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/system-action-approval-v1.schema.json",
+  "title": "DayPage system action approval v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "approval_id", "proposal_id", "phase", "proposal_revision", "payload_hash", "decision", "device_id_hash", "decided_at", "has_replacement"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "approval_id": { "$ref": "#/$defs/uuid" },
+    "proposal_id": { "$ref": "#/$defs/uuid" },
+    "phase": { "enum": ["execute", "undo"] },
+    "proposal_revision": { "type": "integer", "minimum": 1 },
+    "payload_hash": { "$ref": "#/$defs/hash" },
+    "decision": { "enum": ["approve", "reject"] },
+    "device_id_hash": { "$ref": "#/$defs/hash" },
+    "decided_at": { "$ref": "#/$defs/timestamp" },
+    "has_replacement": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "decision": { "const": "approve" } }, "required": ["decision"] },
+      "then": { "properties": { "has_replacement": { "const": false } } }
+    }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$", "x-daypage-canonicalTimestamp": true }
+  }
+}

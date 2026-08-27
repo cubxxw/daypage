@@ -42,6 +42,14 @@ contract; durable device diagnostics contain codes and timing metadata, never Va
 content or account addresses. See
 [ADR-0013](decisions/ADR-0013-privacy-safe-operational-diagnostics.md).
 
+Apple System Actions use a separate proposal/decision/receipt contract. Agents and MCP
+clients may propose a bounded action, but only a native review surface can record the
+user's exact decision and only a device adapter may call EventKit, Contacts,
+UserNotifications, ActivityKit, or another Apple Framework. The local action ledger is
+authoritative for approvals and receipts; Supabase coordinates authenticated replication
+and short execution leases without becoming an OS-permission or memo source of truth.
+See [ADR-0017](decisions/ADR-0017-apple-system-actions.md).
+
 ## Data and compilation
 
 Raw memos are stored as YAML-front-matter Markdown in

@@ -193,6 +193,11 @@ final class AppNavigationModel: ObservableObject {
     /// RootView 挂 .sheet 驱动,和 pendingAskQuery 从侧边栏可靠打开是同款模式。
     @Published var showScheduleHub: Bool = false
 
+    /// Item-driven Apple System Actions surface. Siri, Spotlight, widgets,
+    /// deep links and in-app entry points all set this same value so approval
+    /// and editing cannot diverge between entry paths.
+    @Published var systemActionPresentation: SystemActionPresentation?
+
     init() {}
 
     private static func initialTab() -> AppTab {

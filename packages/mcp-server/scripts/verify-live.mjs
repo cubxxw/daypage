@@ -25,6 +25,10 @@ try {
   const listed = await client.listTools();
   const toolNames = listed.tools.map((tool) => tool.name).sort();
   assert.ok(toolNames.includes("daypage_add_memo"), "read/write key did not advertise daypage_add_memo");
+  assert.ok(toolNames.includes("daypage_propose_action"), "action-scoped key did not advertise daypage_propose_action");
+  assert.ok(toolNames.includes("daypage_list_action_proposals"), "action-scoped key did not advertise proposal reads");
+  assert.ok(toolNames.includes("daypage_list_action_receipts"), "action-scoped key did not advertise receipt reads");
+  assert.ok(!toolNames.some((name) => /approve|execute|undo|permission/.test(name)), "MCP exposed native authority");
 
   const macSearch = await client.callTool({
     name: "daypage_search",
@@ -48,12 +52,45 @@ try {
   assert.match(JSON.stringify(agentSearch), new RegExp(memo.id));
   assert.match(JSON.stringify(agentSearch), new RegExp(agentMarker));
 
+  const actionTitle = `DAYPAGE_LOCAL_MCP_ACTION_${new Date().toISOString()}`;
+  const proposed = await client.callTool({
+    name: "daypage_propose_action",
+    arguments: {
+      action: {
+        payload: {
+          kind: "focus_session",
+          title: actionTitle,
+          duration_seconds: 1200,
+          schedule_end_alert: true,
+          allow_live_activity: true,
+        },
+        title: `Start ${actionTitle}`,
+        rationale: "Synthetic local backend acceptance",
+        redaction_level: "private",
+        target_device_preference: "any",
+      },
+    },
+  });
+  assert.equal(proposed.isError, undefined);
+  assert.equal(proposed.structuredContent?.executed, false);
+  assert.equal(proposed.structuredContent?.requires_native_review, true);
+  const proposalId = proposed.structuredContent?.proposal?.proposal_id;
+  assert.equal(typeof proposalId, "string", "proposal did not return its durable ID");
+
+  const proposals = await client.callTool({
+    name: "daypage_list_action_proposals",
+    arguments: { limit: 5, state: "pending" },
+  });
+  assert.match(JSON.stringify(proposals), new RegExp(proposalId));
+
   process.stdout.write(`${JSON.stringify({
     tools: toolNames,
     mac_sync_marker_read: true,
     agent_memo_id: memo.id,
     agent_marker: agentMarker,
     agent_write_read_back: true,
+    action_proposal_id: proposalId,
+    action_pending_native_review: true,
   }, null, 2)}\n`);
 } finally {
   await client.close();

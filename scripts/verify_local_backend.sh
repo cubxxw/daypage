@@ -6,7 +6,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DB_CONTAINER="supabase_db_daypage"
+DB_CONTAINER="${DAYPAGE_DB_CONTAINER:-supabase_db_daypage}"
+SUPABASE_WORKDIR="${DAYPAGE_SUPABASE_WORKDIR:-${REPO_ROOT}}"
 LOCAL_USER_ID=""
 LOCAL_ACCESS_TOKEN=""
 LOCAL_API_URL=""
@@ -49,7 +50,7 @@ for command in curl docker jq openssl pnpm swift; do
 done
 
 cd "${REPO_ROOT}"
-LOCAL_STATUS_JSON="$(pnpm exec supabase status -o json 2>/dev/null)"
+LOCAL_STATUS_JSON="$(pnpm exec supabase status --workdir "${SUPABASE_WORKDIR}" -o json 2>/dev/null)"
 LOCAL_API_URL="$(printf '%s' "${LOCAL_STATUS_JSON}" | jq -er '.API_URL')"
 LOCAL_PUBLISHABLE_KEY="$(printf '%s' "${LOCAL_STATUS_JSON}" | jq -er '.PUBLISHABLE_KEY')"
 LOCAL_SERVICE_ROLE_KEY="$(printf '%s' "${LOCAL_STATUS_JSON}" | jq -er '.SERVICE_ROLE_KEY')"
@@ -60,6 +61,9 @@ LOCAL_MCP_URL="${LOCAL_API_URL}/functions/v1/daypage-mcp"
 
 # Transactional database security regression: receipt tuple binding, stale
 # revisions, tombstones, monotonic pull, tenant isolation, and token hook.
+docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres \
+    < web/scripts/verify-system-actions.sql
+bash web/scripts/verify-system-actions-concurrency.sh
 docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres \
     < web/scripts/verify-local-first-sync.sql
 
@@ -181,11 +185,33 @@ if [[ "${LOCAL_GC_COUNTS}" != "0:${LOCAL_GC_EXPECTED}"$'\n0' ]]; then
     exit 1
 fi
 
+# The MCP proposal surface is independently default-off at both the credential
+# and per-capability policy layers. Enable the synthetic user's Focus policy
+# through the same authenticated native RPC used by a device before testing
+# that an actions-scoped PAT can propose (but never approve or execute).
+LOCAL_POLICY_ID="77777777-7777-4777-8777-777777777779"
+LOCAL_POLICY_OPERATION_ID="77777777-7777-4777-8777-777777777780"
+LOCAL_POLICY_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S).000Z"
+LOCAL_POLICY_RESULT="$({
+    curl -fsS -X POST "${LOCAL_API_URL}/rest/v1/rpc/daypage_apply_system_action_operations_v1" \
+        -H "apikey: ${LOCAL_PUBLISHABLE_KEY}" \
+        -H "Authorization: Bearer ${LOCAL_ACCESS_TOKEN}" \
+        -H 'content-type: application/json' \
+        --data "$(jq -nc \
+            --arg operation_id "${LOCAL_POLICY_OPERATION_ID}" \
+            --arg policy_id "${LOCAL_POLICY_ID}" \
+            --arg updated_at "${LOCAL_POLICY_TIMESTAMP}" \
+            '{p_operations:[{protocol_version:1,operation_id:$operation_id,entity_type:"policy",entity_id:$policy_id,operation_kind:"upsert",revision:1,record:{schema_version:1,policy_id:$policy_id,capability:"focus",revision:1,is_offered:true,sync_enabled:true,disclosure_level:"full_proposal",updated_at:$updated_at,deleted_at:null}}]}')"
+})"
+printf '%s' "${LOCAL_POLICY_RESULT}" | jq -e \
+    '.rejected == [] and .accepted[0].status == "applied" and .accepted[0].record.capability == "focus"' \
+    >/dev/null
+
 LOCAL_PAT="dpg_dev_$(openssl rand -base64 48 | tr '+/' '_-' | tr -d '=\n')"
 LOCAL_PAT_HASH="$(printf '%s' "${LOCAL_PAT}" | shasum -a 256 | awk '{print $1}')"
 LOCAL_PAT_PREFIX="$(printf '%s' "${LOCAL_PAT}" | cut -c1-16)"
 docker exec "${DB_CONTAINER}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c \
-    "INSERT INTO public.api_keys (user_id, name, key_hash, key_prefix, scopes) VALUES ('${LOCAL_USER_ID}'::uuid, 'local backend e2e', '${LOCAL_PAT_HASH}', '${LOCAL_PAT_PREFIX}', '[\"read\",\"write\"]'::jsonb);" \
+    "INSERT INTO public.api_keys (user_id, name, key_hash, key_prefix, scopes) VALUES ('${LOCAL_USER_ID}'::uuid, 'local backend e2e', '${LOCAL_PAT_HASH}', '${LOCAL_PAT_PREFIX}', '[\"read\",\"write\",\"actions:read\",\"actions:propose\"]'::jsonb);" \
     >/dev/null
 
 env \
@@ -195,4 +221,4 @@ env \
     "DAYPAGE_MCP_E2E_AGENT_MARKER=DAYPAGE_LOCAL_MCP_WRITE_$(date -u +%Y%m%dT%H%M%SZ)_${RANDOM}" \
     pnpm --filter daypage-mcp-server test:live
 
-echo "Local backend acceptance passed: native text/media sync, two-Vault pull, and MCP read/write."
+echo "Local backend acceptance passed: native text/media sync, two-Vault pull, system actions, and MCP read/write/propose."

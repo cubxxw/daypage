@@ -361,6 +361,45 @@ public enum RawStorage {
         }
     }
 
+    /// Returns the current canonical memo for a stable UUID without exposing
+    /// the raw file path. This is used by explicit user filing flows that must
+    /// verify a source reference before mutating it.
+    public static func memo(id: UUID) -> Memo? {
+        writeQueue.sync { findMemoOnDisk(id: id)?.memo }
+    }
+
+    /// Adds one already-copied Vault attachment to the referenced memo through
+    /// the normal atomic rewrite/outbox path. Exact file references are
+    /// idempotent, so recovery after a manifest-write crash cannot duplicate an
+    /// attachment. A missing/moved memo returns nil instead of creating one.
+    @discardableResult
+    public static func appendAttachment(
+        _ attachment: Memo.Attachment,
+        toMemoID memoID: UUID
+    ) throws -> Memo? {
+        guard attachment.file.hasPrefix("raw/assets/"),
+              !attachment.file.contains(".."),
+              let located = writeQueue.sync(execute: { findMemoOnDisk(id: memoID) }) else {
+            return nil
+        }
+        var result: Memo?
+        try mutate(for: located.memo.created) { memos in
+            guard let index = memos.firstIndex(where: { $0.id == memoID }) else { return nil }
+            var memo = memos[index]
+            if memo.attachments.contains(where: { $0.file == attachment.file }) {
+                result = memo
+                return nil
+            }
+            memo.attachments.append(attachment)
+            memo.type = .mixed
+            var updated = memos
+            updated[index] = memo
+            result = memo
+            return updated
+        }
+        return result
+    }
+
     // MARK: - Remote sync application
 
     /// Applies an ordered page of server changes without echoing those changes

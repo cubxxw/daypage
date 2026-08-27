@@ -30,12 +30,6 @@ final class VoiceAttachmentQueue: ObservableObject {
     // Published state so TodayView / UI can observe
     @Published private(set) var pendingCount: Int = 0
 
-    private var queueURL: URL {
-        let drafts = VaultInitializer.vaultURL.appendingPathComponent("drafts", isDirectory: true)
-        do { try FileManager.default.createDirectory(at: drafts, withIntermediateDirectories: true) } catch { DayPageLogger.shared.error("VoiceAttachmentQueue: createDirectory: \(error)") }
-        return drafts.appendingPathComponent("voice_queue.json")
-    }
-
     private init() {
         updateCount()
         observeNetworkChanges()
@@ -62,8 +56,26 @@ final class VoiceAttachmentQueue: ObservableObject {
     // MARK: - Public API
 
     func enqueue(audioPath: String, memoDate: Date) {
-        var entries = load()
+        do {
+            try enqueueDurably(audioPath: audioPath, memoDate: memoDate)
+        } catch {
+            DayPageLogger.shared.error("VoiceAttachmentQueue: enqueue: \(error)")
+        }
+    }
+
+    /// Watch delivery keeps its durable inbox marker until this write succeeds.
+    /// The content-addressed audio path is the idempotency key, so replay after
+    /// an app crash cannot create duplicate transcription jobs.
+    func enqueueDurably(audioPath: String, memoDate: Date) throws {
+        var entries = try loadThrowing()
         let dateStr = isoDateString(memoDate)
+        if entries.contains(where: {
+            $0.audioPath == audioPath && $0.memoDate == dateStr
+        }) {
+            updateCount()
+            Task { await processQueue() }
+            return
+        }
         let entry = VoiceQueueEntry(
             id: UUID().uuidString,
             audioPath: audioPath,
@@ -74,7 +86,7 @@ final class VoiceAttachmentQueue: ObservableObject {
             failed: false
         )
         entries.append(entry)
-        save(entries)
+        try saveThrowing(entries)
         updateCount()
         Task { await processQueue() }
     }
@@ -378,23 +390,40 @@ final class VoiceAttachmentQueue: ObservableObject {
     }
 
     private func load() -> [VoiceQueueEntry] {
-        guard FileManager.default.fileExists(atPath: queueURL.path) else { return [] }
         do {
-            let data = try Data(contentsOf: queueURL)
-            return try JSONDecoder().decode([VoiceQueueEntry].self, from: data)
+            return try loadThrowing()
         } catch {
             DayPageLogger.shared.error("VoiceAttachmentQueue: load: \(error)")
             return []
         }
     }
 
+    private func loadThrowing() throws -> [VoiceQueueEntry] {
+        let url = try durableQueueURL()
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        return try JSONDecoder().decode(
+            [VoiceQueueEntry].self,
+            from: Data(contentsOf: url)
+        )
+    }
+
     private func save(_ entries: [VoiceQueueEntry]) {
         do {
-            let data = try JSONEncoder().encode(entries)
-            try data.write(to: queueURL, options: .atomic)
+            try saveThrowing(entries)
         } catch {
             DayPageLogger.shared.error("VoiceAttachmentQueue: save: \(error)")
         }
+    }
+
+    private func saveThrowing(_ entries: [VoiceQueueEntry]) throws {
+        let data = try JSONEncoder().encode(entries)
+        try data.write(to: durableQueueURL(), options: .atomic)
+    }
+
+    private func durableQueueURL() throws -> URL {
+        let drafts = VaultInitializer.vaultURL.appendingPathComponent("drafts", isDirectory: true)
+        try FileManager.default.createDirectory(at: drafts, withIntermediateDirectories: true)
+        return drafts.appendingPathComponent("voice_queue.json")
     }
 
     private func updateCount() {

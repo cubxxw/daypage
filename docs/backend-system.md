@@ -16,6 +16,7 @@ remain authoritative when details conflict.
 | Local backend from an empty database | Implemented | pinned CLI, Edge bundle, Supabase + Drizzle migrations |
 | Photo/audio/PDF byte sync | Implemented locally; staging pending | ADR-0016, v2 RPCs, two-Vault + TUS live tests |
 | Delayed attachment deletion | Implemented locally; scheduler not deployed | 30-day queue + leased private Storage-API worker |
+| Apple system action replica and MCP proposal boundary | Implemented locally; native rollout pending | ADR-0017, migration 0030, transactional two-tenant verifier |
 | Guaranteed iOS background execution | Not promised | foreground/process-lifetime sync by ADR-0008 |
 | Production migration/deployment | Not authorized | staging evidence exists; production remains unchanged |
 
@@ -57,6 +58,81 @@ The Vault is the capture source of truth. Postgres is the authenticated cross-de
 replica, query boundary, web data store, and agent-facing read/write surface. It does not
 replace the local capture commit.
 
+## Apple system action boundary
+
+ADR-0017 adds a separate proposal/decision/receipt protocol without changing memo
+Markdown or attachment persistence. The device ledger under DayPage-owned operational
+metadata is authoritative for local durability; Apple Framework stores are authoritative
+for the actual external effect. Postgres coordinates cross-device visibility and leases
+but never represents an OS permission or a successful Apple write without an immutable
+device receipt.
+
+Migration `0030_system_actions.sql` owns six relations with RPC-only mutation: proposals,
+approvals, receipts, capability policies, fingerprint-bound idempotency state, and short execution leases.
+The four durable replicated objects share an independent monotonic change sequence.
+Authenticated clients may select their own durable rows, but have no direct insert,
+update, delete, or truncate permission. Sync receipts and leases are never directly
+selectable. The migration also removes all direct access to the older `sync_operations`
+table while preserving both existing versioned sync RPCs as tenant-bound
+security-definer functions.
+Cloud proposal/approval apply and claim each lock and recheck every payload-required
+capability policy. The policy must be active, offered, synchronized, nondeleted, and
+`full_proposal`; payloads with no required cloud capability remain local-only. A receipt
+for an exact lease that was already issued while eligible remains admissible after a
+policy downgrade, solely to publish terminal evidence and release that lease. Revocation
+cannot issue a new claim or authorize a different tuple.
+The native client likewise chooses an online lease only with a live authenticated
+session, available network, and a fully cloud-eligible proposal. Signed-out, private-only,
+redacted, deleted-policy, and partially eligible proposals execute through the durable
+device-owner path and do not attempt a remote claim.
+
+The versioned public RPCs are:
+
+- `daypage_apply_system_action_operations_v1(jsonb)` for exact, fingerprint-bound
+  proposal/approval/receipt/policy apply. Policy revisions are replicated in order; when
+  full sync is enabled, the native outbox backfills the proposal-revision, decision, and
+  receipt causal chain before later policy-dependent records;
+- `daypage_pull_system_action_changes_v1(bigint, integer)` for ordered, paginated
+  changes and tombstones;
+- `daypage_claim_system_action_execution_v1(...)` for approval-bound execute/undo
+  leases, exact retry, concurrent exclusion, fail-closed expired-attempt recovery, and
+  historical-success detection. The server-issued lease timestamp is the receipt start;
+  local clock skew is not trusted. Proposal revision/provenance cannot change after any
+  execution lease or receipt exists, and undo is bound to the successful executor device.
+- Approval records expose `has_replacement` on the wire. Postgres derives the internal
+  same-proposal replacement foreign key and compares expiry to server `now()`, so a fast
+  client clock cannot invalidate an otherwise current approval.
+- `daypage_mcp_propose_system_action_v1(uuid, jsonb)` for an OAuth-client proposal
+  after rechecking its independent grant. OAuth credentials are rejected by native
+  apply, pull, claim, approval, and receipt paths.
+
+Cloud MCP can only propose and read through `daypage_propose_action`,
+`daypage_list_action_proposals`, and `daypage_list_action_receipts`. Independent
+`can_read_actions` and `can_propose_actions` OAuth grants default off; PATs require
+`actions:read` and `actions:propose`. Memo `read`/`write` never implies action access.
+The historical PAT `admin` scope keeps only its legacy memo compatibility and likewise
+does not imply either action scope; action authority must always be granted explicitly.
+OAuth credentials cannot directly select the action tables: read tools use bounded
+proposal and receipt projection RPCs that exclude device and lease identifiers. Neither
+authentication path uses a service-role client, and no MCP tool can approve, execute,
+undo, request permission, or receive a raw Apple identifier. MCP-created proposals
+always use the `any` target because a cloud client has no native creator device identity.
+They are also fixed to `private` redaction before native approval; MCP input cannot
+widen that disclosure level.
+OAuth and PAT list projections share the same bounded fields and canonical UTC
+millisecond timestamp wire format; database-native `+00:00` timestamp rendering is
+never exposed as an alternate protocol representation.
+First-party settings call dedicated grant RPCs. Reconnect always resets both action
+flags to false, and revoke clears memo and action access together, so an old OAuth
+grant cannot silently restore action authority.
+
+The native outbox removes an envelope only after an exact acknowledgement. A validated
+terminal rejection quarantines that exact immutable envelope (tracked by fingerprint)
+so it cannot block unrelated later work or be regenerated during backfill; it does not
+erase the local proposal, decision, or receipt. A native Apple success remains a UI
+success when receipt publication is temporarily unavailable, with pending sync shown
+separately.
+
 ## Native write transaction
 
 1. `RawStorage` atomically commits `vault/raw/YYYY-MM-DD.md` in the existing format.
@@ -87,8 +163,15 @@ account ID, object key, upload URL, credential, or transfer status.
   push.
 - A newer remote revision wins its UUID. If a local unsynced edit conflicts, DayPage
   preserves the local text under a new UUID instead of discarding it.
+- A terminally rejected same-revision system-action proposal, capability policy, or
+  one-decision-per-phase replacement records its exact stable key. Pull adopts the
+  authenticated server winner for only that key and advances the action cursor;
+  unrelated same-revision differences still fail closed.
 - A Vault binds to the first authenticated account that enables sync. Another account
   fails closed rather than uploading the old Vault under a new tenant.
+- Explicit sign-out closes the system-action coordinator while the old account token is
+  still valid, then refuses identity revocation/ledger erasure until any online claim or
+  lease has exact remotely confirmed terminal evidence.
 - Tombstones converge deletion across devices without making wall clocks authoritative.
 
 ## Agent and integration path
@@ -129,7 +212,16 @@ production project URL cannot be consumed accidentally by the local acceptance c
 | RPC timeout after commit | exact retry returns the historical receipt |
 | Stale local revision | operation remains actionable; pull resolves and preserves conflict copy |
 | Damaged/reused operation ID | immutable tuple mismatch is rejected |
+| Concurrent system action execution | one approval-bound lease wins; competitors see `busy` |
+| Wrong device claims a targeted action | `creating_device` requires the creator hash, `specific_device` requires the target hash, and only `any` accepts another device in the authenticated owner's tenant |
+| Process dies during a system action | an exact retry replays its original lease only while active; after expiry, the original operation and competitors both receive `busy` until reconciliation publishes terminal evidence against that original lease without re-claiming; any receipted attempt returns `attempt_completed` without an executable lease, tuple changes fail closed, and a historical success returns `already_completed` |
+| Failed or ambiguous Apple result | receipt sync uses the proposal revision in the operation envelope while retaining its per-executor attempt counter; sequential devices may retain the same ordinal because device hash + exclusive lease distinguish them; native recovery associates evidence by normalized executor device and the exact lease when known, so another device's same ordinal cannot consume a local interrupted lease; after a receipted reconciliation, a retry uses a fresh claim operation ID and lease |
+| Capability policy revoked during an active system-action lease | no new claim is issued; the exact already-leased receipt remains admissible so terminal evidence releases the lease |
+| One system-action outbox envelope is permanently rejected | quarantine only that exact fingerprint; preserve the immutable local record and continue unrelated envelopes |
+| Same-revision mutable system-action race | after the exact local envelope is terminally rejected, pull adopts only the authenticated server winner; local execution evidence is retained as `needsReview` |
 | Account changed for a bound Vault | fail closed before installing uploader/puller |
+| Explicit sign-out during a system action | while the old token remains valid, the coordinator barrier waits for claim/native/receipt completion; unresolved remote coordination rejects sign-out before revocation, preserves the bound identity, leaves quarantine off, and reopens the barrier for sync/reconciliation |
+| Identity revoked or changed externally during cleanup | fail closed with the ledger intact and quarantined until the same identity can safely resume reconciliation or an authenticated terminal receipt proves cleanup is safe |
 | Pull page malformed or unordered | reject page; do not advance cursor |
 | MCP token expired, wrong audience, revoked grant/PAT | fail with 401/403; no data query |
 | Attachment upload/download failure | sidecar remains pending/failed; unrelated text push and pull continue |
@@ -157,6 +249,9 @@ It must prove, against a running empty-capable local stack:
 - both migration journals are applied;
 - cross-user reads and writes fail under RLS;
 - exact retry succeeds and operation-ID tuple reuse fails;
+- system action RPC-only DML, two-tenant RLS, stale approval rejection, concurrent
+  claim exclusion, lease expiry recovery, execute/undo receipts, pull pagination, and
+  policy tombstones pass `verify-system-actions.sql`;
 - stale revisions, tombstones, monotonic pull, and OAuth hook permissions behave as
   specified;
 - a real native Vault/outbox mutation uploads and reads back;
@@ -166,7 +261,9 @@ It must prove, against a running empty-capable local stack:
 - unreserved, wrong-memo, and cross-tenant Storage writes fail;
 - the private GC rejects anonymous calls and deletes due objects through the Storage API;
 - MCP metadata/challenge are public and environment-correct;
-- the official MCP SDK reads the native marker, writes a memo, and reads it back;
+- the official MCP SDK reads the native marker, writes a memo, reads it back, creates
+  a pending action proposal with an action-scoped PAT, and cannot discover any native
+  approval/execution/permission tool;
 - synthetic Auth users, memos, grants, and PATs are cleaned up.
 
 Promotion additionally requires focused package/type/contract tests, negative staging
@@ -185,5 +282,6 @@ Related decisions and operations:
 
 - [ADR-0008](architecture/decisions/ADR-0008-local-first-sync-and-cloud-mcp.md)
 - [ADR-0009](architecture/decisions/ADR-0009-native-surfaces-shared-contracts.md)
+- [ADR-0017](architecture/decisions/ADR-0017-apple-system-actions.md)
 - [Supabase Auth setup](supabase-auth-setup.md)
 - [Cloud MCP staging runbook](mcp-cloud-runbook.md)

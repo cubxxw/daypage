@@ -22,7 +22,7 @@ interface CreatedKey extends ApiKeyRecord {
   key: string;
 }
 
-const ALL_SCOPES = ["read", "write", "admin"];
+const ALL_SCOPES = ["read", "write", "actions:read", "actions:propose"];
 
 // ── Hooks ──────────────────────────────────────────────────────────────────────
 

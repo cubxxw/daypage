@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daypage.app/contracts/system-action-push-result-v1.schema.json",
+  "title": "DayPage system action push result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["accepted", "rejected"],
+  "properties": {
+    "accepted": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation_id", "entity_type", "entity_id", "revision", "status", "change_sequence", "record"],
+        "properties": {
+          "operation_id": { "$ref": "#/$defs/uuid" },
+          "entity_type": { "enum": ["proposal", "approval", "receipt", "policy"] },
+          "entity_id": { "$ref": "#/$defs/uuid" },
+          "revision": { "type": "integer", "minimum": 1 },
+          "status": { "enum": ["applied", "replayed"] },
+          "change_sequence": { "type": "integer", "minimum": 1 },
+          "record": {
+            "type": "object", "minProperties": 1, "maxProperties": 18,
+            "propertyNames": { "$ref": "#/$defs/recordField" }
+          }
+        }
+      }
+    },
+    "rejected": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["operation_id", "entity_type", "entity_id", "reason"],
+        "properties": {
+          "operation_id": { "type": ["string", "null"] },
+          "entity_type": { "type": ["string", "null"] },
+          "entity_id": { "type": ["string", "null"] },
+          "reason": { "enum": ["invalid_operation", "operation_id_reuse_mismatch", "stale_revision", "approval_mismatch", "lease_required", "conflict"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "recordField": { "enum": [
+      "schema_version", "proposal_id", "approval_id", "receipt_id", "policy_id",
+      "revision", "kind", "payload", "payload_hash", "title", "rationale", "source_refs",
+      "creator_source", "creator_device_id_hash", "redaction_level", "target_device_preference",
+      "target_device_id_hash", "state", "expires_at", "deleted_at", "created_at", "phase",
+      "proposal_revision", "decision", "device_id_hash", "has_replacement", "decided_at",
+      "attempt", "outcome", "execution_mode", "lease_id", "result", "error_code",
+      "reconciliation_state", "undo_capability", "external_id_hash", "started_at", "completed_at",
+      "capability", "is_offered", "sync_enabled", "disclosure_level", "updated_at"
+    ] }
+  }
+}

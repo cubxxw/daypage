@@ -10,6 +10,8 @@ interface McpConnection {
   granted_at: string;
   can_read: boolean;
   can_write: boolean;
+  can_read_actions: boolean;
+  can_propose_actions: boolean;
   daypage_grant_active: boolean;
 }
 
@@ -54,6 +56,29 @@ export function McpConnectionsSection() {
         body: JSON.stringify({ client_id: clientId, can_write: canWrite }),
       });
       if (!response.ok) throw new Error("Failed to update permission");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mcp-connections"] }),
+  });
+  const updateActions = useMutation({
+    mutationFn: async ({
+      clientId,
+      canReadActions,
+      canProposeActions,
+    }: {
+      clientId: string;
+      canReadActions: boolean;
+      canProposeActions: boolean;
+    }) => {
+      const response = await fetch("/api/oauth/grants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: clientId,
+          can_read_actions: canReadActions,
+          can_propose_actions: canProposeActions,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to update action permission");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mcp-connections"] }),
   });
@@ -118,6 +143,9 @@ export function McpConnectionsSection() {
                 </div>
                 <div className="settings-row-desc">
                   Connected {new Date(connection.granted_at).toLocaleDateString()} · Identity scopes: {connection.scopes.join(", ") || "email"}
+                  {connection.daypage_grant_active ? (
+                    <> · Apple actions: {connection.can_propose_actions ? "propose" : "no proposals"}, {connection.can_read_actions ? "read status" : "no status access"}</>
+                  ) : null}
                   {connection.client.uri ? (
                     <> · <a href={connection.client.uri} target="_blank" rel="noreferrer">App details <ExternalLink size={11} style={{ display: "inline" }} /></a></>
                   ) : null}
@@ -125,14 +153,40 @@ export function McpConnectionsSection() {
               </div>
               <div className="settings-row-control" style={{ display: "flex", gap: 8 }}>
                 {connection.daypage_grant_active ? (
-                  <Btn
-                    kind="soft"
-                    size="sm"
-                    disabled={updateWrite.isPending}
-                    onClick={() => updateWrite.mutate({ clientId: connection.client.id, canWrite: !connection.can_write })}
-                  >
-                    {connection.can_write ? "Make read-only" : "Allow adding memos"}
-                  </Btn>
+                  <>
+                    <Btn
+                      kind="soft"
+                      size="sm"
+                      disabled={updateWrite.isPending}
+                      onClick={() => updateWrite.mutate({ clientId: connection.client.id, canWrite: !connection.can_write })}
+                    >
+                      {connection.can_write ? "Make read-only" : "Allow adding memos"}
+                    </Btn>
+                    <Btn
+                      kind="soft"
+                      size="sm"
+                      disabled={updateActions.isPending}
+                      onClick={() => updateActions.mutate({
+                        clientId: connection.client.id,
+                        canReadActions: !connection.can_read_actions,
+                        canProposeActions: connection.can_propose_actions,
+                      })}
+                    >
+                      {connection.can_read_actions ? "Disable action status" : "Allow action status"}
+                    </Btn>
+                    <Btn
+                      kind="soft"
+                      size="sm"
+                      disabled={updateActions.isPending}
+                      onClick={() => updateActions.mutate({
+                        clientId: connection.client.id,
+                        canReadActions: connection.can_read_actions,
+                        canProposeActions: !connection.can_propose_actions,
+                      })}
+                    >
+                      {connection.can_propose_actions ? "Disable proposals" : "Allow proposals"}
+                    </Btn>
+                  </>
                 ) : null}
                 <Btn
                   kind="ghost"
@@ -148,9 +202,9 @@ export function McpConnectionsSection() {
           </div>
         ))}
 
-        {revoke.error ? (
+        {revoke.error || updateActions.error ? (
           <div className="settings-row" role="alert" style={{ color: "var(--danger)", fontSize: "0.8125rem" }}>
-            {revoke.error.message}
+            {(revoke.error ?? updateActions.error)?.message}
           </div>
         ) : null}
       </Card>
