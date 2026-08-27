@@ -375,10 +375,21 @@ jobs:
           path: build/Products
 
       - name: Install Maestro
+        env:
+          MAESTRO_VERSION: 1.39.0
+          MAESTRO_SHA256: 9ef9f19378b2928da981a8e640ef05ecdf44a4fb5ede0da2e72f96cacb75e265
         run: |
-          export MAESTRO_VERSION=1.39.0
-          curl -Ls "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          archive="$RUNNER_TEMP/maestro.zip"
+          install_dir="$RUNNER_TEMP/maestro-cli"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            "https://github.com/mobile-dev-inc/Maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip" \
+            --output "$archive"
+          printf '%s  %s\n' "$MAESTRO_SHA256" "$archive" | shasum -a 256 --check
+          mkdir -p "$install_dir"
+          unzip -q "$archive" -d "$install_dir"
+          echo "$install_dir/maestro/bin" >> "$GITHUB_PATH"
+          "$install_dir/maestro/bin/maestro" --version
 
       - name: Boot iPhone Simulator
         run: |
