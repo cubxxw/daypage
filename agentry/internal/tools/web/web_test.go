@@ -157,6 +157,45 @@ func TestHTMLToTextEmptyAndPlain(t *testing.T) {
 	}
 }
 
+func TestHTMLToTextRejectsActiveAnchorSchemes(t *testing.T) {
+	for _, href := range []string{
+		"javascript:alert(1)",
+		"JaVaScRiPt:alert(1)",
+		"data:text/html,<script>alert(1)</script>",
+		"vbscript:msgbox(1)",
+		"file:///etc/passwd",
+	} {
+		html := `<p><a href="` + href + `">unsafe</a></p>`
+		text, _, err := htmlToText(html)
+		if err != nil {
+			t.Fatalf("htmlToText(%q) error: %v", href, err)
+		}
+		if text != "unsafe" {
+			t.Errorf("htmlToText(%q) = %q, want plain label", href, text)
+		}
+	}
+}
+
+func TestHTMLToTextAllowsSafeAnchorSchemes(t *testing.T) {
+	for _, href := range []string{
+		"https://example.com/path",
+		"http://example.com/path",
+		"/relative/path",
+		"mailto:hello@example.com",
+		"tel:+12025550123",
+	} {
+		html := `<p><a href="` + href + `">safe</a></p>`
+		text, _, err := htmlToText(html)
+		if err != nil {
+			t.Fatalf("htmlToText(%q) error: %v", href, err)
+		}
+		want := "[safe](" + href + ")"
+		if text != want {
+			t.Errorf("htmlToText(%q) = %q, want %q", href, text, want)
+		}
+	}
+}
+
 // TestExtractInlineHTML exercises web.extract end-to-end on inline HTML (no
 // network), verifying it leads with the title as an H1 and includes body text.
 func TestExtractInlineHTML(t *testing.T) {

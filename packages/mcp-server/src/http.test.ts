@@ -6,7 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { DayPageAuthContext } from "./auth.js";
 import type { DayPageMcpConfig } from "./config.js";
-import { createDayPageHttpServer, metadataPath } from "./http.js";
+import { createDayPageHttpServer, metadataPath, parseBearerAuthorization } from "./http.js";
 import type {
   ActionProposalInput,
   ActionProposalRecord,
@@ -189,6 +189,19 @@ test("publishes protected-resource metadata and a discoverable 401 challenge", a
     assert.equal(unauthorized.status, 401);
     assert.match(unauthorized.headers.get("www-authenticate") ?? "", /oauth-protected-resource/);
   });
+});
+
+test("parses bearer authorization with a bounded linear scan", () => {
+  assert.equal(parseBearerAuthorization("Bearer test-token"), "test-token");
+  assert.equal(parseBearerAuthorization("bEaReR\t  test-token  "), "test-token");
+  assert.equal(parseBearerAuthorization(`Bearer ${" ".repeat(100_000)}test-token`), "test-token");
+
+  assert.equal(parseBearerAuthorization(undefined), null);
+  assert.equal(parseBearerAuthorization(""), null);
+  assert.equal(parseBearerAuthorization("Bearer"), null);
+  assert.equal(parseBearerAuthorization("Bearer    "), null);
+  assert.equal(parseBearerAuthorization("BearerX test-token"), null);
+  assert.equal(parseBearerAuthorization("Basic test-token"), null);
 });
 
 test("official MCP client lists tools and reads the synthetic memo", async () => {

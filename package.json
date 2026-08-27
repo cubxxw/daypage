@@ -13,7 +13,7 @@
     "web:lint": "pnpm --filter daypage-web lint",
     "web:typecheck": "pnpm --filter daypage-web typecheck",
     "db:migrate:local": "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm --filter daypage-web db:migrate",
-    "db:start": "node scripts/prepare_local_backend.mjs && pnpm --filter daypage-mcp-server build:edge && supabase start && pnpm db:migrate:local",
+    "db:start": "node scripts/prepare_local_backend.mjs && node scripts/ensure_local_supabase_network.mjs && pnpm --filter daypage-mcp-server build:edge && supabase start --network-id local-network && pnpm db:migrate:local",
     "db:reset": "supabase db reset && pnpm db:migrate:local",
     "db:stop": "supabase stop",
     "backend:check": "bash scripts/verify_backend_static.sh",

@@ -3,7 +3,20 @@ name: Deploy web production
 on:
   push:
     branches: [main]
+    paths:
+      - "web/**"
+      - "packages/**"
+      - "deploy/**"
+      - "design-tokens/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".dockerignore"
+      - ".github/workflows/deploy-web.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: web-production
@@ -14,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
