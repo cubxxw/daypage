@@ -51,6 +51,18 @@ document and link to it.
 - No external dependency, schema migration, or persistence-format change without discussion.
 - No force unwraps in production paths. Prefer typed errors, `guard`, and explicit recovery.
 
+## Code Review Rules
+
+- Flag storage, sync, import, or migration changes that can rewrite or lose raw
+  vault content, break the canonical memo/front-matter/asset format, or drop
+  legacy read compatibility without isolated round-trip and migration evidence.
+- Flag shared model or service changes that let Apple, Android, web, MCP, or Go
+  surfaces diverge from a versioned contract without updating the owning schema
+  and cross-surface fixtures.
+- Flag any path that exposes personal notes, transcripts, attachments, precise
+  context, auth state, or secrets to logs, telemetry, fixtures, Slack, or a
+  model beyond the user's explicit purpose and authorization.
+
 ## Agent Team protocol
 
 Use `.agents/manifest.yaml` to discover roles and workflows. The lead owns the task
