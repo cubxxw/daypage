@@ -5,13 +5,22 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - ".github/**"
-      - "design/**"
-      - "scripts/ralph/**"
-      - "tasks/**"
-      - "**.md"
-      - ".gitignore"
+    # Publish automatically only when a shipped Apple-app or build input
+    # changes. Control-plane-only changes can use workflow_dispatch after an
+    # explicit release decision instead of shipping an unchanged binary.
+    paths:
+      - "DayPage/**"
+      - "DayPageKit/**"
+      - "DayPageMac/**"
+      - "DayPageWatch/**"
+      - "DayPageWidget/**"
+      - "DayPageTests/**"
+      - "DayPage.xcodeproj/**"
+      - "design-tokens/**"
+      - "fastlane/**"
+      - "scripts/generate_secrets.sh"
+      - "Gemfile"
+      - "Gemfile.lock"
 
   # 手动触发（可选指定 lane / 强制版本号）
   workflow_dispatch:
