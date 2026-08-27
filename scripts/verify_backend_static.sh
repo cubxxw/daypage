@@ -24,36 +24,38 @@ pnpm --filter daypage-web exec vitest run \
 
 test -f web/drizzle/migrations/0030_system_actions.sql
 test -f web/scripts/verify-system-actions.sql
-rg -q 'REVOKE ALL ON public\.sync_operations FROM PUBLIC, anon, authenticated' \
+# Keep these single-file assertions on grep so the hermetic Ubuntu CI job does
+# not depend on a preinstalled ripgrep binary.
+grep -Eq 'REVOKE ALL ON public\.sync_operations FROM PUBLIC, anon, authenticated' \
     web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_apply_system_action_operations_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_pull_system_action_changes_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_claim_system_action_execution_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q "'status', 'attempt_completed'" web/drizzle/migrations/0030_system_actions.sql
-rg -q "target device is not eligible for this proposal" web/drizzle/migrations/0030_system_actions.sql
-rg -q "target_device_preference' IS DISTINCT FROM 'any'" web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_mcp_propose_system_action_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_mcp_list_system_action_proposals_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_mcp_list_system_action_receipts_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_system_action_payload_hash_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q 'daypage_system_action_cloud_policy_allows_v1' web/drizzle/migrations/0030_system_actions.sql
-rg -q "redaction_level' IS DISTINCT FROM 'private'" web/drizzle/migrations/0030_system_actions.sql
-rg -q 'non-creator device claimed a creating-device proposal' web/scripts/verify-system-actions.sql
-rg -q 'non-target device claimed a specific-device proposal' web/scripts/verify-system-actions.sql
-rg -q 'any-device proposal denied another owned device' web/scripts/verify-system-actions.sql
-rg -q 'zero-capability local-only proposal reached cloud' web/scripts/verify-system-actions.sql
-rg -q 'OAuth reconnect silently preserved an old action grant' web/scripts/verify-system-actions.sql
-rg -q 'legacy admin PAT silently enabled actions' web/scripts/verify-system-actions.sql
-rg -q 'PAT proposal projection emitted noncanonical timestamps' web/scripts/verify-system-actions.sql
-rg -q 'PAT receipt projection emitted noncanonical timestamps' web/scripts/verify-system-actions.sql
-if rg -q "actions:read' OR v_scopes \? 'admin|actions:propose' OR v_scopes \? 'admin" \
+grep -Eq 'daypage_apply_system_action_operations_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_pull_system_action_changes_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_claim_system_action_execution_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq "'status', 'attempt_completed'" web/drizzle/migrations/0030_system_actions.sql
+grep -Eq "target device is not eligible for this proposal" web/drizzle/migrations/0030_system_actions.sql
+grep -Eq "target_device_preference' IS DISTINCT FROM 'any'" web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_mcp_propose_system_action_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_mcp_list_system_action_proposals_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_mcp_list_system_action_receipts_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_system_action_payload_hash_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'daypage_system_action_cloud_policy_allows_v1' web/drizzle/migrations/0030_system_actions.sql
+grep -Eq "redaction_level' IS DISTINCT FROM 'private'" web/drizzle/migrations/0030_system_actions.sql
+grep -Eq 'non-creator device claimed a creating-device proposal' web/scripts/verify-system-actions.sql
+grep -Eq 'non-target device claimed a specific-device proposal' web/scripts/verify-system-actions.sql
+grep -Eq 'any-device proposal denied another owned device' web/scripts/verify-system-actions.sql
+grep -Eq 'zero-capability local-only proposal reached cloud' web/scripts/verify-system-actions.sql
+grep -Eq 'OAuth reconnect silently preserved an old action grant' web/scripts/verify-system-actions.sql
+grep -Eq 'legacy admin PAT silently enabled actions' web/scripts/verify-system-actions.sql
+grep -Eq 'PAT proposal projection emitted noncanonical timestamps' web/scripts/verify-system-actions.sql
+grep -Eq 'PAT receipt projection emitted noncanonical timestamps' web/scripts/verify-system-actions.sql
+if grep -Eq "actions:read' OR v_scopes \? 'admin|actions:propose' OR v_scopes \? 'admin" \
     web/drizzle/migrations/0030_system_actions.sql; then
     echo 'Legacy admin PAT scope must not imply system-action authority' >&2
     exit 1
 fi
-rg -q 'attempt-2 receipt did not retain proposal revision 1' web/scripts/verify-system-actions.sql
-rg -q 'exact ambiguous-attempt retry resurrected its released lease' web/scripts/verify-system-actions.sql
-rg -q 'released winning lease became executable on exact retry' web/scripts/verify-system-actions-concurrency.sh
-rg -q 'Expired unreceipted lease was reassigned to a competing device' web/scripts/verify-system-actions-concurrency.sh
-rg -q 'proposal revision changed after execution evidence existed' web/scripts/verify-system-actions.sql
-rg -q 'same-operation expired execution lease became executable' web/scripts/verify-system-actions.sql
+grep -Eq 'attempt-2 receipt did not retain proposal revision 1' web/scripts/verify-system-actions.sql
+grep -Eq 'exact ambiguous-attempt retry resurrected its released lease' web/scripts/verify-system-actions.sql
+grep -Eq 'released winning lease became executable on exact retry' web/scripts/verify-system-actions-concurrency.sh
+grep -Eq 'Expired unreceipted lease was reassigned to a competing device' web/scripts/verify-system-actions-concurrency.sh
+grep -Eq 'proposal revision changed after execution evidence existed' web/scripts/verify-system-actions.sql
+grep -Eq 'same-operation expired execution lease became executable' web/scripts/verify-system-actions.sql
