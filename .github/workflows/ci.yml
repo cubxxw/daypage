@@ -347,9 +347,10 @@ jobs:
   ui-tests:
     name: Maestro UI Tests
     runs-on: macos-15
-    # 前置开销(装 Maestro+起模拟器)约 7 min,4 条 flow 全跑完约 15-20 min;
-    # 20 min 预算会在 flow 全通过时被 job 超时掐掉(表现为整个 run "cancelled")
-    timeout-minutes: 35
+    # GitHub-hosted macOS runners can spend 10+ min in simulator launch/screenshot
+    # and the visual-baseline flow alone can take 15-20 min. Keep enough headroom
+    # for all four flows so a slow but healthy runner is not reported as cancelled.
+    timeout-minutes: 50
     needs: build
     # 仅 PR 和定时任务运行 UI 测试（push 跳过，加快常规开发循环）
     if: (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'schedule'
