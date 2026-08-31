@@ -9,6 +9,7 @@
 "NSSpeechRecognitionUsageDescription" = "DayPage 需要使用语音识别，以便在反馈表单中将您的语音输入转写为文字。";
 "NSPhotoLibraryAddUsageDescription" = "当您选择“保存到相册”时，DayPage 需要添加访问权限来保存这一份 Moment。";
 "NSHealthShareUsageDescription" = "当您主动点按“今日步数摘要”时，DayPage 只在设备上读取所选时间范围内的步数，不会请求写入健康数据。";
+"NSHealthUpdateUsageDescription" = "DayPage 当前不会写入或修改健康数据；健康功能仅在您主动查看时读取设备上的步数。";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "只有当您启用访问自动化后，DayPage 才会使用后台位置，为到访地点创建本地草稿。";
 "NSLocationWhenInUseUsageDescription" = "DayPage 仅在您要求为 memo 或已批准动作添加地点时使用当前位置。";
 "NSAlarmKitUsageDescription" = "DayPage 需要在您设定的时间点提醒您记录当下（仅 iOS 26 及以上）。";
