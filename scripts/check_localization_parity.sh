@@ -107,6 +107,16 @@ if [ "$FAIL" -ne 0 ]; then
   exit 1
 fi
 
+# App Store Connect rejects App Intent metadata containing the Apple name
+# (error 90626). Keep product-trademark wording out of all quoted metadata in
+# the intent source so the failure is caught before an otherwise valid upload.
+RESTRICTED_INTENT_METADATA="$(grep -nEhi '"[^"]*[Aa][Pp][Pp][Ll][Ee][^"]*"' "$REPO_ROOT"/DayPage/Intents/*.swift || true)"
+if [ -n "$RESTRICTED_INTENT_METADATA" ]; then
+  echo "::error::App Intent metadata contains the restricted word 'Apple':"
+  echo "$RESTRICTED_INTENT_METADATA" | sed 's/^/  - /'
+  exit 1
+fi
+
 EN_COUNT="$(echo "$EN_KEYS" | grep -c '^"' || true)"
 INFO_COUNT="$(echo "$EN_INFO_KEYS" | grep -c '^"' || true)"
 echo "✅ Localization parity OK — Localizable.strings: $EN_COUNT keys; InfoPlist.strings: $INFO_COUNT usage keys per locale."
