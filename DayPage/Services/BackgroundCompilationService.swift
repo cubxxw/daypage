@@ -491,11 +491,26 @@ final class BackgroundCompilationService: ObservableObject {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
+                // Missing credentials are actionable configuration state, not a
+                // transient transport failure. Retrying them behind the generic
+                // 30s / 2min / 10min schedule leaves Today showing a misleading
+                // "cleaning" progress bar for up to 12.5 minutes before the
+                // existing Settings CTA can appear.
+                guard Self.shouldRetryCompilation(after: error) else { throw error }
                 lastError = error
                 DayPageLogger.shared.warn("[BGCompile] Attempt \(attempt + 1) failed: \(error.localizedDescription)")
             }
         }
         throw lastError ?? CompilationError.networkError("All retry attempts exhausted")
+    }
+
+    /// Pure retry classification shared by the foreground and background
+    /// runners. Keep user-actionable configuration failures out of exponential
+    /// backoff; callers already surface the missing-key Settings route.
+    nonisolated static func shouldRetryCompilation(after error: Error) -> Bool {
+        guard let compilationError = error as? CompilationError else { return true }
+        if case .missingApiKey = compilationError { return false }
+        return true
     }
 
     // MARK: - Private: Compile Eligibility Check

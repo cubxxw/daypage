@@ -239,4 +239,15 @@ final class BackgroundCompilationServiceTests: XCTestCase {
         XCTAssertEqual(BackgroundCompilationService.foregroundRetryDelays, [0, 30, 120, 600],
             "Foreground backfill schedule must remain 0/30s/2m/10m")
     }
+
+    func testMissingAPIKey_bypassesExponentialRetry() {
+        XCTAssertFalse(
+            BackgroundCompilationService.shouldRetryCompilation(after: CompilationError.missingApiKey),
+            "Missing credentials must reach the actionable Settings banner immediately"
+        )
+        XCTAssertTrue(
+            BackgroundCompilationService.shouldRetryCompilation(after: CompilationError.networkTimeout),
+            "Transient transport failures should retain the documented retry policy"
+        )
+    }
 }
