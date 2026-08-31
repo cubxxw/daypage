@@ -96,6 +96,8 @@
 	<string>当您选择“保存到相册”时，DayPage 需要添加访问权限来保存这一份 Moment。</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>当您主动点按“今日步数摘要”时，DayPage 只在设备上读取所选时间范围内的步数，不会请求写入健康数据。</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>DayPage 当前不会写入或修改健康数据；健康功能仅在您主动查看时读取设备上的步数。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>DayPage 需要在后台持续感知您的位置，以自动记录您到访的地点。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

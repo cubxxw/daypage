@@ -22,8 +22,9 @@ ZH="$REPO_ROOT/DayPage/Resources/zh-Hans.lproj/Localizable.strings"
 EN_INFO="$REPO_ROOT/DayPage/Resources/en.lproj/InfoPlist.strings"
 ZH_INFO="$REPO_ROOT/DayPage/Resources/zh-Hans.lproj/InfoPlist.strings"
 APP_INFO="$REPO_ROOT/DayPage/App/Info.plist"
+APP_ENTITLEMENTS="$REPO_ROOT/DayPage/App/DayPage.entitlements"
 
-for f in "$EN" "$ZH" "$EN_INFO" "$ZH_INFO" "$APP_INFO"; do
+for f in "$EN" "$ZH" "$EN_INFO" "$ZH_INFO" "$APP_INFO" "$APP_ENTITLEMENTS"; do
   if [ ! -r "$f" ]; then
     echo "::error::Localizable.strings not found or unreadable: $f"
     exit 2
@@ -52,6 +53,17 @@ MISSING_USAGE_IN_EN="$(comm -23 <(echo "$PLIST_USAGE_KEYS") <(echo "$EN_INFO_BAR
 MISSING_USAGE_IN_ZH="$(comm -23 <(echo "$PLIST_USAGE_KEYS") <(echo "$ZH_INFO_BARE_KEYS"))"
 
 FAIL=0
+
+# App Store Connect requires both HealthKit purpose strings whenever the app
+# carries the HealthKit entitlement, even when the current feature is read-only.
+if grep -q '<key>com.apple.developer.healthkit</key>' "$APP_ENTITLEMENTS"; then
+  for key in NSHealthShareUsageDescription NSHealthUpdateUsageDescription; do
+    if ! grep -q "<key>$key</key>" "$APP_INFO"; then
+      echo "::error::HealthKit entitlement requires $key in DayPage/App/Info.plist"
+      FAIL=1
+    fi
+  done
+fi
 
 if [ -n "$MISSING_IN_EN" ]; then
   echo "::error::Keys present in zh-Hans but MISSING in en.lproj (English UI will show raw keys):"
