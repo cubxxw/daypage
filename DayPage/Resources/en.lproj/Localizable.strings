@@ -2034,3 +2034,5 @@
 "today.photo.attach" = "Attach photo";
 "today.template.a11y" = "Template: %@";
 "today.template.hint" = "Fill the composer with this template";
+"settings.hub.system_access" = "System Access";
+"settings.hub.system_access.summary" = "Authorize as needed";

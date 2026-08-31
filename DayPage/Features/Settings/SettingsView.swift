@@ -23,6 +23,7 @@ struct SettingsView: View {
     enum Route: String, Hashable {
         case aiVoice
         case reminders
+        case systemAccess
         case appearance
         case syncData
         case about
@@ -34,6 +35,7 @@ struct SettingsView: View {
             switch arguments[index + 1].lowercased() {
             case "aivoice": return .aiVoice
             case "reminders": return .reminders
+            case "systemaccess", "system-access": return .systemAccess
             case "appearance": return .appearance
             case "syncdata": return .syncData
             case "about": return .about
@@ -167,13 +169,12 @@ struct SettingsView: View {
                 route: .reminders
             )
             hubRow(
-                title: "系统访问",
+                title: NSLocalizedString("settings.hub.system_access", comment: "System access row"),
                 systemImage: "hand.raised",
-                summary: "按需授权",
-                identifier: "hub-system-access"
-            ) {
-                SystemAccessView(model: SystemActionRuntime.shared.model)
-            }
+                summary: NSLocalizedString("settings.hub.system_access.summary", comment: "System access summary"),
+                identifier: "hub-system-access",
+                route: .systemAccess
+            )
             hubRow(
                 title: NSLocalizedString("settings.appearance.section", comment: "Appearance row"),
                 systemImage: "circle.lefthalf.filled",
@@ -241,6 +242,7 @@ struct SettingsView: View {
         switch route {
         case .aiVoice: SettingsAIVoiceView()
         case .reminders: SettingsRemindersView()
+        case .systemAccess: SystemAccessView(model: SystemActionRuntime.shared.model)
         case .appearance: SettingsAppearanceView()
         case .syncData: SettingsSyncDataView()
         case .about: SettingsAboutView()

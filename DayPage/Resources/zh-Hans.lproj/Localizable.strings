@@ -2041,3 +2041,5 @@
 "today.photo.attach" = "附加照片";
 "today.template.a11y" = "模板：%@";
 "today.template.hint" = "将模板填入输入框";
+"settings.hub.system_access" = "系统访问";
+"settings.hub.system_access.summary" = "按需授权";
