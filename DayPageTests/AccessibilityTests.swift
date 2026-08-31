@@ -747,16 +747,17 @@ struct AccessibilityTests {
         guard value.count == 6, let raw = Int(value, radix: 16) else {
             throw AccessibilityTestError.invalidHexColor(hex)
         }
-        let channels = [
-            Double((raw >> 16) & 0xFF) / 255,
-            Double((raw >> 8) & 0xFF) / 255,
-            Double(raw & 0xFF) / 255
-        ].map { channel in
-            channel <= 0.04045
-                ? channel / 12.92
-                : pow((channel + 0.055) / 1.055, 2.4)
+        let red = linearizedSRGBChannel(Double((raw >> 16) & 0xFF) / 255)
+        let green = linearizedSRGBChannel(Double((raw >> 8) & 0xFF) / 255)
+        let blue = linearizedSRGBChannel(Double(raw & 0xFF) / 255)
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+
+    private func linearizedSRGBChannel(_ channel: Double) -> Double {
+        if channel <= 0.04045 {
+            return channel / 12.92
         }
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+        return pow((channel + 0.055) / 1.055, 2.4)
     }
 }
 
