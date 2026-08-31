@@ -1293,21 +1293,6 @@ final class TodayViewModel: ObservableObject {
                     }
                     return
                 }
-                if outcome == .requestedBackend {
-                    HapticFeedback.light()
-                    if !silentMode {
-                        BannerCenter.shared.show(AppBannerModel(
-                            kind: .info,
-                            title: NSLocalizedString(
-                                "today.compile.requested_backend",
-                                value: "已提交后台理解，完成后会自动更新",
-                                comment: "Banner after backend-first compilation is queued"
-                            ),
-                            autoDismiss: true
-                        ))
-                    }
-                    return
-                }
                 await OnThisDayIndex.shared.rebuildIndex()
                 SignatureHaptics.compileSuccess()
                 BannerCenter.shared.show(AppBannerModel(

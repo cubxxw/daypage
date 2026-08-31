@@ -279,15 +279,7 @@ struct DailyPageView: View {
             // Explicit "recompile" intent — bypass the #814 source_hash guard
             // so the user can regenerate a page they disliked even when the
             // underlying memos are unchanged.
-            let outcome = try await CompilationService.shared.compile(for: date, trigger: "manual", force: true)
-            if outcome == .requestedBackend {
-                BannerCenter.shared.show(AppBannerModel(
-                    kind: .info,
-                    title: "已提交后台重新整理，完成后会自动更新",
-                    autoDismiss: true
-                ))
-                return
-            }
+            try await CompilationService.shared.compile(for: date, trigger: "manual", force: true)
             loadPage()
             // US-022: show success banner with memo count
             BannerCenter.shared.show(AppBannerModel(
