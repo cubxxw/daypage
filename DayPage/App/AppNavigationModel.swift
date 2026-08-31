@@ -198,7 +198,23 @@ final class AppNavigationModel: ObservableObject {
     /// and editing cannot diverge between entry paths.
     @Published var systemActionPresentation: SystemActionPresentation?
 
-    init() {}
+    init() {
+        #if DEBUG
+        // Direct pre-mount route for screenshot/E2E runs. `simctl openurl`
+        // presents an OS confirmation alert and cannot exercise the in-app
+        // destination unattended, while this uses Archive's normal pending
+        // date consumer and NavigationStack push.
+        let args = ProcessInfo.processInfo.arguments
+        if let index = args.firstIndex(of: "-qaArchiveDate"),
+           args.indices.contains(index + 1) {
+            let date = args[index + 1]
+            if date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+                selectedTab = .archive
+                pendingArchiveDate = date
+            }
+        }
+        #endif
+    }
 
     private static func initialTab() -> AppTab {
         let args = ProcessInfo.processInfo.arguments

@@ -104,6 +104,7 @@ struct ApiKeyRowView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .minTapTarget()
                     .accessibilityLabel(NSLocalizedString("settings.apikey.reveal.label", comment: ""))
                     .accessibilityIdentifier("api-key-reveal-button-\(providerID)")
                 }
@@ -114,6 +115,11 @@ struct ApiKeyRowView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .minTapTarget()
+                .accessibilityLabel(String(
+                    format: NSLocalizedString("settings.apikey.edit.label", comment: "Edit provider credential"),
+                    name
+                ))
                 .accessibilityIdentifier("api-key-edit-button-\(providerID)")
 
                 if key.isEmpty {
@@ -124,8 +130,8 @@ struct ApiKeyRowView: View {
                         .fontWeight(.medium)
                         .padding(.horizontal, DSSpacing.sm)
                         .padding(.vertical, 2)
-                        .background((isRequired ? Color.red : DSColor.inkSubtle).opacity(0.12))
-                        .foregroundColor(isRequired ? .red : DSColor.inkSubtle)
+                        .background(DSColor.inkTertiaryAA.opacity(0.10))
+                        .foregroundColor(DSColor.inkTertiaryAA)
                         .clipShape(Capsule())
                 } else if let onTest {
                     Button(action: onTest) {
@@ -139,6 +145,7 @@ struct ApiKeyRowView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .minTapTarget()
                     .disabled(isTesting)
                     .accessibilityLabel(NSLocalizedString("settings.apikey.test.label", comment: ""))
                     .accessibilityIdentifier("api-key-test-button-\(providerID)")
@@ -273,7 +280,7 @@ struct VerifyBadge: View {
 
     private var fg: Color {
         switch kind {
-        case .neutral: return DSColor.inkSubtle
+        case .neutral: return DSColor.inkTertiaryAA
         case .pending: return DSColor.statusWarning
         case .ok:      return DSColor.statusSuccess
         case .error:   return DSColor.statusError

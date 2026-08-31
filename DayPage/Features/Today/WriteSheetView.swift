@@ -18,9 +18,9 @@ import DayPageServices
 //   • textarea — 18pt serif, italic placeholder「此刻在想什么？」, accent caret,
 //     auto-grow (lineLimit 3…10)
 //   • footer rail — camera/photo/location(-name chip) icons · spacer · mono
-//     counter · trailing action: mic when empty, ghost「取消」+ amber ↑ send
+//     counter · trailing action: mic when empty, amber ↑ send when dirty
 //     circle once the draft is dirty
-//   • mono caption「SAVED TO  VAULT / YYYY-MM-DD.md」(folds while keyboard up)
+//   • mono destination「SAVES TO  VAULT / YYYY-MM-DD.md」(folds while keyboard up)
 //
 // Interaction model (vNext 2026-07): "close" is two different verbs.
 //   收起(keep) — scrim tap / swipe-down: silent, the draft survives in the
@@ -336,7 +336,7 @@ struct WriteSheetView: View {
             } else if !keyboardVisible {
                 // The archival caption is a "quiet moment" flourish — while the
                 // keyboard is up every point of height belongs to the draft.
-                savedCaption
+                destinationCaption
                     .transition(.opacity)
             }
         }
@@ -451,9 +451,18 @@ struct WriteSheetView: View {
                     .foregroundColor(DSColor.inkMuted)
                     .frame(width: 30, height: 30)
                     .background(Circle().fill(DSColor.surfaceSunken))
+                    // Preserve the restrained 30pt chrome while providing a
+                    // full-size hit target around it.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(NSLocalizedString("write.sheet.close", comment: "Close write sheet"))
+            .accessibilityLabel(
+                NSLocalizedString(
+                    isDirty ? "write.sheet.discard.action" : "write.sheet.close",
+                    comment: "Close or discard the write sheet"
+                )
+            )
         }
         .padding(.horizontal, 22)
         .padding(.top, 14)
@@ -554,13 +563,10 @@ struct WriteSheetView: View {
             // Trailing action: when the draft is empty, show a press-to-talk
             // mic (long-press = voice memo, short tap = open recorder). The
             // moment authored content exists, the same 38pt amber circle
-            // swaps its symbol to ↑ send, and a quiet ghost "cancel" fades in
-            // beside it — the only explicit discard affordance besides ✕.
+            // swaps its symbol to ↑ send. Discard stays in one stable place:
+            // the header ✕, followed by its explicit inline confirmation.
             if isDirty {
-                HStack(spacing: 8) {
-                    cancelGhostButton
-                    sendButton
-                }
+                sendButton
                 .transition(.opacity)
             } else {
                 writeSheetMicButton
@@ -622,7 +628,7 @@ struct WriteSheetView: View {
             idleBackgroundColor: DSColor.amberAccent,
             idleIconColor: .white
         )
-        .frame(width: 44, height: 38)
+        .frame(width: 44, height: 44)
         .accessibilityLabel(NSLocalizedString("input.a11y.mic", comment: ""))
     }
 
@@ -849,6 +855,7 @@ struct WriteSheetView: View {
                 .scaleEffect(saveReadyPulse ? 1.06 : 1.0)
                 .animation(reduceMotion ? nil : Motion.spring, value: saveReadyPulse)
         }
+        .frame(width: 44, height: 44)
         .pressScale(scale: 0.96, animation: .easeInOut(duration: 0.12))
         .accessibilityIdentifier("write-sheet-save")
         .accessibilityLabel(NSLocalizedString("write.sheet.send", comment: "发送"))
@@ -864,30 +871,14 @@ struct WriteSheetView: View {
         }
     }
 
-    /// Quiet discard affordance beside send. Bare text, no capsule: the
-    /// filled pill next to the filled circle made two competing shapes and
-    /// read heavy — a destructive action must never fight the primary one
-    /// for visual weight. The 38pt frame keeps a full-size touch target.
-    private var cancelGhostButton: some View {
-        Button(action: attemptDiscard) {
-            Text(NSLocalizedString("write.sheet.cancel", comment: "取消"))
-                .font(DSFonts.inter(size: 13, weight: .medium, relativeTo: .caption))
-                .tracking(0.2)
-                .foregroundColor(DSColor.inkMuted)
-                .padding(.horizontal, 8)
-                .frame(height: 38)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("write-sheet-cancel")
-        .accessibilityLabel(NSLocalizedString("write.sheet.cancel", comment: "取消"))
-    }
+    // MARK: - Save destination (composer.jsx:333-341)
 
-    // MARK: - Saved-to caption (composer.jsx:333-341)
-
-    private var savedCaption: some View {
+    private var destinationCaption: some View {
         HStack(spacing: 8) {
-            Text("SAVED TO")
+            // This is visible before the user commits anything, so past-tense
+            // "SAVED TO" was a false success state. Describe the destination
+            // instead; the actual save confirmation belongs after submission.
+            Text(NSLocalizedString("write.sheet.destination", comment: "Future save destination"))
                 .foregroundColor(DSColor.inkMuted)
             Text("VAULT / \(isoDate).md")
                 .foregroundColor(DSColor.inkMuted)

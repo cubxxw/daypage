@@ -20,16 +20,48 @@ import DayPageServices
 @MainActor
 struct SettingsView: View {
 
+    enum Route: String, Hashable {
+        case aiVoice
+        case reminders
+        case appearance
+        case syncData
+        case about
+
+        static func initial(arguments: [String]) -> Route? {
+            #if DEBUG
+            guard let index = arguments.firstIndex(of: "-qaSettingsPage"),
+                  arguments.indices.contains(index + 1) else { return nil }
+            switch arguments[index + 1].lowercased() {
+            case "aivoice": return .aiVoice
+            case "reminders": return .reminders
+            case "appearance": return .appearance
+            case "syncdata": return .syncData
+            case "about": return .about
+            default: return nil
+            }
+            #else
+            return nil
+            #endif
+        }
+    }
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authService: AuthService
+    @Environment(\.dynamicTypeSize) private var userDynamicTypeSize
     @StateObject private var syncMonitor = iCloudSyncMonitor.shared
     @StateObject private var reminderService = CaptureReminderService.shared
     @ObservedObject private var appSettings = AppSettings.shared
 
     @State private var showAccountSheet = false
+    @State private var path: [Route]
+
+    init(initialRoute: Route? = nil) {
+        let resolved = initialRoute ?? Route.initial(arguments: ProcessInfo.processInfo.arguments)
+        _path = State(initialValue: resolved.map { [$0] } ?? [])
+    }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Group {
                     accountSection
@@ -40,10 +72,11 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(DSColor.bgWarm.ignoresSafeArea())
-            .tint(DSColor.primary)
+            .tint(DSColor.accentOnBg)
             .accessibilityIdentifier("settings-list")
             .navigationTitle(NSLocalizedString("settings.nav.title", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: Route.self, destination: destination)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(NSLocalizedString("settings.nav.close", comment: "")) { dismiss() }
@@ -56,6 +89,11 @@ struct SettingsView: View {
                 AccountSheet()
             }
         }
+        // Settings is dense navigation chrome rather than long-form reading.
+        // AX4–AX5 system scaling makes section headers and trailing summaries
+        // consume entire rows on compact phones; cap this hub at AX2 while the
+        // content remains scrollable and VoiceOver keeps full strings.
+        .dynamicTypeSize(.xSmall ... .accessibility2)
     }
 
     // MARK: Account
@@ -65,22 +103,44 @@ struct SettingsView: View {
             Button {
                 showAccountSheet = true
             } label: {
-                HStack(spacing: DSSpacing.md) {
-                    Image(systemName: "person.crop.circle")
-                        .font(DSType.h2)
-                        .foregroundColor(DSColor.onSurfaceVariant)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(authService.session?.user.email ?? NSLocalizedString("settings.account.signed_out", comment: ""))
-                            .font(DSType.bodyMD)
-                            .foregroundColor(DSColor.onBackgroundPrimary)
-                        Text(authService.session == nil ? NSLocalizedString("settings.account.tap_to_sign_in", comment: "") : NSLocalizedString("settings.account.manage", comment: ""))
-                            .font(DSType.labelSM)
-                            .foregroundColor(DSColor.onSurfaceVariant)
+                Group {
+                    if userDynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            HStack(spacing: DSSpacing.md) {
+                                Image(systemName: "person.crop.circle")
+                                    .font(DSType.h2)
+                                    .foregroundColor(DSColor.onSurfaceVariant)
+                                    .accessibilityHidden(true)
+                                Text(authService.session?.user.email ?? NSLocalizedString("settings.account.signed_out", comment: ""))
+                                    .font(DSType.bodyMD)
+                                    .foregroundColor(DSColor.onBackgroundPrimary)
+                            }
+                            Text(authService.session == nil ? NSLocalizedString("settings.account.tap_to_sign_in", comment: "") : NSLocalizedString("settings.account.manage", comment: ""))
+                                .font(DSType.labelSM)
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        HStack(spacing: DSSpacing.md) {
+                            Image(systemName: "person.crop.circle")
+                                .font(DSType.h2)
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(authService.session?.user.email ?? NSLocalizedString("settings.account.signed_out", comment: ""))
+                                    .font(DSType.bodyMD)
+                                    .foregroundColor(DSColor.onBackgroundPrimary)
+                                Text(authService.session == nil ? NSLocalizedString("settings.account.tap_to_sign_in", comment: "") : NSLocalizedString("settings.account.manage", comment: ""))
+                                    .font(DSType.labelSM)
+                                    .foregroundColor(DSColor.onSurfaceVariant)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(DSType.caption)
+                                .foregroundColor(DSColor.onSurfaceVariant)
+                                .accessibilityHidden(true)
+                        }
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(DSType.caption)
-                        .foregroundColor(DSColor.onSurfaceVariant)
                 }
                 .contentShape(Rectangle())
             }
@@ -96,18 +156,16 @@ struct SettingsView: View {
                 title: NSLocalizedString("settings.hub.aivoice", comment: "AI & Voice row"),
                 systemImage: "sparkles",
                 summary: aiVoiceSummary,
-                identifier: "hub-aivoice"
-            ) {
-                SettingsAIVoiceView()
-            }
+                identifier: "hub-aivoice",
+                route: .aiVoice
+            )
             hubRow(
                 title: NSLocalizedString("settings.hub.reminders", comment: "Reminders row"),
                 systemImage: "bell.badge",
                 summary: remindersSummary,
-                identifier: "hub-reminders"
-            ) {
-                SettingsRemindersView()
-            }
+                identifier: "hub-reminders",
+                route: .reminders
+            )
             hubRow(
                 title: "系统访问",
                 systemImage: "hand.raised",
@@ -120,18 +178,16 @@ struct SettingsView: View {
                 title: NSLocalizedString("settings.appearance.section", comment: "Appearance row"),
                 systemImage: "circle.lefthalf.filled",
                 summary: appSettings.themeMode.label,
-                identifier: "hub-appearance"
-            ) {
-                SettingsAppearanceView()
-            }
+                identifier: "hub-appearance",
+                route: .appearance
+            )
             hubRow(
                 title: NSLocalizedString("settings.hub.syncdata", comment: "Sync & data row"),
                 systemImage: "arrow.triangle.2.circlepath",
                 summary: syncSummary,
-                identifier: "hub-syncdata"
-            ) {
-                SettingsSyncDataView()
-            }
+                identifier: "hub-syncdata",
+                route: .syncData
+            )
         }
     }
 
@@ -141,34 +197,54 @@ struct SettingsView: View {
                 title: NSLocalizedString("settings.hub.about", comment: "About row"),
                 systemImage: "info.circle",
                 summary: appVersion,
-                identifier: "hub-about"
-            ) {
-                SettingsAboutView()
-            }
+                identifier: "hub-about",
+                route: .about
+            )
         }
     }
 
     @ViewBuilder
-    private func hubRow<Destination: View>(
+    private func hubRow(
         title: String,
         systemImage: String,
         summary: String,
         identifier: String,
-        @ViewBuilder destination: @escaping () -> Destination
+        route: Route
     ) -> some View {
-        NavigationLink {
-            destination()
-        } label: {
-            HStack {
-                SettingsLabel(title: title, systemImage: systemImage)
-                Spacer()
-                Text(summary)
-                    .font(DSType.labelSM)
-                    .foregroundColor(DSColor.onSurfaceVariant)
-                    .lineLimit(1)
+        NavigationLink(value: route) {
+            Group {
+                if userDynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        SettingsLabel(title: title, systemImage: systemImage)
+                        Text(summary)
+                            .font(DSType.labelSM)
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    HStack {
+                        SettingsLabel(title: title, systemImage: systemImage)
+                        Spacer()
+                        Text(summary)
+                            .font(DSType.labelSM)
+                            .foregroundColor(DSColor.onSurfaceVariant)
+                            .lineLimit(1)
+                    }
+                }
             }
         }
         .accessibilityIdentifier(identifier)
+    }
+
+    @ViewBuilder
+    private func destination(for route: Route) -> some View {
+        switch route {
+        case .aiVoice: SettingsAIVoiceView()
+        case .reminders: SettingsRemindersView()
+        case .appearance: SettingsAppearanceView()
+        case .syncData: SettingsSyncDataView()
+        case .about: SettingsAboutView()
+        }
     }
 
     // MARK: Summaries
@@ -191,7 +267,7 @@ struct SettingsView: View {
         let count = reminderService.reminders.filter { $0.enabled }.count
         return count == 0
             ? NSLocalizedString("settings.hub.reminders.summary.none", comment: "No reminders summary")
-            : String(format: NSLocalizedString("settings.reminder.count", value: "%d 条", comment: ""), count)
+            : String(format: NSLocalizedString("settings.hub.reminders.summary.active", comment: "Enabled reminders summary"), count)
     }
 
     private var syncSummary: String {

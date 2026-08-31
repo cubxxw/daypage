@@ -115,8 +115,7 @@ struct SmartTemplateRow: View {
             .contentShape(Rectangle())
         }
         .pressScale(scale: 0.97, animation: Motion.spring)
-        .accessibilityLabel("模板：\(template.display)")
-        .accessibilityHint("点击将模板填入输入框")
+        .accessibilityLabel(String(format: NSLocalizedString("today.template.a11y", comment: "Template accessibility label"), template.display))
+        .accessibilityHint(NSLocalizedString("today.template.hint", comment: "Template accessibility hint"))
     }
 }
-

@@ -134,4 +134,24 @@ enum L10n {
         // VoiceOver label for the banner dismiss button.
         static let closeA11y = NSLocalizedString("banner.close.a11y", comment: "VoiceOver label for the banner close button")
     }
+
+    enum CompileProgress {
+        static let collecting = NSLocalizedString("today.compile.stage.collecting", comment: "Compile progress: collecting memos")
+        static let cleaning = NSLocalizedString("today.compile.stage.cleaning", comment: "Compile progress: cleaning and preflight")
+        static let clustering = NSLocalizedString("today.compile.stage.clustering", comment: "Compile progress: finding themes")
+        static let generating = NSLocalizedString("today.compile.stage.generating", comment: "Compile progress: generating journal")
+        static let linking = NSLocalizedString("today.compile.stage.linking", comment: "Compile progress: linking entities and memory")
+        static let a11yLabel = NSLocalizedString("today.compile.progress.a11y.label", comment: "VoiceOver label for active compilation")
+
+        static func a11yValue(stage: String, percent: Int) -> String {
+            String(
+                format: NSLocalizedString(
+                    "today.compile.progress.a11y.value",
+                    comment: "VoiceOver value for active compilation: stage and percent"
+                ),
+                stage,
+                percent
+            )
+        }
+    }
 }

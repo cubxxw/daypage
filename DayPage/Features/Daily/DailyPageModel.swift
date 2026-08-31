@@ -8,6 +8,19 @@ import DayPageServices
 enum DailyPageTab: String, CaseIterable {
     case digest = "DIGEST"
     case timeline = "TIMELINE"
+
+    static func initial(arguments: [String]) -> DailyPageTab {
+        #if DEBUG
+        guard let flagIndex = arguments.firstIndex(of: "-qaDailyTab"),
+              arguments.indices.contains(flagIndex + 1),
+              arguments[flagIndex + 1].lowercased() == "timeline" else {
+            return .digest
+        }
+        return .timeline
+        #else
+        return .digest
+        #endif
+    }
 }
 
 // MARK: - DailyPageModel

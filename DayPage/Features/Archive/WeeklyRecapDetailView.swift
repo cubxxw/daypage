@@ -729,6 +729,14 @@ struct WeeklyRecapDetailView: View {
                 iconColor: DSColor.statusError,
                 showRetry: true
             )
+        case .backendRequested:
+            return ErrorCopy(
+                title: "已提交后台生成",
+                detail: "完成后会自动同步到此设备",
+                systemImage: "clock.arrow.circlepath",
+                iconColor: DSColor.inkMuted,
+                showRetry: false
+            )
         case .unknown(let underlying):
             return ErrorCopy(
                 title: NSLocalizedString(

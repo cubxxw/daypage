@@ -44,7 +44,8 @@ struct TodayCoachView: View {
         }
         .background(DSColor.bgWarm.ignoresSafeArea())
         .task {
-            if coach.turns.isEmpty {
+            if coach.turns.isEmpty,
+               !ProcessInfo.processInfo.arguments.contains("-qaOpenCoach") {
                 inputFocused = true
             }
         }
@@ -55,7 +56,7 @@ struct TodayCoachView: View {
     private var header: some View {
         ZStack {
             VStack(spacing: 2) {
-                Text("陪你写今天")
+                Text(NSLocalizedString("coach.title", comment: "Today coach title"))
                     .font(DSFonts.serif(size: 17, weight: .semibold, relativeTo: .headline))
                     .tracking(-0.2)
                     .foregroundColor(DSColor.inkPrimary)
@@ -74,7 +75,7 @@ struct TodayCoachView: View {
                 }
                 .buttonStyle(.plain)
                 .dpGlass(.control, in: Circle())
-                .accessibilityLabel("关闭")
+                .accessibilityLabel(NSLocalizedString("common.close", comment: "Close"))
                 .accessibilityIdentifier("coach-close")
 
                 Spacer()
@@ -94,7 +95,7 @@ struct TodayCoachView: View {
                 .dpGlass(.control, in: Circle())
                 .disabled(coach.turns.isEmpty)
                 .opacity(coach.turns.isEmpty ? 0.45 : 1)
-                .accessibilityLabel("新对话")
+                .accessibilityLabel(NSLocalizedString("coach.new_chat", comment: "Start a new coach conversation"))
                 .accessibilityIdentifier("coach-new-chat")
             }
         }
@@ -174,7 +175,7 @@ struct TodayCoachView: View {
                 .frame(width: 2)
                 .cornerRadius(1)
             if editingDraftTurnID == turn.id {
-                TextField("改写成日记…", text: $editableDraft, axis: .vertical)
+                TextField(NSLocalizedString("coach.edit.placeholder", comment: "Coach memo draft editor placeholder"), text: $editableDraft, axis: .vertical)
                     .font(DSType.serifBody16)
                     .foregroundColor(DSColor.inkPrimary)
                     .lineLimit(1...6)
@@ -217,7 +218,7 @@ struct TodayCoachView: View {
                 HStack(spacing: 6) {
                     Image(systemName: pinned ? "checkmark.circle.fill" : "text.badge.plus")
                         .font(.system(size: 13, weight: .semibold))
-                    Text(pinned ? "已存入" : "存入今日")
+                    Text(NSLocalizedString(pinned ? "coach.pin.done" : "coach.pin", comment: "Coach pin draft action"))
                         .font(DSType.labelSM)
                 }
                 .foregroundColor(pinned ? DSColor.statusSuccess : DSColor.accentOnBg)
@@ -225,17 +226,17 @@ struct TodayCoachView: View {
             .buttonStyle(.plain)
             .disabled(pinned || (turn.memoDraft ?? "").isEmpty)
             .accessibilityIdentifier("coach-pin")
-            .accessibilityLabel(pinned ? "已存入今日日记" : "把这段草稿存入今日日记")
+            .accessibilityLabel(NSLocalizedString(pinned ? "coach.pin.done.a11y" : "coach.pin.a11y", comment: "Coach pin draft accessibility label"))
 
             // 2) 继续问我
             Button {
                 Haptics.soft()
-                Task { await coach.ask("继续问我一个更具体的问题") }
+                Task { await coach.ask(NSLocalizedString("coach.continue.prompt", comment: "Prompt sent when asking coach to continue")) }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.uturn.right")
                         .font(.system(size: 12, weight: .semibold))
-                    Text("继续问我")
+                    Text(NSLocalizedString("coach.continue", comment: "Continue coach conversation"))
                         .font(DSType.labelSM)
                 }
                 .foregroundColor(DSColor.inkMuted)
@@ -258,7 +259,7 @@ struct TodayCoachView: View {
                     HStack(spacing: 6) {
                         Image(systemName: editing ? "checkmark" : "pencil")
                             .font(.system(size: 12, weight: .semibold))
-                        Text(editing ? "完成改写" : "改写成日记")
+                        Text(NSLocalizedString(editing ? "coach.edit.done" : "coach.edit", comment: "Coach edit draft action"))
                             .font(DSType.labelSM)
                     }
                     .foregroundColor(DSColor.inkMuted)
@@ -269,7 +270,7 @@ struct TodayCoachView: View {
             }
 
             if justPinnedTurnID == turn.id {
-                Text("✓ 已加入今日 timeline")
+                Text(NSLocalizedString("chat.pin.toast", comment: "Confirmation after saving an answer to today"))
                     .font(DSType.labelSM)
                     .foregroundColor(DSColor.inkMuted)
                     .transition(.opacity)
@@ -282,10 +283,10 @@ struct TodayCoachView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            Text("先落下一句就好")
+            Text(NSLocalizedString("coach.empty.title", comment: "Coach empty state title"))
                 .font(DSType.serifBody20)
                 .foregroundColor(DSColor.inkPrimary)
-            Text("不知道写什么也没关系。挑一个开始，或者直接说你此刻的感觉。")
+            Text(NSLocalizedString("coach.empty.body", comment: "Coach empty state guidance"))
                 .font(DSType.bodySM)
                 .foregroundColor(DSColor.inkSecondary)
             ForEach(Self.coachSeeds, id: \.self) { seed in
@@ -310,7 +311,7 @@ struct TodayCoachView: View {
                 .solidCard(cornerRadius: DSRadius.md)
                 .accessibilityIdentifier("coach-seed")
             }
-            Text("想查历史？打开左侧「问过去」。")
+            Text(NSLocalizedString("coach.empty.ask_past", comment: "Coach hint linking to ask past"))
                 .font(DSType.labelSM)
                 .foregroundColor(DSColor.inkMuted)
                 .padding(.top, 6)
@@ -324,7 +325,7 @@ struct TodayCoachView: View {
     private var respondingIndicator: some View {
         HStack(spacing: DSSpacing.sm) {
             ProgressView().controlSize(.small)
-            Text("正在帮你找一个切入口…")
+            Text(NSLocalizedString("coach.responding", comment: "Coach response progress"))
                 .font(DSType.bodySM)
                 .foregroundColor(DSColor.inkSecondary)
         }
@@ -336,7 +337,7 @@ struct TodayCoachView: View {
     /// 保证「不知道写什么」的用户不会因 AI 不可用而卡死在 Coach。
     private var offlineFallbackRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("AI 暂时不可用——但你写下的这句话可以直接存进今天。")
+            Text(NSLocalizedString("coach.offline.body", comment: "Coach offline fallback guidance"))
                 .font(DSType.bodySM)
                 .foregroundColor(DSColor.inkSecondary)
             if let lastUser = coach.turns.last(where: { $0.role == .user }) {
@@ -350,7 +351,7 @@ struct TodayCoachView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "text.badge.plus")
                             .font(.system(size: 13, weight: .semibold))
-                        Text("直接存入今日")
+                        Text(NSLocalizedString("coach.offline.pin", comment: "Save coach input without AI"))
                             .font(DSType.labelSM)
                     }
                     .foregroundColor(DSColor.accentOnBg)
@@ -383,7 +384,7 @@ struct TodayCoachView: View {
     /// coach reads as part of the same capture family.
     private var inputBar: some View {
         HStack(spacing: 6) {
-            TextField("说说此刻…", text: $draft, axis: .vertical)
+            TextField(NSLocalizedString("coach.input.placeholder", comment: "Coach input placeholder"), text: $draft, axis: .vertical)
                 .font(DSType.bodySM)
                 .focused($inputFocused)
                 .lineLimit(1...4)
@@ -405,7 +406,7 @@ struct TodayCoachView: View {
             .padding(.trailing, 5)
             .disabled(!canSend)
             .animation(Motion.fade, value: canSend)
-            .accessibilityLabel("发送")
+            .accessibilityLabel(NSLocalizedString("common.send", comment: "Send"))
             .accessibilityIdentifier("coach-send")
         }
         .dpGlass(.control, in: Capsule())
@@ -462,8 +463,8 @@ struct TodayCoachView: View {
             let userTurn = CoachTurn(role: .user, text: text)
             let hintTurn = CoachTurn(
                 role: .assistant,
-                text: "这个问题更像是查历史——去左侧「问过去」入口，会调用你的所有记录来回答。",
-                memoDraft: "刚刚想问的：\(text)"
+                text: NSLocalizedString("coach.route.ask_past", comment: "Coach directs a history question to Ask Past"),
+                memoDraft: String(format: NSLocalizedString("coach.route.memo_draft", comment: "Draft preserving a question routed to Ask Past"), text)
             )
             coach.turns.append(userTurn)
             coach.turns.append(hintTurn)
@@ -495,9 +496,11 @@ struct TodayCoachView: View {
 
     // MARK: - Static
 
-    static let coachSeeds = [
-        "此刻更像是身体累、脑子乱，还是事情太多？",
-        "先不用想目标——只写一个你此刻最想逃开的东西。",
-        "如果只能记一句话，会是什么？"
-    ]
+    static var coachSeeds: [String] {
+        [
+            NSLocalizedString("coach.seed.energy", comment: "Coach seed about current energy"),
+            NSLocalizedString("coach.seed.avoidance", comment: "Coach seed about avoidance"),
+            NSLocalizedString("coach.seed.one_line", comment: "Coach seed about one line")
+        ]
+    }
 }

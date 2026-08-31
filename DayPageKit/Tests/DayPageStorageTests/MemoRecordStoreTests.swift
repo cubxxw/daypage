@@ -41,6 +41,13 @@ final class MemoRecordStoreTests: XCTestCase {
         try await store.delete(id: target.id, day: day)
         let remaining = try RawStorage.read(for: day)
         XCTAssertEqual(remaining.map(\.id), [sibling.id])
+
+        try await store.restore(target, day: day)
+        XCTAssertEqual(try RawStorage.read(for: day).map(\.id), [target.id, sibling.id])
+
+        // A repeated undo or a delayed sync replay must stay idempotent.
+        try await store.restore(target, day: day)
+        XCTAssertEqual(try RawStorage.read(for: day).map(\.id), [target.id, sibling.id])
     }
 
     func testMissingRecordAndEmptyBodyFailWithoutWriting() async throws {

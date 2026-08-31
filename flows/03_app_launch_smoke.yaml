@@ -9,9 +9,10 @@ appId: com.daypage.app
       hasRequestedNotifications: "true"
 - takeScreenshot: launch
 
-# 等待主界面加载（DAYPAGE 品牌文字可见，侧边栏导航已替代 Tab bar）
+# 等待主界面加载（侧边栏导航入口可用）
 - extendedWaitUntil:
-    visible: "DAYPAGE"
+    visible:
+      id: "sidebar-menu-button"
     timeout: 10000
 
 - takeScreenshot: stable

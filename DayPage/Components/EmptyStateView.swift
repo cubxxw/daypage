@@ -38,7 +38,7 @@ struct EmptyStateView: View {
                         .font(DSType.bodyMD)
                         .foregroundColor(DSColor.inkMuted)
                         .multilineTextAlignment(.center)
-                        .dynamicTypeSize(.xSmall ... .accessibility5)
+                        .dynamicTypeSize(.xSmall ... .accessibility2)
                         .padding(.horizontal, 8)
                         .opacity(revealStep >= 3 ? 1 : 0)
                         .scaleEffect(revealStep >= 3 ? 1 : 0.96)
@@ -64,6 +64,14 @@ struct EmptyStateView: View {
             }
         }
         .padding(.horizontal, 32)
+        // Treat the empty state as one coherent VoiceOver destination. The
+        // visible CTA remains unchanged for sighted users; assistive
+        // technologies expose it as a named action on this single element so
+        // the title, subtitle, decorative accent, and button are not announced
+        // as a fragmented sequence.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(combinedAccessibilityLabel)
+        .modifier(CTAAccessibilityModifier(label: ctaLabel, action: ctaAction))
         .onReceive(tintTimer) { now in
             guard showOrbAccent else { return }
             let tod = TimeOfDay.from(now)
@@ -124,6 +132,13 @@ struct EmptyStateView: View {
 
     // MARK: - Private
 
+    private var combinedAccessibilityLabel: Text {
+        guard let subtitle, !subtitle.isEmpty else {
+            return Text(title)
+        }
+        return Text(title) + Text(", \(subtitle)")
+    }
+
     private func pulseCTA() async {
         ctaGlow = true
         try? await Task.sleep(nanoseconds: 600_000_000)
@@ -140,7 +155,7 @@ struct EmptyStateView: View {
                 .font(DSType.serifDisplay28)
                 .foregroundColor(DSColor.inkPrimary)
                 .multilineTextAlignment(.center)
-                .dynamicTypeSize(.xSmall ... .accessibility2)
+                .dynamicTypeSize(.xSmall ... .accessibility1)
                 .minimumScaleFactor(0.7)
                 .opacity(revealStep >= 2 ? 1 : 0)
                 .scaleEffect(revealStep >= 2 ? 1 : 0.96)
@@ -203,6 +218,27 @@ struct EmptyStateView: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(PressableScaleStyle(reduceMotion: reduceMotion))
+    }
+}
+
+// MARK: - Empty-state accessibility
+
+/// Keeps the visual CTA inside the combined empty-state element while still
+/// exposing the action by name to VoiceOver and Switch Control.
+private struct CTAAccessibilityModifier: ViewModifier {
+    let label: String?
+    let action: (() -> Void)?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let label, let action {
+            content.accessibilityAction(named: Text(label)) {
+                Haptics.tapConfirm()
+                action()
+            }
+        } else {
+            content
+        }
     }
 }
 

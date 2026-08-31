@@ -44,6 +44,6 @@ struct InlineLensStrip: View {
         .buttonStyle(.plain)
         .padding(.horizontal, DSSpacing.lg)
         .padding(.vertical, DSSpacing.sm)
-        .accessibilityLabel(NSLocalizedString("input.a11y.photo_library", comment: ""))
+        .accessibilityLabel(NSLocalizedString("today.photo.attach", comment: "Attach photo"))
     }
 }

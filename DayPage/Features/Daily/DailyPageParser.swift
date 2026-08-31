@@ -15,7 +15,7 @@ enum DailyPageParser {
         // -- 解析 frontmatter --
         var summary = ""
         var locationPrimary = ""
-        var entriesCount = 0
+        var declaredEntriesCount: Int? = nil
         var cover: String? = nil
         var inFrontmatter = false
         var closingFound = false
@@ -39,7 +39,7 @@ enum DailyPageParser {
                         .trimmingCharacters(in: .whitespaces)
                 } else if trimmed.hasPrefix("entries_count:") {
                     let raw = String(trimmed.dropFirst("entries_count:".count)).trimmingCharacters(in: .whitespaces)
-                    entriesCount = Int(raw) ?? 0
+                    declaredEntriesCount = Int(raw)
                 } else if trimmed.hasPrefix("cover:") {
                     let raw = String(trimmed.dropFirst("cover:".count))
                         .trimmingCharacters(in: .whitespaces)
@@ -101,6 +101,13 @@ enum DailyPageParser {
         // TODO(R13+): Parse threads/mentions from compiled markdown when format is defined — follow-up issue.
         let threads = parseThreads(from: bodyText)
         let mentions = parseMentions(from: bodyText)
+
+        // Older and sample daily pages may predate `entries_count`, while still
+        // carrying the newer evidence markers. Keep an explicitly authored
+        // count authoritative; otherwise derive the truthful signal count from
+        // distinct cited memos instead of showing a contradictory “0 signals”.
+        let evidenceCount = Set(sections.flatMap(\.evidenceMemoIDs)).count
+        let entriesCount = declaredEntriesCount ?? evidenceCount
 
         return DailyPageModel(
             dateString: dateString,

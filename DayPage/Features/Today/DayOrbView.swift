@@ -93,8 +93,8 @@ struct DayOrbView: View {
             let newTier = tier(for: new)
             if new > previous {
                 Haptics.success()
-                pulse = true
                 if !reduceMotion {
+                    pulse = true
                     withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) {
                         countPop = 1.25
                     }
@@ -106,8 +106,10 @@ struct DayOrbView: View {
                             countPop = 1.0
                         }
                     }
-                    try? await Task.sleep(nanoseconds: 650_000_000)
-                    pulse = false
+                    if !reduceMotion {
+                        try? await Task.sleep(nanoseconds: 650_000_000)
+                        pulse = false
+                    }
                 }
 
                 if newTier > previousTier && newTier >= 2 {
@@ -206,9 +208,9 @@ struct DayOrbView: View {
             )
             .frame(width: size + 32, height: size + 32)
             .blur(radius: 12)
-            .scaleEffect(pulse ? 1.18 : 1.0)
+            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.18 : 1.0))
             .opacity(pulse ? 1 : 0)
-            .animation(.easeOut(duration: 0.6), value: pulse)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: pulse)
             .allowsHitTesting(false)
     }
 
@@ -231,9 +233,9 @@ struct DayOrbView: View {
             )
             .frame(width: size + 80, height: size + 80)
             .blur(radius: 14)
-            .scaleEffect(tierUpGlow ? 1.28 : 1.0)
+            .scaleEffect(reduceMotion ? 1 : (tierUpGlow ? 1.28 : 1.0))
             .opacity(tierUpGlow ? 1 : 0)
-            .animation(.easeOut(duration: 0.7), value: tierUpGlow)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.7), value: tierUpGlow)
             .allowsHitTesting(false)
     }
 
@@ -257,8 +259,11 @@ struct DayOrbView: View {
             )
             .frame(width: size + 32, height: size + 32)
             .blur(radius: 16)
-            .scaleEffect(invitePulse ? 1.12 : 0.95)
-            .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: invitePulse)
+            .scaleEffect(reduceMotion ? 1 : (invitePulse ? 1.12 : 0.95))
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 2.2).repeatForever(autoreverses: true),
+                value: invitePulse
+            )
             .allowsHitTesting(false)
     }
 
@@ -360,9 +365,12 @@ struct DayOrbView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: size * 0.22, weight: .light))
                         .foregroundColor(DSColor.accentOnBg)
-                        .scaleEffect(invitePulse ? 1.12 : 1.0)
+                        .scaleEffect(reduceMotion ? 1 : (invitePulse ? 1.12 : 1.0))
                         .opacity(invitePulse ? 1.0 : 0.7)
-                        .animation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true), value: invitePulse)
+                        .animation(
+                            reduceMotion ? nil : .easeInOut(duration: 2.2).repeatForever(autoreverses: true),
+                            value: invitePulse
+                        )
 
                     Text(readoutLabel)
                         .font(DSFonts.jetBrainsMono(size: 9, weight: .medium, relativeTo: .caption2))
@@ -377,7 +385,7 @@ struct DayOrbView: View {
                         .tracking(-2)
                         .foregroundColor(DSColor.accentOnBg)
                         .modifier(OrbNumericTextTransition(value: Double(signalCount), reduceMotion: reduceMotion))
-                        .animation(.snappy, value: signalCount)
+                        .animation(reduceMotion ? nil : .snappy, value: signalCount)
                         .scaleEffect(countPop)
 
                     Text(readoutLabel)
@@ -387,9 +395,9 @@ struct DayOrbView: View {
                         .opacity(tierUpGlow ? 1.0 : 0.7)
                         .scaleEffect(tierUpGlow ? 1.12 : 1.0)
                         .shadow(color: DSColor.accentAmber.opacity(tierUpGlow ? 0.9 : 0), radius: tierUpGlow ? 6 : 0)
-                        .animation(.easeOut(duration: 0.35), value: tierUpGlow)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: tierUpGlow)
                         .contentTransition(.opacity)
-                        .animation(.easeInOut(duration: 0.25), value: readoutLabel)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: readoutLabel)
                 }
             }
         }

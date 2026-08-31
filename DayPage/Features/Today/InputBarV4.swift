@@ -5,33 +5,6 @@ import UIKit
 import DayPageModels
 import DayPageServices
 
-// MARK: - BreathingCaretModifier (composer.jsx caret animation)
-//
-// The idle dock caret used to hard-blink (opacity 1 → 0 every 0.6s), which on a
-// deliberately quiet, museum-still home surface reads as visual noise that keeps
-// tugging the eye. We replace the blink with a slow, low-contrast "breath"
-// (opacity 1 → 0.3 over 1.1s) so the caret signals "writable here" without ever
-// fully disappearing or demanding attention.
-private struct BreathingCaretModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var dimmed = false
-    func body(content: Content) -> some View {
-        content
-            .opacity(dimmed ? 0.3 : 1)
-            .onAppear {
-                // Vestibular-sensitive: skip the repeating motion entirely when
-                // Reduce Motion is on; leave the caret in its solid state.
-                guard !reduceMotion else {
-                    dimmed = false
-                    return
-                }
-                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                    dimmed = true
-                }
-            }
-    }
-}
-
 // MARK: - InputBarV4  "Capture v2 · STREAM dock"
 //
 // Capture v2 surface, faithful to the design-handoff STREAM variation:
@@ -245,7 +218,11 @@ struct InputBarV4: View {
                     ProgressView(value: batchPhotoProgress)
                         .tint(DSColor.amberAccent)
                         .padding(.horizontal, DSSpacing.lg)
-                    Text("Processing \(Int(batchPhotoProgress * Double(batchPhotoTotal))) / \(batchPhotoTotal) photos")
+                    Text(String(
+                        format: NSLocalizedString("input.photo.processing", comment: "Batch photo processing progress"),
+                        Int(batchPhotoProgress * Double(batchPhotoTotal)),
+                        batchPhotoTotal
+                    ))
                         .font(DSFonts.inter(size: 11, relativeTo: .caption))
                         .foregroundColor(DSColor.inkMuted)
                 }
@@ -503,7 +480,8 @@ struct InputBarV4: View {
 
     private var dockIdleRow: some View {
         HStack(spacing: DSSpacing.xs) {
-            // LEFT — attach (+), 36×44 transparent
+            // LEFT — attach (+), 44×44 transparent. The glyph stays visually
+            // quiet while its hit target meets the minimum touch target.
             Button {
                 guard !isDockTapBlocked else { return }
                 Haptics.soft()
@@ -516,7 +494,7 @@ struct InputBarV4: View {
                     // (+, caret, sparkle) all recede to ink so the orb is the only
                     // loud voice. Was `dockChrome` (=#A8541B burnt-orange).
                     .foregroundStyle(DSColor.inkMuted)
-                    .frame(width: 36, height: 44)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             // #150 shared press feedback — replaces .buttonStyle(.plain) so the
@@ -525,9 +503,11 @@ struct InputBarV4: View {
             .pressScale(scale: 0.97, offsetY: 0.5,
                         animation: .spring(response: 0.2, dampingFraction: 0.7))
             .accessibilityLabel(NSLocalizedString("input.a11y.more_attachments", comment: ""))
+            .accessibilityIdentifier("dock-attachments-button")
 
-            // CENTER — breathing caret + a quiet placeholder, taps to open
-            // WriteSheet.
+            // CENTER — a quiet, static caret + placeholder, taps to open
+            // WriteSheet. An idle surface should not animate merely to prove
+            // that it is interactive; the clear copy and tap feedback do that.
             //
             // History: an ITALIC "记下此刻" once sat here and was cut because
             // users read the italic as prefilled text they had to delete. The
@@ -552,7 +532,6 @@ struct InputBarV4: View {
                     Rectangle()
                         .fill(DSColor.inkSubtle.opacity(0.7))
                         .frame(width: 2, height: 14)
-                        .modifier(BreathingCaretModifier())
                     if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         // The invitation returns to the serif body family (§ type
                         // discipline: mono is for numbers/labels, not sentences)
@@ -565,6 +544,11 @@ struct InputBarV4: View {
                             .font(DSFonts.serif(size: 15, relativeTo: .subheadline))
                             .foregroundStyle(DSColor.inkMuted)
                             .lineLimit(1)
+                            // The dock is persistent navigation chrome. At
+                            // AX4–AX5 an uncapped placeholder crowds out the
+                            // microphone and attachment actions while still
+                            // truncating to a meaningless fragment.
+                            .dynamicTypeSize(.xSmall ... .xxLarge)
                     }
                     Spacer(minLength: 0)
                 }
@@ -651,7 +635,7 @@ struct InputBarV4: View {
                         // side-door is chrome, not an accent — only the mic orb
                         // carries amber on this row. Was `dockChrome` amber.
                         .foregroundStyle(DSColor.inkMuted)
-                        .frame(width: 40, height: 44)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 // #150 press feedback for the calm AI side-door sparkle.

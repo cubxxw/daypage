@@ -50,11 +50,11 @@ struct DailyPageMetadataEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(NSLocalizedString("common.cancel", comment: "Cancel")) { dismiss() }
                         .foregroundColor(DSColor.onSurface)
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("编辑元数据")
+                    Text(NSLocalizedString("daily.metadata.title", comment: "Edit daily page metadata title"))
                         .headlineMDStyle()
                         .foregroundColor(DSColor.onSurface)
                 }
@@ -62,7 +62,7 @@ struct DailyPageMetadataEditView: View {
                     if isSaving {
                         ProgressView().tint(DSColor.onSurface).scaleEffect(0.8)
                     } else {
-                        Button("保存") {
+                        Button(NSLocalizedString("common.save", comment: "Save")) {
                             Task { await save() }
                         }
                         .foregroundColor(DSColor.primary)
@@ -80,11 +80,11 @@ struct DailyPageMetadataEditView: View {
                 loadCoverPreview(path: path)
             }
         }
-        .alert("保存失败", isPresented: Binding(
+        .alert(NSLocalizedString("daily.metadata.save_failed", comment: "Metadata save failed alert title"), isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
         )) {
-            Button("确定", role: .cancel) {}
+            Button(NSLocalizedString("common.confirm", comment: "Confirm"), role: .cancel) {}
         } message: {
             Text(saveError ?? "")
         }
@@ -143,7 +143,7 @@ struct DailyPageMetadataEditView: View {
     private var weatherSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("WEATHER")
-            TextField("例如：晴 28°C", text: $weather)
+            TextField(NSLocalizedString("daily.metadata.weather.placeholder", comment: "Weather metadata placeholder"), text: $weather)
                 .bodyMDStyle()
                 .foregroundColor(DSColor.onSurface)
                 .padding(12)
@@ -178,13 +178,13 @@ struct DailyPageMetadataEditView: View {
                     }
                     if selectedCoverPath != nil {
                         Divider()
-                        Button("移除封面", role: .destructive) {
+                        Button(NSLocalizedString("daily.metadata.cover.remove", comment: "Remove cover image"), role: .destructive) {
                             selectedCoverPath = nil
                             coverPreview = nil
                         }
                     }
                 } label: {
-                    Text(selectedCoverPath == nil ? "从记录中选择" : "更换封面")
+                    Text(NSLocalizedString(selectedCoverPath == nil ? "daily.metadata.cover.from_memos" : "daily.metadata.cover.change", comment: "Choose daily page cover"))
                         .labelSMStyle()
                         .foregroundColor(DSColor.primary)
                         .padding(.horizontal, 12)
@@ -197,7 +197,7 @@ struct DailyPageMetadataEditView: View {
 
                 // Pick from photo library
                 PhotosPicker(selection: $photosPickerItem, matching: .images) {
-                    Text("从相册选择")
+                    Text(NSLocalizedString("daily.metadata.cover.from_library", comment: "Choose daily page cover from photo library"))
                         .labelSMStyle()
                         .foregroundColor(DSColor.onSurfaceVariant)
                         .padding(.horizontal, 12)

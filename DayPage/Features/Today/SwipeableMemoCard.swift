@@ -478,10 +478,10 @@ struct SwipeableMemoCard: View {
         // a card preview. VoiceOver users keep every action via the
         // accessibilityActions below.
         .accessibilityLabel(accessibilityMemoLabel)
-        .accessibilityAction(named: "Share") { onShare?() }
-        .accessibilityAction(named: "More") { onMore?() }
-        .accessibilityAction(named: "Delete") { onDelete?() }
-        .accessibilityAction(named: memo.pinnedAt != nil ? "Unpin" : "Pin") { onPin?() }
+        .accessibilityAction(named: Text(NSLocalizedString("memo.a11y.action.share", comment: "Share memo accessibility action"))) { onShare?() }
+        .accessibilityAction(named: Text(NSLocalizedString("memo.a11y.action.more", comment: "More memo accessibility action"))) { onMore?() }
+        .accessibilityAction(named: Text(NSLocalizedString("memo.a11y.action.delete", comment: "Delete memo accessibility action"))) { onDelete?() }
+        .accessibilityAction(named: Text(NSLocalizedString(memo.pinnedAt != nil ? "memo.a11y.action.unpin" : "memo.a11y.action.pin", comment: "Pin memo accessibility action"))) { onPin?() }
         // Entering selection mode mid-swipe (panel revealed) would leave a
         // dangling open panel that the user can't close — selection-mode
         // gestures don't reach the close overlay. Force-close on transition

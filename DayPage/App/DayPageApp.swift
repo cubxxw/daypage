@@ -125,7 +125,12 @@ struct DayPageApp: App {
         "hasSeenWelcome",
         // Issue #3 QA: skip the local-notification permission prompt so
         // Today can be screenshotted cleanly.
-        AppSettings.Keys.hasRequestedNotifications
+        AppSettings.Keys.hasRequestedNotifications,
+        // The Today coach marks are useful for a real first run but obscure
+        // every screenshot route because Today remains mounted behind Archive,
+        // Graph, and Settings. Keep this explicit instead of teaching QA to
+        // mutate the simulator's preference domain out of band.
+        "inputBarTutorialCompleted"
     ]
 
     /// Parses `-key value` and `key=value` pairs from `ProcessInfo.arguments`
@@ -173,6 +178,38 @@ struct DayPageApp: App {
         UserDefaults.standard.set(truthy, forKey: key)
     }
 
+    #if DEBUG
+    /// Visual-audit-only theme override. Existing Maestro baselines already
+    /// launch with `forceTheme`, but the app previously ignored it and quietly
+    /// captured light mode under dark filenames.
+    static func qaThemeMode(arguments: [String]) -> ThemeMode? {
+        guard let raw = qaValue(for: "forceTheme", arguments: arguments) else { return nil }
+        return ThemeMode(rawValue: raw.lowercased())
+    }
+
+    private static func qaValue(for key: String, arguments: [String]) -> String? {
+        if let index = arguments.firstIndex(of: "-\(key)"),
+           arguments.indices.contains(index + 1) {
+            return arguments[index + 1]
+        }
+        if let pair = arguments.first(where: { $0.hasPrefix("\(key)=") }),
+           let equals = pair.firstIndex(of: "=") {
+            return String(pair[pair.index(after: equals)...])
+        }
+        if let index = arguments.firstIndex(of: key),
+           arguments.indices.contains(index + 1) {
+            return arguments[index + 1]
+        }
+        return nil
+    }
+
+    private static func applyQAOverrides() {
+        if let theme = qaThemeMode(arguments: ProcessInfo.processInfo.arguments) {
+            UserDefaults.standard.set(theme.rawValue, forKey: AppSettings.Keys.themeMode)
+        }
+    }
+    #endif
+
 
     private let notificationDelegate = AppNotificationDelegate()
     @StateObject private var authService = AuthService.shared
@@ -205,6 +242,9 @@ struct DayPageApp: App {
         // accessibility IDs. We translate the strings explicitly here, before
         // RootView.initialPhase() reads them.
         DayPageApp.bridgeLaunchArgumentsToDefaults()
+        #if DEBUG
+        DayPageApp.applyQAOverrides()
+        #endif
         // US-002: silently migrate any API keys stored in UserDefaults to Keychain
         KeychainHelper.migrateAPIKeysFromUserDefaultsIfNeeded()
         // US-006: auto-clear stale draft (>30 days old) before any view reads SceneStorage
@@ -293,18 +333,25 @@ struct DayPageApp: App {
                 OrphanedPhotoScanner.runStartupScan()
             }
         }
-        // url(forUbiquityContainerIdentifier:) may return nil on first call during
-        // cold launch while the iCloud daemon finishes container setup. Re-probe
-        // off the main thread and swap the locator if iCloud becomes available.
-        Task.detached(priority: .utility) {
-            let icloud = iCloudVaultLocator()
-            guard icloud.isUsingiCloud else { return }
-            await MainActor.run {
-                guard !VaultInitializer.shared.isUsingiCloud else { return }
-                VaultInitializer.shared = icloud
-                VaultInitializer.initializeIfNeeded()
-                iCloudSyncMonitor.shared.startMonitoring(vaultURL: VaultInitializer.vaultURL)
-                iCloudConflictMonitor.shared.startMonitoring(vaultURL: VaultInitializer.vaultURL)
+        #if DEBUG
+        let qaForcesLocalVault = ProcessInfo.processInfo.arguments.contains("-qaForceLocalVault")
+        #else
+        let qaForcesLocalVault = false
+        #endif
+        if !qaForcesLocalVault {
+            // url(forUbiquityContainerIdentifier:) may return nil on first call during
+            // cold launch while the iCloud daemon finishes container setup. Re-probe
+            // off the main thread and swap the locator if iCloud becomes available.
+            Task.detached(priority: .utility) {
+                let icloud = iCloudVaultLocator()
+                guard icloud.isUsingiCloud else { return }
+                await MainActor.run {
+                    guard !VaultInitializer.shared.isUsingiCloud else { return }
+                    VaultInitializer.shared = icloud
+                    VaultInitializer.initializeIfNeeded()
+                    iCloudSyncMonitor.shared.startMonitoring(vaultURL: VaultInitializer.vaultURL)
+                    iCloudConflictMonitor.shared.startMonitoring(vaultURL: VaultInitializer.vaultURL)
+                }
             }
         }
         // Eagerly initialize WatchReceiveService so WCSession activates on launch.
@@ -562,7 +609,19 @@ struct DayPageApp: App {
                     //   2) 保留 hasRequestedNotifications guard，避免冷启动重复
                     //      弹 (RootView.onAppear 会在场景切换时重入)。
                     let defaults = UserDefaults.standard
+                    #if DEBUG
+                    // Screenshot/E2E audits run in freshly-created simulators,
+                    // where notification authorization is intentionally
+                    // undetermined. Keep the product condition authoritative
+                    // while allowing those isolated runs to inspect the UI
+                    // without a system-owned alert covering it.
+                    let qaSkipsNotificationPrompt = ProcessInfo.processInfo.arguments
+                        .contains("-qaSkipNotificationPrompt")
+                    #else
+                    let qaSkipsNotificationPrompt = false
+                    #endif
                     if defaults.bool(forKey: AppSettings.Keys.hasOnboarded),
+                       !qaSkipsNotificationPrompt,
                        !defaults.bool(forKey: AppSettings.Keys.hasRequestedNotifications) {
                         defaults.set(true, forKey: AppSettings.Keys.hasRequestedNotifications)
                         UNUserNotificationCenter.current().requestAuthorization(

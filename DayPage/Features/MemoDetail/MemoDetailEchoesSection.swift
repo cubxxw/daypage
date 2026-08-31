@@ -53,4 +53,5 @@ func memoDetailSectionLabel(_ title: String) -> some View {
         .font(DSType.mono10)
         .foregroundColor(DSColor.inkMuted)
         .tracking(1.2)
+        .accessibilityAddTraits(.isHeader)
 }

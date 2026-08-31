@@ -3,10 +3,12 @@ import SwiftUI
 // MARK: - PressableButtonStyle
 
 private struct PressableButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(Motion.spring, value: configuration.isPressed)
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.96 : 1)
+            .animation(reduceMotion ? nil : Motion.spring, value: configuration.isPressed)
     }
 }
 
@@ -35,8 +37,10 @@ struct WelcomeScreen: View {
                 DayOrbView(signalCount: 0, size: 156)
                     .opacity(orbOpacity)
                     .onAppear {
-                        withAnimation(.easeOut(duration: 0.8)) {
+                        if reduceMotion {
                             orbOpacity = 1
+                        } else {
+                            withAnimation(.easeOut(duration: 0.8)) { orbOpacity = 1 }
                         }
                         Task { @MainActor in
                             if reduceMotion {
@@ -75,7 +79,7 @@ struct WelcomeScreen: View {
                 Button {
                     Haptics.commit()
                     UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
-                    withAnimation(Motion.rise) {
+                    withAnimation(Motion.respectReduceMotion(Motion.rise)) {
                         hasSeenWelcome = true
                     }
                 } label: {

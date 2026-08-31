@@ -6,10 +6,8 @@ import DayPageServices
 /// Pill shown for 5 seconds after a memo is submitted or deleted.
 /// Tapping it restores the submitted text / memo to its previous state.
 ///
-/// Escalating urgency cues over the final ~3s:
-///  - Ring stroke transitions from amber → error red and thickens (1.5 → 2 pt) at 3.5s
-///  - Haptic ticks at 4s, 3s, 2s, 1s — intensifying in the last two (reduceMotion skips all)
-///  - VoiceOver announcement at the 3s mark
+/// The countdown stays visual and quiet. Ordinary save confirmation should not
+/// tap the user's wrist every second or interrupt VoiceOver with urgency cues.
 struct UndoPillView: View {
     var label: String = NSLocalizedString("undo_pill.label.send", comment: "Undo send pill label")
     let onUndo: () -> Void
@@ -95,11 +93,11 @@ struct UndoPillView: View {
                 }
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label), \(secondsRemaining) seconds remaining")
-        .accessibilityHint("Activate to undo; use the Dismiss action to close without undoing")
+        .accessibilityLabel(String(format: NSLocalizedString("undo.a11y.label", comment: "Undo pill countdown accessibility label"), label, secondsRemaining))
+        .accessibilityHint(NSLocalizedString("undo.a11y.hint", comment: "Undo pill accessibility hint"))
         .accessibilityAddTraits(.isButton)
         .accessibilityAddTraits(.updatesFrequently)
-        .accessibilityAction(named: Text("Dismiss")) { onDismiss?() }
+        .accessibilityAction(named: Text(NSLocalizedString("a11y.dismiss", comment: "Dismiss"))) { onDismiss?() }
         .accessibilityIdentifier("undo-send-pill")
         .onAppear {
             if reduceMotion {
@@ -122,15 +120,6 @@ struct UndoPillView: View {
             for remaining in stride(from: 4, through: 1, by: -1) {
                 try? await Task.sleep(for: .seconds(1))
                 secondsRemaining = remaining
-                if !reduceMotion {
-                    Haptics.rigid(intensity: remaining <= 2 ? 0.6 : 0.3)
-                }
-                if remaining == 3 {
-                    UIAccessibility.post(
-                        notification: .announcement,
-                        argument: NSLocalizedString("undo_pill.closing", comment: "VoiceOver announcement when undo window is about to close")
-                    )
-                }
             }
         }
     }
@@ -151,4 +140,3 @@ struct UndoPillView: View {
         return isUrgent ? DSColor.error : DSColor.accentOnBg
     }
 }
-

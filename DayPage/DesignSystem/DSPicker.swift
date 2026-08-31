@@ -33,6 +33,7 @@ struct DSPicker<Value: Hashable, Label: View>: View {
     // MARK: Private State
 
     @State private var isExpanded = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     // MARK: Init
 
@@ -58,13 +59,29 @@ struct DSPicker<Value: Hashable, Label: View>: View {
                     isExpanded.toggle()
                 }
             } label: {
-                HStack {
-                    label()
-                    Spacer()
-                    Text(selectedLabel)
-                        .foregroundColor(DSColor.inkMuted)
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundColor(DSColor.inkMuted)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                            label()
+                            HStack {
+                                Text(selectedLabel)
+                                    .foregroundColor(DSColor.inkMuted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer()
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .foregroundColor(DSColor.inkMuted)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            label()
+                            Spacer()
+                            Text(selectedLabel)
+                                .foregroundColor(DSColor.inkMuted)
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .foregroundColor(DSColor.inkMuted)
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

@@ -54,35 +54,75 @@ final class BackgroundCompilationService: ObservableObject {
         case clustering   // LLM has the payload, waiting on structured output
         case generating   // parsing / writing daily.md
         case linking      // entity + hot_cache follow-up writes
+
+        var displayLabel: String {
+            switch self {
+            case .idle:       return ""
+            case .collecting: return L10n.CompileProgress.collecting
+            case .cleaning:   return L10n.CompileProgress.cleaning
+            case .clustering: return L10n.CompileProgress.clustering
+            case .generating: return L10n.CompileProgress.generating
+            case .linking:    return L10n.CompileProgress.linking
+            }
+        }
+
+        var progressFraction: Double {
+            switch self {
+            case .idle:       return 0.0
+            case .collecting: return 0.15
+            case .cleaning:   return 0.30
+            case .clustering: return 0.65
+            case .generating: return 0.85
+            case .linking:    return 0.95
+            }
+        }
     }
+
+    #if DEBUG
+    /// Presentation-only override for deterministic Simulator audits. It is
+    /// deliberately separate from `stage`: a real launch-time backfill may
+    /// keep advancing the production state machine without making the QA
+    /// screenshot jump to a different phase midway through capture.
+    @Published private var qaStageOverride: CompileStage?
+    #endif
 
     /// Currently visible pipeline stage. Toggling this publishes a change
     /// that TodayView.compileProgressBanner observes.
     @Published private(set) var stage: CompileStage = .idle
 
+    /// Stage used by user-facing progress surfaces. Production builds always
+    /// return the real pipeline stage; Debug builds may pin this via the QA
+    /// launch bridge while leaving compilation behavior untouched.
+    private var presentedStage: CompileStage {
+        #if DEBUG
+        return qaStageOverride ?? stage
+        #else
+        return stage
+        #endif
+    }
+
+    var isPresentingStage: Bool {
+        presentedStage != .idle
+    }
+
     /// Chinese label for the current stage; empty when idle.
     var stageLabel: String {
-        switch stage {
-        case .idle:       return ""
-        case .collecting: return "收集今天的记录"
-        case .cleaning:   return "整理与预检"
-        case .clustering: return "让 AI 找到主题"
-        case .generating: return "写成今日日记"
-        case .linking:    return "更新实体与记忆"
-        }
+        presentedStage.displayLabel
     }
 
     /// Fraction 0.0-1.0 for the progress bar; idle returns 0.
     var stageFraction: Double {
-        switch stage {
-        case .idle:       return 0.0
-        case .collecting: return 0.15
-        case .cleaning:   return 0.30
-        case .clustering: return 0.65
-        case .generating: return 0.85
-        case .linking:    return 0.95
-        }
+        presentedStage.progressFraction
     }
+
+    #if DEBUG
+    /// Deterministic visual-test bridge. Production builds cannot mutate the
+    /// pipeline state; Simulator audits can launch with
+    /// `-qaCompileStage cleaning` to inspect the real Today status surface.
+    func setStageForQA(_ stage: CompileStage) {
+        qaStageOverride = stage
+    }
+    #endif
 
     // MARK: - Constants
 

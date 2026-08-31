@@ -99,20 +99,20 @@ struct LocationDraftCard: View {
             Image(systemName: "location.fill")
                 .font(DSType.label)
                 .foregroundColor(DSColor.amberAccent)
-            Text("检测到位置到达")
+            Text(NSLocalizedString("today.location_draft.header", comment: "Location draft header"))
                 .font(DSType.caption)
                 .foregroundColor(DSColor.inkPrimary)
             Spacer()
-            Button("全部忽略") { onIgnoreAll() }
+            Button(NSLocalizedString("today.location_draft.ignore_all", comment: "Ignore all location drafts")) { onIgnoreAll() }
                 .font(DSType.caption)
                 .foregroundColor(DSColor.inkMuted)
-                .accessibilityLabel("忽略所有位置记录")
+                .accessibilityLabel(NSLocalizedString("today.location_draft.ignore_all.a11y", comment: "Ignore all location drafts accessibility label"))
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
-            Button("全部确认") { onConfirmAll() }
+            Button(NSLocalizedString("today.location_draft.confirm_all", comment: "Confirm all location drafts")) { onConfirmAll() }
                 .font(DSType.caption)
                 .foregroundColor(DSColor.amberAccent)
-                .accessibilityLabel("确认所有位置记录")
+                .accessibilityLabel(NSLocalizedString("today.location_draft.confirm_all.a11y", comment: "Confirm all location drafts accessibility label"))
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
@@ -155,7 +155,7 @@ private struct LocationDraftRow: View {
                 .foregroundColor(DSColor.amberAccent)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(draft.placeName ?? "未知地点")
+                Text(draft.placeName ?? NSLocalizedString("today.location_draft.unknown_place", comment: "Unknown place"))
                     .font(DSType.caption)
                     .foregroundColor(DSColor.inkPrimary)
                     .lineLimit(1)
@@ -191,7 +191,7 @@ private struct LocationDraftRow: View {
                 }
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("忽略此位置")
+                .accessibilityLabel(NSLocalizedString("today.location_draft.ignore_one.a11y", comment: "Ignore one location draft"))
 
                 Button {
                     onConfirm()
@@ -205,7 +205,7 @@ private struct LocationDraftRow: View {
                 }
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
-                .accessibilityLabel("确认此位置")
+                .accessibilityLabel(NSLocalizedString("today.location_draft.confirm_one.a11y", comment: "Confirm one location draft"))
             }
         }
         .padding(.horizontal, 16)
@@ -217,13 +217,15 @@ private struct LocationDraftRow: View {
     }
 
     private var durationText: String? {
-        guard let dep = draft.departureDate else { return "仍在此处" }
+        guard let dep = draft.departureDate else { return NSLocalizedString("today.location_draft.still_here", comment: "Visit has not ended") }
         let secs = dep.timeIntervalSince(draft.arrivalDate)
         guard secs > 0 else { return nil }
         let mins = Int(secs / 60)
-        if mins < 60 { return "停留 \(mins) 分钟" }
+        if mins < 60 { return String(format: NSLocalizedString("today.location_draft.stayed_minutes", comment: "Visit duration in minutes"), mins) }
         let h = mins / 60; let m = mins % 60
-        return m == 0 ? "停留 \(h) 小时" : "停留 \(h) 小时 \(m) 分钟"
+        return m == 0
+            ? String(format: NSLocalizedString("today.location_draft.stayed_hours", comment: "Visit duration in hours"), h)
+            : String(format: NSLocalizedString("today.location_draft.stayed_hours_minutes", comment: "Visit duration in hours and minutes"), h, m)
     }
 }
 
@@ -528,6 +530,6 @@ struct TimelineRow: View {
                     .frame(width: 26, height: 26)
             }
         }
-        .accessibilityLabel(isSelected ? "已选中" : "未选中")
+        .accessibilityLabel(NSLocalizedString(isSelected ? "common.selected" : "common.not_selected", comment: "Selection state"))
     }
 }

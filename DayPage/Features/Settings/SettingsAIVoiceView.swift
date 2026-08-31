@@ -54,7 +54,7 @@ struct SettingsAIVoiceView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.hub.aivoice", comment: "AI & Voice page title"))
         .navigationBarTitleDisplayMode(.inline)
         // Popping back from DoubaoConfigView must refresh the verification

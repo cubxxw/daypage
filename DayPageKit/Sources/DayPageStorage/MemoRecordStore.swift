@@ -60,4 +60,14 @@ public actor MemoRecordStore {
         }
         guard found else { throw MemoRecordStoreError.notFound(id) }
     }
+
+    /// Restores a previously deleted record without duplicating an ID that may
+    /// already have been recreated by sync. The raw file keeps chronological
+    /// order so every existing read surface receives the same stable sequence.
+    public func restore(_ memo: Memo, day: Date) throws {
+        try RawStorage.mutate(for: day) { memos in
+            guard !memos.contains(where: { $0.id == memo.id }) else { return nil }
+            return (memos + [memo]).sorted { $0.created < $1.created }
+        }
+    }
 }

@@ -84,7 +84,7 @@ struct AISummaryCard: View {
                 .onEnded { _ in isPressed = false }
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("AI 今日一句")
+        .accessibilityLabel(NSLocalizedString("today.ai_summary.a11y", comment: "AI summary card accessibility label"))
         .accessibilityValue(summary)
         .modifier(TappableCardAccessibility(enabled: onTap != nil, action: { onTap?() }))
     }
@@ -94,13 +94,13 @@ struct AISummaryCard: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(DSColor.accentOnBg)
-            Text("AI · 今日一句")
+            Text(NSLocalizedString("today.ai_summary.title", comment: "AI summary card title"))
                 .font(DSType.mono9)
                 .textCase(.uppercase)
                 .tracking(1.6)
                 .foregroundColor(DSColor.accentOnBg)
             Spacer(minLength: 8)
-            Text("TODAY")
+            Text(NSLocalizedString("today.ai_summary.today", comment: "AI summary card today label"))
                 .font(DSType.mono9)
                 .tracking(1.2)
                 .foregroundColor(DSColor.inkMuted)
@@ -123,8 +123,8 @@ private struct TappableCardAccessibility: ViewModifier {
         if enabled {
             content
                 .accessibilityAddTraits(.isButton)
-                .accessibilityHint("打开今日 Daily Page")
-                .accessibilityAction(named: "打开 Daily Page") { action() }
+                .accessibilityHint(NSLocalizedString("today.ai_summary.open.hint", comment: "AI summary open hint"))
+                .accessibilityAction(named: Text(NSLocalizedString("today.ai_summary.open.action", comment: "AI summary open action"))) { action() }
         } else {
             content
         }

@@ -215,6 +215,15 @@ final class BackgroundCompilationServiceTests: XCTestCase {
 
     // MARK: - Retry schedules
 
+    func testCompileStages_haveForwardMovingUserFacingProgress() {
+        let activeStages = BackgroundCompilationService.CompileStage.allCases
+            .filter { $0 != .idle }
+
+        XCTAssertTrue(activeStages.allSatisfy { !$0.displayLabel.isEmpty })
+        XCTAssertEqual(activeStages.map(\.progressFraction), [0.15, 0.30, 0.65, 0.85, 0.95])
+        XCTAssertEqual(activeStages.map(\.progressFraction), activeStages.map(\.progressFraction).sorted())
+    }
+
     /// The background schedule must be a single 0-delay attempt — anything
     /// else exceeds the iOS BGAppRefreshTask 30s budget and the run gets
     /// killed mid-compile. Pin it.

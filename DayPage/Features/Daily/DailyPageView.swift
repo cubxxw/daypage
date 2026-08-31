@@ -12,6 +12,9 @@ struct DailyPageView: View {
 
     let dateString: String
     var onReturnToToday: ((String) -> Void)? = nil  // 点击跟进问题时调用，传入预填充文本
+    /// Lets an embedded host reveal its actual raw-memo surface. Modal callers
+    /// fall back to dismissing this page to return to the original flow.
+    var onViewOriginalFlow: (() -> Void)? = nil
     /// true = 由外层导航栈 push 呈现（DayDetailView 内嵌）；false = 独立模态
     /// （Today fullScreenCover / EntityPage sheet）需要自带 NavigationStack。
     var isEmbedded: Bool = false
@@ -19,7 +22,7 @@ struct DailyPageView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var nav: AppNavigationModel
     @ObservedObject private var compilationService = CompilationService.shared
-    @State private var selectedTab: DailyPageTab = .digest
+    @State private var selectedTab = DailyPageTab.initial(arguments: ProcessInfo.processInfo.arguments)
     @Namespace private var tabPillNS
     @State private var model: DailyPageModel? = nil
     @State private var rawText: String = ""
@@ -99,9 +102,11 @@ struct DailyPageView: View {
                             }
                             .dsAnimation(Motion.spring, value: selectedTab)
 
-                            footer(model: model)
-                                .padding(.horizontal, DSSpacing.xl)
-                                .padding(.bottom, 40)
+                            if !rawMemos.isEmpty || isRecompiling || recompileError != nil {
+                                footer(model: model)
+                                    .padding(.horizontal, DSSpacing.xl)
+                                    .padding(.bottom, 40)
+                            }
                         }
                     }
                 } else {
@@ -274,7 +279,15 @@ struct DailyPageView: View {
             // Explicit "recompile" intent — bypass the #814 source_hash guard
             // so the user can regenerate a page they disliked even when the
             // underlying memos are unchanged.
-            try await CompilationService.shared.compile(for: date, trigger: "manual", force: true)
+            let outcome = try await CompilationService.shared.compile(for: date, trigger: "manual", force: true)
+            if outcome == .requestedBackend {
+                BannerCenter.shared.show(AppBannerModel(
+                    kind: .info,
+                    title: "已提交后台重新整理，完成后会自动更新",
+                    autoDismiss: true
+                ))
+                return
+            }
             loadPage()
             // US-022: show success banner with memo count
             BannerCenter.shared.show(AppBannerModel(
@@ -327,9 +340,8 @@ struct DailyPageView: View {
                 }) {
                     Text(tab.rawValue)
                         .monoLabelStyle(size: 11)
-                        .foregroundColor(selectedTab == tab ? DSColor.onAmber : DSColor.inkSubtle)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DSSpacing.sm)
+                        .foregroundColor(selectedTab == tab ? DSColor.onAmber : DSColor.inkTertiaryAA)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .background {
                             if selectedTab == tab {
                                 Capsule()
@@ -344,7 +356,7 @@ struct DailyPageView: View {
         .padding(3)
         .dpGlass(.pill, in: Capsule())
         .clipShape(Capsule())
-        .padding(.bottom, DSSpacing.xl)
+        .padding(.bottom, DSSpacing.sm)
     }
 
     // MARK: - Digest Content (v4 hero layout)
@@ -551,16 +563,24 @@ struct DailyPageView: View {
     @ViewBuilder
     private func timelineContent(model: DailyPageModel) -> some View {
         if rawMemos.isEmpty {
-            VStack(spacing: DSSpacing.md) {
+            VStack(spacing: DSSpacing.sm) {
                 Image(systemName: "tray")
-                    .font(.system(size: 32))
-                    .foregroundColor(DSColor.onSurfaceVariant.opacity(0.5))
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundColor(DSColor.inkTertiaryAA)
                 Text(NSLocalizedString("daily.empty.no_raw", comment: "Daily page — no raw memos for this day"))
-                    .h2Style()
-                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .font(DSType.serifDisplay28)
+                    .foregroundColor(DSColor.inkPrimary)
+                    .multilineTextAlignment(.center)
+                Text(NSLocalizedString("daily.empty.no_raw.detail", comment: "Daily page — source notes unavailable explanation"))
+                    .font(DSType.bodySM)
+                    .foregroundColor(DSColor.inkMuted)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
+            .padding(.horizontal, DSSpacing.xl2)
             .padding(.top, 60)
+            .padding(.bottom, DSSpacing.xl2)
+            .accessibilityElement(children: .combine)
         } else {
             LazyVStack(spacing: DSSpacing.sm) {
                 ForEach(Array(rawMemos.enumerated()), id: \.element.id) { idx, memo in
@@ -729,15 +749,26 @@ struct DailyPageView: View {
 
                 Spacer()
 
-                Button(action: { dismiss() }) {
-                    Text(NSLocalizedString("daily.action.view_flow", comment: "Daily page action: view original flow"))
-                        .monoLabelStyle(size: 10)
-                        .foregroundColor(DSColor.primary)
-                        .underline()
+                if !rawMemos.isEmpty {
+                    Button(action: viewOriginalFlow) {
+                        Text(NSLocalizedString("daily.action.view_flow", comment: "Daily page action: view original flow"))
+                            .monoLabelStyle(size: 10)
+                            .foregroundColor(DSColor.primary)
+                            .underline()
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.bottom, DSSpacing.xl2)
+        }
+    }
+
+    private func viewOriginalFlow() {
+        if let onViewOriginalFlow {
+            onViewOriginalFlow()
+        } else {
+            dismiss()
         }
     }
 
@@ -805,6 +836,10 @@ struct DailyPageView: View {
             model = nil
         }
 
+        loadRawMemos()
+    }
+
+    private func loadRawMemos() {
         // Load raw memos for Timeline Tab
         guard let date = DateFormatters.isoDate.date(from: dateString) else {
             DayPageLogger.shared.error("DailyPageView: invalid dateString '\(dateString)'")

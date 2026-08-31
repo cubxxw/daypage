@@ -306,7 +306,11 @@ struct DayDetailView: View {
                         .padding(.top, 16)
                         .padding(.bottom, 6)
                 }
-                DailyPageView(dateString: currentDate, isEmbedded: true)
+                DailyPageView(
+                    dateString: currentDate,
+                    onViewOriginalFlow: { selectedTab = .raw },
+                    isEmbedded: true
+                )
             }
         case .rawOnly:
             VStack(spacing: 20) {
