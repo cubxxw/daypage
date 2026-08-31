@@ -418,7 +418,7 @@ struct OpenSystemActionCenterIntent: AppIntent {
 struct DraftSystemActionIntent: AppIntent {
     static let title: LocalizedStringResource = "起草系统动作"
     static let description = IntentDescription(
-        "在 DayPage 中起草一个系统动作并打开确认页；不会直接修改 Apple 系统数据。",
+        "在 DayPage 中起草一个系统动作并打开确认页；不会直接修改系统数据。",
         categoryName: "System Actions",
         searchKeywords: ["draft", "calendar", "reminder", "草稿", "日程", "提醒"]
     )
