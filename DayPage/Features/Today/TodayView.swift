@@ -26,6 +26,10 @@ struct TodayView: View {
     @StateObject private var viewModel = TodayViewModel()
     @StateObject private var passiveLocation = PassiveLocationService.shared
     @StateObject private var bannerCenter = BannerCenter.shared
+    /// Process launch intents are one-shot. Today can reappear after a pushed
+    /// detail pops; replaying the same flag there would reopen the destination
+    /// (or repeat a destructive QA action) in a loop.
+    @State private var hasAppliedLaunchPresentationFlags = false
     @StateObject private var voiceQueue = VoiceAttachmentQueue.shared
     @StateObject private var migrationService = VaultMigrationService.shared
     @StateObject private var compilationService = CompilationService.shared
@@ -282,8 +286,8 @@ struct TodayView: View {
     // US-005: Thresholded timeline scroll state. The raw offset is deliberately
     // not stored: assigning it to @State on every frame invalidates this large
     // view even when no rendered threshold has changed.
-    /// True once the timeline has scrolled past 8pt — activates the glass
-    /// header bar. Flips at most twice per scroll gesture.
+    /// True once the timeline has scrolled past 12pt — activates the compact
+    /// glass header. A 10pt return hysteresis prevents edge jitter.
     @State private var isTimelineScrolled: Bool = false
     /// True once the timeline has scrolled past 240pt — surfaces the
     /// scroll-to-top button and the "back to top" affordance.
@@ -446,12 +450,19 @@ struct TodayView: View {
                 }
                 // US-009: Undo pill shown for 5s after memo submit
                 .overlay(alignment: .bottom) {
-                    if let text = undoText {
+                    if undoText != nil {
                         UndoPillView {
-                            draftText = text
+                            if let restored = viewModel.undoLastSubmission(), !restored.isEmpty {
+                                if draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    draftText = restored
+                                } else {
+                                    draftText = restored + "\n\n" + draftText
+                                }
+                            }
                             undoText = nil
                             undoTask?.cancel()
                         } onDismiss: {
+                            viewModel.clearLastSubmissionUndo()
                             undoText = nil
                             undoTask?.cancel()
                         }
@@ -1073,12 +1084,26 @@ struct TodayView: View {
     }
 
     private func applyLaunchPresentationFlags() {
+        guard !hasAppliedLaunchPresentationFlags else { return }
+        hasAppliedLaunchPresentationFlags = true
         let args = ProcessInfo.processInfo.arguments
         if launchFlag("openVoiceRecorder", in: args) {
             viewModel.isShowingVoiceRecorder = true
         }
         if launchFlag("openWriteSheet", in: args) {
-            showWriteSheet = true
+            // Mount the custom overlay one run-loop after Today itself appears.
+            // Setting this synchronously inside the parent's onAppear can leave
+            // the dock hidden while WriteSheetView never receives its own
+            // onAppear, so its `appeared` entrance state stays off-screen. The
+            // real dock tap already happens after mount; make the QA bridge
+            // exercise that same lifecycle ordering.
+            DispatchQueue.main.async { showWriteSheet = true }
+        }
+        if launchFlag("qaOpenSettings", in: args) {
+            DispatchQueue.main.async { showSettings = true }
+        }
+        if launchFlag("qaOpenCoach", in: args) {
+            DispatchQueue.main.async { showTodayCoach = true }
         }
         // QA bridge: the share sheet normally opens from a long-press context
         // menu, and synthesised touches can't drive that recogniser on the
@@ -1089,7 +1114,67 @@ struct TodayView: View {
         if launchFlag("openShareCard", in: args) {
             presentShareCardForQA()
         }
+        #if DEBUG
+        if launchFlag("qaSeedSamples", in: args) {
+            SampleDataSeeder.seedIfNeeded()
+            viewModel.load()
+        }
+        if launchFlag("qaSeedTodayMemos", in: args) {
+            seedTodayMemosForQA()
+            viewModel.load()
+        }
+        if launchFlag("qaOpenMemoDetail", in: args) {
+            presentMemoDetailForQA()
+        }
+        if let index = args.firstIndex(of: "-qaDraftText"),
+           args.indices.contains(index + 1) {
+            draftText = args[index + 1]
+        }
+        if let index = args.firstIndex(of: "-qaCompileStage"),
+           args.indices.contains(index + 1),
+           let stage = BackgroundCompilationService.CompileStage(rawValue: args[index + 1]) {
+            compileService.setStageForQA(stage)
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// Deterministic, local-only fixtures for screenshot and interaction audits.
+    /// Fixed IDs keep repeated QA launches idempotent; the production capture
+    /// path and the first-run sample journal remain untouched.
+    private func seedTodayMemosForQA() {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date())
+        let fixtures: [Memo] = [
+            Memo(
+                id: UUID(uuidString: "DA97A9E4-0000-4000-8000-000000000001")!,
+                created: start.addingTimeInterval(9 * 3600 + 12 * 60),
+                location: Memo.Location(name: "Riverside café"),
+                weather: "Light rain · 18°C",
+                device: "iPhone",
+                body: "The rain softened the whole room. I finally found the quiet I needed to outline the next release."
+            ),
+            Memo(
+                id: UUID(uuidString: "DA97A9E4-0000-4000-8000-000000000002")!,
+                created: start.addingTimeInterval(12 * 3600 + 38 * 60),
+                device: "iPhone",
+                body: "Small product thought: the fastest capture flow should feel like placing a note on the desk, not filling out a form."
+            ),
+            Memo(
+                id: UUID(uuidString: "DA97A9E4-0000-4000-8000-000000000003")!,
+                created: start.addingTimeInterval(17 * 3600 + 6 * 60),
+                location: Memo.Location(name: "West Bund"),
+                weather: "Cloudy · 21°C",
+                device: "iPhone",
+                body: "Walked home without headphones. The city sounded less urgent than it looked."
+            )
+        ]
+        let existingIDs = Set(((try? RawStorage.read(for: Date())) ?? []).map(\.id))
+        for memo in fixtures where !existingIDs.contains(memo.id) {
+            try? RawStorage.append(memo)
+        }
+    }
+    #endif
 
     /// Presents the share card for the most recent memo. Retries briefly
     /// because `applyLaunchPresentationFlags()` runs on appear, which can beat
@@ -1100,6 +1185,24 @@ struct TodayView: View {
             for _ in 0..<20 {
                 if let memo = viewModel.memos.first {
                     sharePayload = SharePayload.auto(from: memo)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
+    }
+
+    /// Opens the same storage-resolved MemoDetailHost used by a real card tap.
+    /// Waiting for the first loaded memo keeps the QA route deterministic on a
+    /// cold launch without bypassing the production navigation destination.
+    private func presentMemoDetailForQA() {
+        Task { @MainActor in
+            for _ in 0..<20 {
+                if let memo = viewModel.memos.first {
+                    nav.push(
+                        MemoDetailRef(id: memo.id, day: memo.created, source: .today),
+                        in: .today
+                    )
                     return
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -1278,14 +1381,25 @@ struct TodayView: View {
     private var activeStatusSlot: TodayStatusSlot? {
         if viewModel.compilationFailedError != nil { return .compilationFailed }
         if iCloudConflictBannerVisible { return .iCloudConflict }
-        if FeatureFlagStore.shared.isEnabled(.offlineQueue)
+        if hasActiveSyncDestination
+            && FeatureFlagStore.shared.isEnabled(.offlineQueue)
             && (syncQueue.pendingCount >= 5 || syncQueueWaitedTooLong
                 || attachmentTransferSummary.hasMedia) {
             return .offlineSyncQueue
         }
-        if compileService.stage != .idle || viewModel.isCompiling { return .compilationProgress }
+        if compileService.isPresentingStage || viewModel.isCompiling { return .compilationProgress }
         if showSyncBanner { return .syncPrompt }
         return nil
+    }
+
+    /// The outbox is also the durable local journal of future cloud work, so
+    /// it can contain items before the user has chosen any sync destination.
+    /// That setup state belongs in Settings; surfacing it as an hour-by-hour
+    /// failure banner on Today makes an intentionally local workflow look
+    /// broken. Once an account or legacy web destination exists, the same
+    /// queue becomes actionable and earns the status slot.
+    private var hasActiveSyncDestination: Bool {
+        authService.session != nil || SyncSettings.isConfigured
     }
 
     /// Renders the single active status banner. The banner views
@@ -1318,7 +1432,7 @@ struct TodayView: View {
                 // Prefer the richer Issue #5 stage banner whenever the
                 // background service exposes a stage; fall back to the
                 // thin bar for foreground-only compiles.
-                if compileService.stage != .idle {
+                if compileService.isPresentingStage {
                     compileProgressBanner
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 } else {
@@ -1563,58 +1677,71 @@ struct TodayView: View {
         AttachmentTransferStore.actionableSummary()
     }
 
-    /// Issue #5 (2026-07-03): pipeline-stage banner. Rendered above the
-    /// timeline while the AI compile is running. The bar advances on
-    /// stage transitions inside `BackgroundCompilationService.compileWithRetry`
-    /// (Issue #5's other half). We deliberately avoid an indeterminate
-    /// spinner because "spinner in the corner + no other feedback" is the
-    /// exact behavior the backlog issue calls out as broken UX.
+    /// Issue #5 (2026-07-03): pipeline-stage status rail. Rendered above the
+    /// timeline while the AI compile is running. The bar advances on stage
+    /// transitions inside `BackgroundCompilationService.compileWithRetry`.
+    ///
+    /// The first version used a white card, amber rim, large sparkle and a
+    /// breathing animation. On an otherwise-empty Today it became the page's
+    /// loudest object, outranking the capture invitation. This compact glass
+    /// rail keeps the trustworthy stage + determinate progress feedback while
+    /// staying visually subordinate to the journal itself.
     private var compileProgressBanner: some View {
-        HStack(spacing: 10) {
-            // Issue #5 (2026-07-03): iOS 16 target — `symbolEffect(.pulse)`
-            // requires iOS 17. Use a manual opacity breath so the icon
-            // still reads as "AI is working" without conditionally
-            // targeting SDK levels.
-            Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(DSColor.amberAccent)
-                .opacity(compileService.stage == .idle ? 1.0 : 0.6)
-                .dsAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true),
-                             value: compileService.stage)
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(DSColor.amberAccent)
+                    .frame(width: 5, height: 5)
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
                 Text(compileService.stageLabel)
-                    .font(DSType.bodySM)
-                    .foregroundColor(DSColor.inkPrimary)
+                    .font(DSType.mono10)
+                    .tracking(0.8)
+                    .foregroundColor(DSColor.inkMuted)
+                    .lineLimit(1)
                     .accessibilityIdentifier("today.compile.stage.label")
 
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(DSColor.surfaceSunken)
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(DSColor.amberAccent)
-                            .frame(width: max(6, geo.size.width * CGFloat(compileService.stageFraction)))
-                            .dsAnimation(.easeInOut(duration: 0.4), value: compileService.stageFraction)
-                    }
-                }
-                .frame(height: 4)
+                Spacer(minLength: 8)
+
+                Text("\(Int((compileService.stageFraction * 100).rounded()))%")
+                    .font(DSType.mono10)
+                    // This is quiet metadata, but it is still information.
+                    // `inkSubtle` only reaches ~2.3:1 here; the generated AA
+                    // token preserves the hierarchy while clearing 4.5:1 on
+                    // the rail's light glass surface.
+                    .foregroundColor(DSColor.inkTertiaryAA)
+                    .monospacedDigit()
+                    .accessibilityHidden(true)
             }
 
-            Spacer()
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(DSColor.inkFaint)
+                    Capsule()
+                        .fill(DSColor.amberAccent.opacity(0.72))
+                        .frame(width: max(5, geo.size.width * CGFloat(compileService.stageFraction)))
+                        .dsAnimation(.easeInOut(duration: 0.4), value: compileService.stageFraction)
+                }
+            }
+            .frame(height: 2)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(DSColor.surfaceWhite)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(DSColor.glassLo))
         .overlay(
-            RoundedRectangle(cornerRadius: DSRadius.md)
-                .strokeBorder(DSColor.amberRim, lineWidth: 0.5)
+            Capsule()
+                .strokeBorder(DSColor.glassRim, lineWidth: 0.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: DSRadius.md))
         .padding(.horizontal, DSSpacing.pageMargin)
         .padding(.bottom, DSSpacing.xs)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("AI 编译进行中：\(compileService.stageLabel)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.CompileProgress.a11yLabel)
+        .accessibilityValue(L10n.CompileProgress.a11yValue(
+            stage: compileService.stageLabel,
+            percent: Int((compileService.stageFraction * 100).rounded())
+        ))
+        .accessibilityIdentifier("today.compile.progress.rail")
     }
 
     /// Issue #13 (2026-07-03): horizontal chip row for the day's declared
@@ -2680,9 +2807,14 @@ struct TodayView: View {
                 showUndoPill(for: body)
                 announceMemoSaved()
             },
-            onAskAI: {
+            // On an empty day, the hero already presents the same Today Coach
+            // destination as a named CTA. Hiding the duplicate sparkle leaves
+            // the dock with one clear primary action; it returns once the
+            // timeline has content and the hero CTA is gone.
+            onAskAI: viewModel.memos.isEmpty ? nil : {
                 // Issue #804: dock sparkle → TodayCoachView（陪写），不是 AskPast。
-                Haptics.tapConfirm()
+                // InputBarV4 owns the tap haptic so this closure does not fire
+                // a second, stacked confirmation pulse.
                 showTodayCoach = true
             },
             batchPhotoProgress: viewModel.batchPhotoProgress,
@@ -2778,17 +2910,19 @@ struct TodayView: View {
     private var sidebarSection: some View {
         let isScrolled = isTimelineScrolled
         let hasMemos = !viewModel.memos.isEmpty
+        // Empty days still have scrollable history below the invitation. Once
+        // that canvas moves, collapse the museum-scale heading into the same
+        // compact toolbar title used by memo days; otherwise a large, pinned
+        // weekday keeps consuming the fold while its empty-state hero recedes.
+        let usesCompactHeader = hasMemos || isScrolled
         // The header HStack now participates in normal layout (it owns its
         // height), with the glass/separator drawn as a `.background` behind it.
         // Previously the HStack lived inside `.overlay()` on a zero-height
         // ZStack, so it contributed 0pt to the parent VStack and the orbHero
         // below it slid up and overlapped the 56pt hero title. (#590)
-        // Museum-aesthetic hero header — always shows the large weekday title
-        // (Thursday / 星期四) over a fine MAY 28 · 2 NOTES · ☀ 28° · CITY subline.
-        // The compact Orb-chip variant for non-empty days has been removed:
-        // it crowded the top bar with metadata and broke the calm rhythm
-        // shown in the design comp. Toolbar icons (☰ / share / ⚙) live in
-        // a separate row above this hero.
+        // Museum-aesthetic hero header — the large weekday and concise
+        // date/time subline own the resting empty canvas; content or scrolling
+        // collapses them into a single quiet date in the toolbar.
         VStack(alignment: .leading, spacing: 16) {
             // MARK: Top toolbar — sidebar / export / settings only.
             HStack(spacing: 12) {
@@ -2801,6 +2935,10 @@ struct TodayView: View {
                         .frame(width: 36, height: 36)
                         .glassSurface(in: Circle())
                         .clipShape(Circle())
+                        // Preserve the restrained 36pt visual while meeting
+                        // the 44pt minimum touch target around it.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.dsIconChip)
                 .accessibilityLabel(NSLocalizedString("a11y.nav.open", comment: "Sidebar open button"))
@@ -2814,7 +2952,7 @@ struct TodayView: View {
                 // the toolbar center — content owns the fold, the date stays
                 // one glance away. Keeps the hero's affordances (tap →
                 // scroll-to-top, context menu → export / copy).
-                if hasMemos {
+                if usesCompactHeader {
                     compactHeroTitle
                         .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }
@@ -2842,6 +2980,8 @@ struct TodayView: View {
                         .frame(width: 36, height: 36)
                         .glassSurface(in: Circle())
                         .clipShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.dsIconChip)
                 .accessibilityLabel(NSLocalizedString("today.toolbar.search", comment: "Global search button"))
@@ -2857,17 +2997,10 @@ struct TodayView: View {
             // Chinese "星期X" at 28pt keeps the calm museum scale; the
             // subline (30 JUN · 深夜) is a small caps caption.
             //
-            // 2026-07-04: the big hero now shows ONLY while the day is empty.
-            // Once the first memo lands it collapses into `compactHeroTitle`
-            // (toolbar center) so the timeline gains ~70pt above the fold.
-            if !hasMemos {
-            Button {
-                hasNewContentAboveFold = false
-                Haptics.soft()
-                withAnimation(reduceMotion ? nil : Motion.spring) {
-                    timelineScrollProxy?.scrollTo("timelineTop", anchor: .top)
-                }
-            } label: {
+            // The big hero shows only at the resting top of an empty day.
+            // Content or the first deliberate scroll collapses it into
+            // `compactHeroTitle`, returning the vertical space to reading.
+            if !usesCompactHeader {
                 VStack(alignment: .center, spacing: 6) {
                     Text(weekdayName(currentTime))
                         .font(DSFonts.serif(size: 26, weight: .regular, relativeTo: .title))
@@ -2879,35 +3012,22 @@ struct TodayView: View {
                         .accessibilityLabel(headerSublineAccessibilityLabel(currentTime))
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(NSLocalizedString("today.header.scroll_to_top", comment: "Scroll to top of timeline"))
-            .accessibilityIdentifier("today-hero-title")
-            .onLongPressGesture(minimumDuration: 1.5) {
-                HapticFeedback.medium()
-                if let entry = OnThisDayScheduler.shared.forceRefresh() {
-                    viewModel.onThisDayEntry = entry
-                } else {
-                    HapticFeedback.warning()
-                }
-            }
-            // 2026-07-04: the export context menu used to live here, gated on
-            // !memos.isEmpty — but the big hero itself now renders only on
-            // EMPTY days, so that menu could never appear. It moved to
-            // `compactHeroTitle` (the memo-day surface) as `exportMenuItems`.
-            .transition(.opacity.combined(with: .move(edge: .top)))
+                // On an empty day this heading is already at the top. The old
+                // Button announced “scroll to top” yet could not visibly do
+                // anything, and hid a surprise long-press refresh gesture.
+                // Present it honestly as content and a semantic heading.
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("today-hero-title")
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 16)
-        // Collapse/expand between the big hero (empty day) and the compact
-        // toolbar title (memo day): both branches carry explicit transitions
-        // (big hero → .opacity + .move(.top), compact title → .opacity +
-        // .scale) and every memo mutation in TodayViewModel runs inside
-        // withAnimation, so the swap still reads as one deliberate motion
-        // WITHOUT a container-level `.animation(value: hasMemos)` that
-        // would re-animate this entire header subtree (Axiom perf rule).
+        // Both branches carry explicit transitions. Scroll-driven changes are
+        // animated once at the threshold in `handleScrollOffset`; memo changes
+        // already arrive inside the view model's deliberate save animation.
         .onReceive(headerTimer) { date in
             currentTime = date
         }
@@ -2976,7 +3096,7 @@ struct TodayView: View {
                 .foregroundColor(DSColor.inkMuted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-                .frame(height: 36)
+                .frame(height: 44)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(NSLocalizedString("today.header.scroll_to_top", comment: "Scroll to top of timeline"))
@@ -3084,7 +3204,9 @@ struct TodayView: View {
     /// 26.3 and 26.4.
     @ViewBuilder
     private var timelineList: some View {
-            LazyVStack(spacing: 10) {
+            // An 8pt card cadence keeps adjacent captures visibly distinct
+            // without turning a three-note day into a loose stack of panels.
+            LazyVStack(spacing: 8) {
                 // Invisible anchor: scrollTo("timelineTop") brings the list to the very top.
                 Color.clear.frame(height: 0).id("timelineTop")
 
@@ -3300,12 +3422,17 @@ struct TodayView: View {
                             UserDefaults.standard.set(true, forKey: AppSettings.Keys.memoSwipeHintShown)
                             Task { @MainActor in
                                 try? await Task.sleep(for: .seconds(0.6))
-                                withAnimation(Motion.spring) { memoCardHintOffset = -28 }
-                                Haptics.soft()
-                                try? await Task.sleep(for: .seconds(0.45))
-                                withAnimation(Motion.spring) { memoCardHintOffset = 28 }
-                                try? await Task.sleep(for: .seconds(0.35))
-                                withAnimation(Motion.spring) { memoCardHintOffset = 0 }
+                                // One restrained edge-peek teaches horizontal
+                                // action without flinging the newest card out
+                                // of its 20pt reading margin or firing an
+                                // unsolicited haptic on launch.
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    memoCardHintOffset = -8
+                                }
+                                try? await Task.sleep(for: .seconds(0.18))
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    memoCardHintOffset = 0
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -3343,7 +3470,10 @@ struct TodayView: View {
                 // beneath chrome.
                 Spacer(minLength: 140)
             }
-            .padding(.top, 12)
+            // Header already contributes its own 16pt bottom breathing room;
+            // four more points plus the stack cadence is enough to mark the
+            // handoff without wasting the content-first fold.
+            .padding(.top, 4)
             .shadow(
                 color: DSColor.accentAmber.opacity(refreshGlow ? 0.45 : 0),
                 radius: refreshGlow ? 18 : 0
@@ -3359,8 +3489,15 @@ struct TodayView: View {
     /// Only threshold-bucketed state is stored so the view body invalidates
     /// O(1) times per scroll instead of O(60Hz).
     private func handleScrollOffset(_ value: CGFloat) {
-        let scrolled = value < -8
-        if scrolled != isTimelineScrolled { isTimelineScrolled = scrolled }
+        // Enter after a deliberate 12pt move, but do not expand again until
+        // the user is almost at rest. Without this hysteresis the glass/title
+        // pair could flicker when deceleration hovered around one threshold.
+        let scrolled = isTimelineScrolled ? value < -2 : value < -12
+        if scrolled != isTimelineScrolled {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+                isTimelineScrolled = scrolled
+            }
+        }
         let showTop = value < -240
         if showTop != showScrollToTopButton { showScrollToTopButton = showTop }
         // Quantize the ring progress (0…20) — floor(clamp(-value - 240, 0, 1200) / 60).
@@ -3594,7 +3731,6 @@ struct TodayView: View {
 
     // US-009: Show undo pill for 5 seconds after submitting a memo.
     private func showUndoPill(for text: String) {
-        guard !text.isEmpty else { return }
         // Clear delete undo pill so the two never stack
         viewModel.lastDeletedMemo = nil
         undoTask?.cancel()
@@ -3602,12 +3738,15 @@ struct TodayView: View {
         undoTask = Task {
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             guard !Task.isCancelled else { return }
+            viewModel.clearLastSubmissionUndo()
             undoText = nil
         }
     }
 
     private func announceMemoSaved() {
-        Haptics.success()
+        // TodayViewModel owns the single commit haptic on the same frame as
+        // the optimistic card insertion. This method is announcement-only so
+        // saving never produces two stacked success pulses.
         UIAccessibility.post(notification: .announcement,
                              argument: NSLocalizedString("today.memo.saved", comment: ""))
     }

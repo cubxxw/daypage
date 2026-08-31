@@ -30,7 +30,7 @@ struct SettingsAboutView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.hub.about", comment: "About page title"))
         .navigationBarTitleDisplayMode(.inline)
         .bannerOverlay()
@@ -64,7 +64,7 @@ struct SettingsAboutView: View {
 
             Button(action: buildRowTapped) {
                 HStack {
-                    Text("Build")
+                    Text(NSLocalizedString("settings.about.build", comment: "App build number"))
                         .foregroundColor(DSColor.onSurface)
                     Spacer()
                     Text(buildNumber)
@@ -164,7 +164,7 @@ struct SettingsDiagnosticsView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.diagnostics.title", comment: "Diagnostics page title"))
         .navigationBarTitleDisplayMode(.inline)
         .bannerOverlay()
@@ -361,7 +361,7 @@ struct SettingsDeveloperView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.dev.title", comment: "Developer options page title"))
         .navigationBarTitleDisplayMode(.inline)
     }

@@ -236,6 +236,13 @@ struct SidebarView: View {
                     label: NSLocalizedString("sidebar.nav.archive", comment: "Archive nav"))
             navItem(tab: .graph, icon: "circle.hexagongrid",
                     label: NSLocalizedString("sidebar.nav.graph", comment: "Graph nav"))
+            // A quiet gap separates destinations (Today / Archive / Graph)
+            // from tools that act across those destinations. A divider or
+            // another all-caps label added hierarchy chrome the drawer does
+            // not need; six points is enough to make the two groups scan.
+            Color.clear
+                .frame(height: 6)
+                .accessibilityHidden(true)
             // Issue #16 (2026-07-03): global-search row. Between the
             // structured tabs (Today/Archive/Graph) and the memory-chat
             // agent so the sidebar reads as a top-down "cite → filter →
@@ -357,6 +364,7 @@ struct SidebarView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("sidebar.ask-past")
         .accessibilityLabel(NSLocalizedString("sidebar.ask_past", comment: "Ask the past chat entry"))
         .accessibilityHint(NSLocalizedString("sidebar.ask_past.hint", comment: "Ask based on your notes"))
     }
@@ -386,6 +394,7 @@ struct SidebarView: View {
         }
         .disabled(disabled)
         .buttonStyle(.plain)
+        .accessibilityIdentifier(sidebarIdentifier(for: tab))
         // Merge the amber strip + icon + label + "Post-MVP" badge into one
         // focus, then announce the destination + selection state.
         .accessibilityElement(children: .combine)
@@ -395,6 +404,15 @@ struct SidebarView: View {
             : (tab == .feedback ? "Opens feedback" : "Navigates to \(label)")
         )
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func sidebarIdentifier(for tab: AppTab) -> String {
+        switch tab {
+        case .today: return "sidebar.tab.today"
+        case .archive: return "sidebar.tab.archive"
+        case .graph: return "sidebar.tab.graph"
+        case .feedback: return "sidebar.tab.feedback"
+        }
     }
 
     private func sidebarRowLabel(

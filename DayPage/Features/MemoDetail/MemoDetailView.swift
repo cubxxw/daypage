@@ -10,6 +10,7 @@ struct MemoDetailView: View {
     let backLabel: String
     let onUpdateBody: (String) async throws -> Memo
     let onDelete: () async throws -> Void
+    let onRestore: (Memo) async throws -> Void
     let onMemoChanged: (Memo) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -96,6 +97,13 @@ struct MemoDetailView: View {
                 AnalyticsService.Name.detailOpened,
                 props: ["memo_id": memo.id.uuidString]
             )
+            #if DEBUG
+            if qaFlag("qaDeleteOpenMemo") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    deleteMemo()
+                }
+            }
+            #endif
         }
         .task(id: memo) {
             let loaded = await MemoDetailDerivedDataLoader.load(for: memo)
@@ -141,7 +149,7 @@ struct MemoDetailView: View {
             ) {}
         } message: {
             Text(NSLocalizedString(
-                "memo.detail.delete.warning", value: "This cannot be undone.",
+                "memo.detail.delete.warning", value: "You can undo for a few seconds after deleting.",
                 comment: "Detail view — delete confirmation warning body"
             ))
         }
@@ -170,10 +178,9 @@ struct MemoDetailView: View {
             }
             .pressScale(scale: 0.97, offsetY: 0.5,
                         animation: .spring(response: 0.2, dampingFraction: 0.7))
-            .accessibilityLabel(NSLocalizedString(
-                "memo.detail.a11y.back", value: "返回",
-                comment: "Detail view — back button VoiceOver label"
-            ))
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityLabel(Text(backLabel))
 
             Spacer()
             actionMenu
@@ -231,7 +238,6 @@ struct MemoDetailView: View {
             }
             Divider()
             Button(role: .destructive) {
-                Haptics.warningNotification()
                 showDeleteConfirmation = true
             } label: {
                 Label(NSLocalizedString(
@@ -243,7 +249,7 @@ struct MemoDetailView: View {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 20))
                 .foregroundColor(DSColor.inkMuted)
-                .frame(width: 36, height: 36)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -317,12 +323,63 @@ struct MemoDetailView: View {
         Task {
             do {
                 try await onDelete()
+                showDeleteUndoBanner()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
     }
+
+    private func showDeleteUndoBanner() {
+        let deletedMemo = memo
+        BannerCenter.shared.show(AppBannerModel(
+            kind: .success,
+            title: NSLocalizedString(
+                "memo.detail.delete.success", value: "Memo deleted",
+                comment: "Detail view — memo deleted confirmation"
+            ),
+            primaryAction: BannerAction(
+                label: NSLocalizedString(
+                    "memo.detail.delete.undo", value: "Undo",
+                    comment: "Detail view — undo memo deletion"
+                ),
+                handler: {
+                    Task { @MainActor in
+                        do {
+                            try await onRestore(deletedMemo)
+                            BannerCenter.shared.show(AppBannerModel(
+                                kind: .success,
+                                title: NSLocalizedString(
+                                    "memo.detail.delete.restored", value: "Memo restored",
+                                    comment: "Detail view — deleted memo restored"
+                                )
+                            ))
+                        } catch {
+                            BannerCenter.shared.show(AppBannerModel(
+                                kind: .error,
+                                title: NSLocalizedString(
+                                    "memo.detail.delete.restore_failed", value: "Couldn't restore memo",
+                                    comment: "Detail view — undo deletion failure"
+                                ),
+                                subtitle: error.localizedDescription
+                            ))
+                        }
+                    }
+                }
+            ),
+            autoDismiss: true
+        ))
+    }
+
+    #if DEBUG
+    private func qaFlag(_ key: String) -> Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-\(key)"),
+              arguments.indices.contains(index + 1) else { return false }
+        return ["1", "true", "yes"].contains(arguments[index + 1].lowercased())
+    }
+    #endif
 
     private func openEntity(_ slug: String) {
         openEntity(slug: slug, forcedType: nil)

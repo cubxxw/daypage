@@ -30,6 +30,7 @@ struct MemoChatView: View {
     @State private var pinnedTurnIDs: Set<UUID> = []
     @State private var caretVisible = true
     @FocusState private var inputFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var memoDateString: String {
         DateFormatters.isoDate.string(from: memo.created)
@@ -52,7 +53,7 @@ struct MemoChatView: View {
             inputBar
         }
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .animation(Motion.spring, value: chat.attachedMemo == nil)
+        .animation(reduceMotion ? nil : Motion.spring, value: chat.attachedMemo == nil)
         .task {
             guard !didAttach else { return }
             didAttach = true
@@ -127,7 +128,7 @@ struct MemoChatView: View {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     // 这条 memo 的过往对话——沉在当前对话上游。
                     ChatRiverSection(river: river) { loaded in
-                        withAnimation(Motion.spring) {
+                        withAnimation(Motion.respectReduceMotion(Motion.spring)) {
                             chat.resume(loaded)
                             river.exitSelection()
                             river.refresh(excluding: loaded.summary.id)
@@ -240,8 +241,12 @@ struct MemoChatView: View {
             .foregroundColor(DSColor.amberAccent.opacity(caretVisible ? 0.8 : 0.15)))
             .frame(maxWidth: .infinity, alignment: .leading)
             .onAppear {
-                withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
-                    caretVisible.toggle()
+                if reduceMotion {
+                    caretVisible = true
+                } else {
+                    withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+                        caretVisible.toggle()
+                    }
                 }
             }
     }
@@ -456,7 +461,7 @@ struct MemoChatView: View {
             Spacer(minLength: 8)
             Button {
                 Haptics.soft()
-                withAnimation(Motion.spring) { chat.detachMemo() }
+                withAnimation(Motion.respectReduceMotion(Motion.spring)) { chat.detachMemo() }
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .semibold))

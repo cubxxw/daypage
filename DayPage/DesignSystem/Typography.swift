@@ -34,6 +34,16 @@ enum DSFonts {
         guard !hasRegistered else { return }
         hasRegistered = true
 
+        // The application target declares every face in UIAppFonts, which
+        // CoreText registers before App.init. Re-registering those URLs adds
+        // startup work and produces noisy "already registered" diagnostics.
+        // Keep the manual path only for preview/test hosts that do not carry
+        // the application's Info.plist.
+        if let declaredFonts = Bundle.main.object(forInfoDictionaryKey: "UIAppFonts") as? [String],
+           !declaredFonts.isEmpty {
+            return
+        }
+
         let ttfNames = [
             "SpaceGrotesk-Light", "SpaceGrotesk-Regular", "SpaceGrotesk-Medium",
             "SpaceGrotesk-SemiBold", "SpaceGrotesk-Bold",
@@ -47,14 +57,22 @@ enum DSFonts {
             "SourceHanSerifSC-Regular", "SourceHanSerifSC-Medium", "SourceHanSerifSC-SemiBold",
         ]
 
+        // `UIAppFonts` normally registers every bundled face before App.init.
+        // Only register faces that are genuinely absent so startup does not
+        // emit a CoreText warning for every font on every launch. This still
+        // keeps previews and stripped test hosts working when Info.plist font
+        // registration is unavailable.
+        let missingTTFNames = ttfNames.filter { UIFont(name: $0, size: 12) == nil }
+        let missingOTFNames = otfNames.filter { UIFont(name: $0, size: 12) == nil }
+
         var urls: [URL] = []
-        urls.reserveCapacity(ttfNames.count + otfNames.count)
-        for name in ttfNames {
+        urls.reserveCapacity(missingTTFNames.count + missingOTFNames.count)
+        for name in missingTTFNames {
             if let url = Bundle.main.url(forResource: name, withExtension: "ttf") {
                 urls.append(url)
             }
         }
-        for name in otfNames {
+        for name in missingOTFNames {
             if let url = Bundle.main.url(forResource: name, withExtension: "otf") {
                 urls.append(url)
             }
@@ -312,6 +330,7 @@ struct H1Modifier: ViewModifier {
             .font(DSType.h1)
             .dynamicTypeSize(.xSmall ... .accessibility2)
             .minimumScaleFactor(0.80)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 

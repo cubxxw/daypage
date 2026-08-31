@@ -80,7 +80,7 @@ struct CompileFooterButton: View {
                     Spacer()
                     if let retry = onRetry {
                         Button(action: retry) {
-                            Text("重试")
+                            Text(NSLocalizedString("today.compile_failed.retry", comment: "Retry compilation"))
                                 .font(.custom("Inter-Medium", size: 12))
                                 .foregroundColor(DSColor.primary)
                         }
@@ -119,7 +119,7 @@ struct CompileFooterButton: View {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(DSColor.onSurface)
                             .modifier(CompileSuccessBounce(trigger: compileSuccessBounce))
-                        Text("编译今日 · \(memoCount) 条")
+                        Text(String(format: NSLocalizedString("compile.footer.action", comment: "Compile today's memos"), memoCount))
                             .font(.custom("Inter-Medium", size: 13))
                             .foregroundColor(DSColor.onSurface)
                     }
@@ -318,4 +318,3 @@ struct CompileProgressDock: View {
         }
     }
 }
-

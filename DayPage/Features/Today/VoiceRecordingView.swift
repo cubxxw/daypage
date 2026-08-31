@@ -263,7 +263,7 @@ struct VoiceRecordingView: View {
                     .foregroundColor(DSColor.onSurfaceVariant)
             }
         case .done:
-            Text("转写完成")
+            Text(NSLocalizedString("voice.recording.status.done", comment: "Voice transcription completed"))
                 .bodySMStyle()
                 .foregroundColor(DSColor.onSurface)
         case .failed(let msg):

@@ -106,6 +106,7 @@ struct GraphView: View {
                             .frame(width: 36, height: 36)
                             .glassSurface(in: Circle())
                             .clipShape(Circle())
+                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(NSLocalizedString("a11y.nav.open", comment: "Sidebar open button"))
@@ -116,6 +117,9 @@ struct GraphView: View {
                         .font(DSFonts.serif(size: 20, weight: .semibold, relativeTo: .title3))
                         .tracking(-0.3)
                         .foregroundColor(DSColor.inkPrimary)
+                        .lineLimit(1)
+                        .dynamicTypeSize(.xSmall ... .xxxLarge)
+                        .accessibilityAddTraits(.isHeader)
 
                     Spacer()
                 }
@@ -130,7 +134,12 @@ struct GraphView: View {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 13))
                             .foregroundColor(DSColor.inkMuted)
-                        TextField(NSLocalizedString("graph.search.placeholder", comment: "Graph search field placeholder"), text: $viewModel.searchInput)
+                        TextField(
+                            "",
+                            text: $viewModel.searchInput,
+                            prompt: Text(NSLocalizedString("graph.search.placeholder", comment: "Graph search field placeholder"))
+                                .foregroundColor(DSColor.inkTertiaryAA)
+                        )
                             .font(DSFonts.jetBrainsMono(size: 12, relativeTo: .caption))
                             .foregroundColor(DSColor.inkPrimary)
                             .submitLabel(.search)
@@ -165,6 +174,7 @@ struct GraphView: View {
                                     .foregroundColor(DSColor.inkMuted)
                                     .frame(width: 28, height: 28)
                                     .contentShape(Rectangle())
+                                    .minTapTarget()
                             }
                             .accessibilityLabel(NSLocalizedString("graph.search.clear.a11y", comment: "VoiceOver label for the Clear search button in the graph"))
                             .transition(.opacity)
@@ -172,7 +182,7 @@ struct GraphView: View {
                     }
                     .animation(Motion.fade, value: viewModel.searchInput.isEmpty)
                     .padding(.horizontal, DSSpacing.md)
-                    .padding(.vertical, 7)
+                    .frame(minHeight: 44)
                     // #771: search field → glass engine (.control). Engine owns rim.
                     .dpGlass(.control, in: RoundedRectangle(cornerRadius: DSRadius.sm, style: .continuous))
                     .clipShape(RoundedRectangle(cornerRadius: DSRadius.sm, style: .continuous))
@@ -187,8 +197,15 @@ struct GraphView: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel(showFilters ? "Hide filters" : "Show filters")
+                    .accessibilityLabel(NSLocalizedString(
+                        showFilters ? "graph.filter.hide" : "graph.filter.show",
+                        comment: "Graph date filters toggle accessibility label"
+                    ))
                 }
+                // Search/filter controls are persistent graph chrome. Cap
+                // their labels so AX4–AX5 never widens the entire graph beyond
+                // the viewport and clips the title/canvas from both sides.
+                .dynamicTypeSize(.xSmall ... .xxLarge)
                 .padding(.horizontal, DSSpacing.lg)
                 .padding(.vertical, DSSpacing.sm)
 
@@ -418,6 +435,13 @@ struct GraphView: View {
         }
         .onChange(of: viewModel.nodes.count) { count in
             didAutoFit = false
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-qaGraphFocus"),
+               viewModel.focusedNodeID == nil,
+               let first = viewModel.nodes.first {
+                viewModel.setFocus(first.id)
+            }
+            #endif
             if isActive && !viewModel.nodes.isEmpty {
                 startSimulation()
                 if simulationSteps >= maxSimSteps { attemptAutoFit() }
@@ -593,37 +617,21 @@ struct GraphView: View {
     private var networkSizePill: some View {
         let nodeCount = viewModel.nodes.count
         let edgeCount = viewModel.edges.count
-        return HStack(spacing: 0) {
-            Text(NSLocalizedString("graph.pill.nodes.prefix", comment: "Graph network pill — before node count"))
-                .font(DSType.mono10)
-                .foregroundColor(DSColor.inkMuted)
-                .textCase(.uppercase)
-                .tracking(0.5)
-            Text("\(nodeCount)")
-                .font(DSType.mono10)
-                .foregroundColor(DSColor.inkMuted)
-                .textCase(.uppercase)
-                .tracking(0.5)
-                .modifier(NumericTextContentTransition(value: Double(nodeCount), reduceMotion: reduceMotion))
-                .animation(reduceMotion ? nil : Motion.spring, value: nodeCount)
-            Text(NSLocalizedString("graph.pill.nodes.suffix", comment: "Graph network pill — between node and edge count"))
-                .font(DSType.mono10)
-                .foregroundColor(DSColor.inkMuted)
-                .textCase(.uppercase)
-                .tracking(0.5)
-            Text("\(edgeCount)")
-                .font(DSType.mono10)
-                .foregroundColor(DSColor.inkMuted)
-                .textCase(.uppercase)
-                .tracking(0.5)
-                .modifier(NumericTextContentTransition(value: Double(edgeCount), reduceMotion: reduceMotion))
-                .animation(reduceMotion ? nil : Motion.spring, value: edgeCount)
-            Text(NSLocalizedString("graph.pill.edges.suffix", comment: "Graph network pill — after edge count"))
-                .font(DSType.mono10)
-                .foregroundColor(DSColor.inkMuted)
-                .textCase(.uppercase)
-                .tracking(0.5)
-        }
+        let summary = NSLocalizedString("graph.pill.nodes.prefix", comment: "Graph network pill — before node count")
+            + "\(nodeCount)"
+            + NSLocalizedString("graph.pill.nodes.suffix", comment: "Graph network pill — between node and edge count")
+            + "\(edgeCount)"
+            + NSLocalizedString("graph.pill.edges.suffix", comment: "Graph network pill — after edge count")
+        return Text(summary)
+        .font(DSType.mono10)
+        .foregroundColor(DSColor.inkMuted)
+        .textCase(.uppercase)
+        .tracking(0.5)
+        .lineLimit(1)
+        .minimumScaleFactor(0.72)
+        .dynamicTypeSize(.xSmall ... .xxLarge)
+        .modifier(NumericTextContentTransition(value: Double(nodeCount + edgeCount), reduceMotion: reduceMotion))
+        .animation(reduceMotion ? nil : Motion.spring, value: nodeCount + edgeCount)
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, 5)
         // #771: network-size stat badge → glass engine (.pill). Engine owns rim.
@@ -1146,6 +1154,9 @@ struct GraphView: View {
                 // stepper (three glass cards padded into alignment by hand) are
                 // now one vertical capsule with hairline dividers.
                 zoomControls
+                    .opacity(viewModel.focusedNodeID == nil ? 1 : 0)
+                    .allowsHitTesting(viewModel.focusedNodeID == nil)
+                    .accessibilityHidden(viewModel.focusedNodeID != nil)
 
                 // #828 focus preview bar. Two hard-won constraints (verified
                 // on-simulator via tap bisection, see PR #-for-828):
@@ -1182,7 +1193,7 @@ struct GraphView: View {
     private static let legendTypeOrder: [String] = ["people", "places", "themes"]
 
     private var legend: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: DSSpacing.md) {
             ForEach(Self.legendTypeOrder, id: \.self) { type in
                 let count = viewModel.filteredNodes.filter { $0.entityType == type }.count
                 let isHidden = hiddenTypes.contains(type)
@@ -1191,6 +1202,7 @@ struct GraphView: View {
             }
         }
         .padding(DSSpacing.md)
+        .dynamicTypeSize(.xSmall ... .large)
         // .control (interactive glass), NOT .panel: on the iOS 26 native
         // glassEffect path a non-interactive pane composites its children
         // into the glass layer and the type-toggle rows stop receiving
@@ -1422,8 +1434,10 @@ struct GraphView: View {
                     .font(DSFonts.jetBrainsMono(size: 10, relativeTo: .caption2))
                     .foregroundColor(DSColor.inkPrimary)
                     .strikethrough(isHidden, color: DSColor.inkMuted)
+                    .lineLimit(1)
             }
             .opacity(isHidden ? 0.35 : 1.0)
+            .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

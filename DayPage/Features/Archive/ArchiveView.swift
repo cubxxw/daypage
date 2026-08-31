@@ -780,6 +780,19 @@ struct ArchiveView: View {
         consumePendingSearchQuery()
         guard !hasActivated else { return }
         hasActivated = true
+        #if DEBUG
+        // Reach the real Archive-owned search sheet in screenshot/E2E runs
+        // without synthesising a fragile coordinate tap. An optional seeded
+        // query exercises the exact same SearchView debounce and index path.
+        let qaArgs = ProcessInfo.processInfo.arguments
+        if qaArgs.contains("-qaOpenSearch") {
+            if let index = qaArgs.firstIndex(of: "-qaSearchQuery"),
+               qaArgs.indices.contains(index + 1) {
+                searchInitialQuery = qaArgs[index + 1]
+            }
+            DispatchQueue.main.async { showSearch = true }
+        }
+        #endif
         Task { await preScanVault() }
         guard !reduceMotion else { return }
         withAnimation(Motion.breathing) { todayPulse = true }
@@ -828,10 +841,9 @@ struct ArchiveView: View {
             let fm = FileManager.default
             let rawDir = VaultInitializer.vaultURL.appendingPathComponent("raw")
             let dailyDir = VaultInitializer.vaultURL.appendingPathComponent("wiki/daily")
-            return (
-                ArchiveVaultScan.listDateFilenames(in: rawDir, fileManager: fm),
-                ArchiveVaultScan.listDateFilenames(in: dailyDir, fileManager: fm)
-            )
+            let raw = ArchiveVaultScan.listDateFilenames(in: rawDir, fileManager: fm)
+            let daily = ArchiveVaultScan.listDateFilenames(in: dailyDir, fileManager: fm)
+            return (raw, daily)
         }.value
         rawDates = scanned.0
         dailyDates = scanned.1
@@ -869,6 +881,7 @@ struct ArchiveView: View {
             .accessibilityLabel(NSLocalizedString("archive.title", comment: "Archive page title"))
             .accessibilityHint(NSLocalizedString("a11y.nav.open.hint", comment: "Opens the sidebar navigation drawer"))
             .accessibilityIdentifier("sidebar-menu-button")
+            .accessibilityAddTraits(.isHeader)
 
             Spacer()
 
@@ -901,6 +914,10 @@ struct ArchiveView: View {
         .padding(.horizontal, DSSpacing.xl)
         .padding(.top, DSSpacing.lg)
         .padding(.bottom, DSSpacing.md)
+        // Page title + CAL/LIST + search are persistent navigation chrome.
+        // Capping this one row prevents AX4–AX5 from turning the three-letter
+        // mode labels into vertical stacks that displace the search action.
+        .dynamicTypeSize(.xSmall ... .large)
     }
 
     // MARK: - Month Navigation Row
@@ -958,6 +975,8 @@ struct ArchiveView: View {
             .font(DSType.mono10)
             .tracking(0.8)
             .foregroundColor(DSColor.inkMuted)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
 
             if !viewModel.isViewingCurrentMonth {
                 Button(action: {
@@ -981,6 +1000,7 @@ struct ArchiveView: View {
                 .transition(.opacity)
             }
         }
+        .dynamicTypeSize(.xSmall ... .xxLarge)
     }
 
     private var monthNavigationRow: some View {
@@ -1015,6 +1035,10 @@ struct ArchiveView: View {
                         Text(localizedMonthTitle)
                             .font(DSFonts.serif(size: 22, weight: .semibold, relativeTo: .title2))
                             .foregroundColor(DSColor.inkPrimary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.78)
+                            .dynamicTypeSize(.xSmall ... .xxxLarge)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(DSColor.inkMuted)
@@ -1048,6 +1072,7 @@ struct ArchiveView: View {
             .accessibilityLabel(NSLocalizedString("archive.a11y.nextMonth.label", comment: "A11y label: next month button"))
             .accessibilityHint(NSLocalizedString("archive.a11y.nextMonth.hint", comment: "A11y hint: next month button"))
         }
+        .dynamicTypeSize(.xSmall ... .xxxLarge)
         .animation(reduceMotion ? nil : Motion.spring, value: viewModel.isViewingCurrentMonth)
     }
 
@@ -1060,12 +1085,20 @@ struct ArchiveView: View {
         } label: {
             Text(label)
                 .monoLabelStyle(size: 10)
-                .foregroundColor(isSelected ? DSColor.onAmber : DSColor.inkSubtle)
+                // The inactive segment is still an available view switch,
+                // not disabled chrome. Keep it quiet, but above the AA floor
+                // used for small semantic labels on glass surfaces.
+                .foregroundColor(isSelected ? DSColor.onAmber : DSColor.inkTertiaryAA)
                 .padding(.horizontal, DSSpacing.md)
                 .padding(.vertical, 6)
                 .background(isSelected ? DSColor.amberDeep : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(NSLocalizedString(
+            label == "CAL" ? "archive.mode.calendar" : "archive.mode.list",
+            comment: "Archive view mode"
+        ))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     // MARK: - Calendar Grid
@@ -1120,6 +1153,10 @@ struct ArchiveView: View {
         // #771: month calendar grid → glass engine (.panel). Engine owns rim.
         .dpGlass(.panel, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // Calendar geometry must remain seven equal columns. Date glyphs and
+        // the density legend are chrome with full VoiceOver labels, so cap
+        // them before they inflate the grid beyond the viewport.
+        .dynamicTypeSize(.xSmall ... .large)
     }
 
     /// 日历单元格的三态分类（US-006）。
@@ -1159,19 +1196,33 @@ struct ArchiveView: View {
             }()
 
             let textColor: Color = {
-                if let d = density { return d.textColor }
+                // A compiled-only day has `density == .empty` but still uses
+                // the deep archival fill below. Let file state choose its
+                // foreground in that case; dark ink on amberDeep was ~1.5:1.
+                if let d = density, d != .empty { return d.textColor }
                 switch data {
                 // `compiled` cell fills with amberDeep — onAmber keeps the
                 // foreground legible in both light and dark schemes.
                 case .compiled: return DSColor.onAmber
                 case .rawOnly:  return DSColor.inkPrimary
-                case .none:     return DSColor.inkSubtle
+                // Every date is a tappable destination. `inkSubtle` is a
+                // disabled/decorative token and fell below the small-text AA
+                // floor on the warm glass tile; use the quiet semantic token.
+                case .none:     return DSColor.inkTertiaryAA
                 }
             }()
 
-            // Today dot sits on the amber today-cell fill — onAmber instead
-            // of pure white so dark mode keeps the warm-cream language.
-            let dotColor: Color = isToday ? DSColor.onAmber : DSColor.accentOnBg
+            // Match the raw-entry marker to the *actual* tile fill. Today can
+            // be a low-density tan tile, where the old near-white dot nearly
+            // disappeared; reserve onAmber for genuinely dark tiles.
+            let usesDarkFill: Bool = {
+                if let density, density != .empty { return density == .high }
+                switch data {
+                case .compiled: return true
+                case .rawOnly, .none: return false
+                }
+            }()
+            let dotColor: Color = usesDarkFill ? DSColor.onAmber : DSColor.accentOnBg
 
             Button(action: {
                 Haptics.tapConfirm()
@@ -1405,7 +1456,7 @@ struct ArchiveView: View {
         }) {
             Text(filter.localizedLabel)
                 .monoLabelStyle(size: 10)
-                .foregroundColor(isSelected ? Color.white : DSColor.inkSubtle)
+                .foregroundColor(isSelected ? Color.white : DSColor.inkTertiaryAA)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(isSelected ? DSColor.amberDeep : DSColor.glassLo, in: Capsule())

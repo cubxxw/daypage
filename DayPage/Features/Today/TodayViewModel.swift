@@ -240,6 +240,17 @@ final class TodayViewModel: ObservableObject {
     /// The most recently deleted memo; non-nil while the undo pill is visible.
     @Published var lastDeletedMemo: Memo? = nil
 
+    /// Everything required to reverse the latest optimistic submission. Keep
+    /// this private so the UI cannot accidentally remove a card without also
+    /// restoring its staged location and attachments.
+    private struct SubmissionUndoPayload {
+        let memo: Memo
+        let attachments: [PendingAttachment]
+        let location: Memo.Location?
+        let vaultRoot: URL
+    }
+    private var submissionUndoPayload: SubmissionUndoPayload?
+
     // MARK: Private
 
     private var date: Date
@@ -257,6 +268,7 @@ final class TodayViewModel: ObservableObject {
     private var cameraPhotoTask: Task<Void, Never>?
     private var submitTask: Task<Void, Never>?
     private var submitMemoTask: Task<Void, Never>?
+    private var submissionUndoTask: Task<Void, Never>?
     private var locationTask: Task<Void, Never>?
     private var compilationTask: Task<Void, Never>?
     private var deleteUndoTask: Task<Void, Never>?
@@ -280,6 +292,7 @@ final class TodayViewModel: ObservableObject {
         cameraPhotoTask?.cancel()
         submitTask?.cancel()
         submitMemoTask?.cancel()
+        submissionUndoTask?.cancel()
         locationTask?.cancel()
         compilationTask?.cancel()
         deleteUndoTask?.cancel()
@@ -377,6 +390,9 @@ final class TodayViewModel: ObservableObject {
     /// therefore cannot race with `append()`. If the write fails, the UI
     /// state is rolled back and an error is surfaced.
     func deleteMemo(_ memo: Memo) {
+        if submissionUndoPayload?.memo.id == memo.id {
+            submissionUndoPayload = nil
+        }
         let previous = memos
         let remaining = memos.filter { $0.id != memo.id }
         withAnimation(Motion.rise) {
@@ -882,6 +898,10 @@ final class TodayViewModel: ObservableObject {
         submitError = nil
 
         let userSetLocation = pendingLocation
+        // Capture the authoritative Vault for the whole submission. The
+        // locator can legitimately hot-swap from local to iCloud while the
+        // detached append is running; one memo must never straddle roots.
+        let submissionVaultRoot = VaultInitializer.vaultURL
 
         // --- Build the memo synchronously, from data already in hand ---
 
@@ -940,6 +960,16 @@ final class TodayViewModel: ObservableObject {
             body: trimmed
         )
 
+        // Capture the exact pre-submit state before the optimistic clear. The
+        // five-second confirmation pill can now perform a real undo instead of
+        // merely copying the text back while leaving a duplicate memo behind.
+        submissionUndoPayload = SubmissionUndoPayload(
+            memo: memo,
+            attachments: snapshotAttachments,
+            location: userSetLocation,
+            vaultRoot: submissionVaultRoot
+        )
+
         // Persist an inflight record BEFORE the durable append is scheduled. If
         // the app is killed in the (now tiny, await-free) window between the
         // optimistic insert and the disk write, this on-disk record lets the
@@ -986,7 +1016,7 @@ final class TodayViewModel: ObservableObject {
             // failure is surfaced as a plain String so no Error existential
             // crosses the actor boundary.
             let writeErrorMessage: String? = await Task.detached(priority: .userInitiated) { () -> String? in
-                do { try RawStorage.append(memo); return nil }
+                do { try RawStorage.append(memo, vaultRoot: submissionVaultRoot); return nil }
                 catch { return error.localizedDescription }
             }.value
 
@@ -999,15 +1029,90 @@ final class TodayViewModel: ObservableObject {
                 }
                 self.submitError = String(format: NSLocalizedString("error.memo.save_failed", comment: ""), writeErrorMessage)
                 if !trimmed.isEmpty { self.lastFailedBody = trimmed }
+                if self.submissionUndoPayload?.memo.id == memo.id {
+                    self.submissionUndoPayload = nil
+                }
                 Haptics.warn()
                 return
             }
 
             InflightDraftStore.dequeue(inflightURL)
-            // Chase the slow, optional GPS + weather signals only now that the
-            // memo is safely on disk.
-            await self.enrichMetadata(for: memo)
+            // Durability is complete. Start slow, optional enrichment as a
+            // separate best-effort task so a user pressing Undo never waits on
+            // GPS or weather before the exact memo can be removed from disk.
+            Task { @MainActor [weak self] in
+                await self?.enrichMetadata(for: memo, vaultRoot: submissionVaultRoot)
+            }
         }
+    }
+
+    /// Reverses the latest submit as one product action: remove its optimistic
+    /// card now, restore staged metadata, then atomically remove the exact memo
+    /// from disk after its in-flight append/enrichment finishes. `mutate` is
+    /// keyed by id, so later memos can never be clobbered by this undo.
+    @discardableResult
+    func undoLastSubmission() -> String? {
+        guard let payload = submissionUndoPayload else { return nil }
+        submissionUndoPayload = nil
+
+        withAnimation(Motion.rise) {
+            memos.removeAll { $0.id == payload.memo.id }
+        }
+
+        let restoredIDs = Set(payload.attachments.map(\.id))
+        let newerAttachments = pendingAttachments.filter { !restoredIDs.contains($0.id) }
+        pendingAttachments = payload.attachments + newerAttachments
+        if pendingLocation == nil {
+            pendingLocation = payload.location
+        }
+
+        let persistenceTask = submitMemoTask
+        let memoID = payload.memo.id
+        let memoDate = payload.memo.created
+        let memoVaultRoot = payload.vaultRoot
+        submissionUndoTask = Task { @MainActor [weak self] in
+            // Wait for the durable append so removal is ordered after it.
+            // Optional metadata enrichment runs separately and safely aborts
+            // when this memo id is no longer present.
+            await persistenceTask?.value
+            let failure: String? = await Task.detached(priority: .userInitiated) {
+                do {
+                    try RawStorage.mutate(for: memoDate, vaultRoot: memoVaultRoot) { current in
+                        current.filter { $0.id != memoID }
+                    }
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }.value
+            if let failure, let self {
+                self.submitError = String(
+                    format: NSLocalizedString("error.memo.undo_failed", comment: ""),
+                    failure
+                )
+                Haptics.warn()
+            }
+        }
+
+        return payload.memo.body
+    }
+
+    /// Await the latest disk-side submission undo. Primarily useful to make
+    /// integration tests deterministic; normal UI remains optimistic.
+    func waitForSubmissionUndo() async {
+        await submissionUndoTask?.value
+    }
+
+    /// Await the latest durable append without waiting for optional location
+    /// or weather enrichment. Keeps storage integration tests isolated from
+    /// the next test's temporary vault.
+    func waitForSubmissionPersistence() async {
+        await submitMemoTask?.value
+    }
+
+    /// Ends the five-second submit-undo window without changing persisted data.
+    func clearLastSubmissionUndo() {
+        submissionUndoPayload = nil
     }
 
     /// Fills in the slow, optional GPS + weather signals AFTER a memo is already
@@ -1016,7 +1121,7 @@ final class TodayViewModel: ObservableObject {
     /// left off. The raw file is patched in place via `RawStorage.mutate` (which
     /// runs on the write queue, so it can't clobber a concurrent append/rewrite)
     /// and the resolved values crossfade into the on-screen card.
-    private func enrichMetadata(for memo: Memo) async {
+    private func enrichMetadata(for memo: Memo, vaultRoot: URL) async {
         // 1. Resolve a live GPS fix only when we don't already have coordinates
         //    (user pin / photo EXIF already supplied them at commit time).
         let needsLocation = memo.location?.lat == nil
@@ -1038,7 +1143,7 @@ final class TodayViewModel: ObservableObject {
         let createdDate = memo.created
         let locationToWrite = locationChanged ? resolvedLocation : nil
         Task.detached(priority: .utility) {
-            try? RawStorage.mutate(for: createdDate) { current in
+            try? RawStorage.mutate(for: createdDate, vaultRoot: vaultRoot) { current in
                 guard let idx = current.firstIndex(where: { $0.id == memoID }) else { return nil }
                 var updated = current
                 if let loc = locationToWrite { updated[idx].location = loc }

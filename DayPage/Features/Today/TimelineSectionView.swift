@@ -87,12 +87,11 @@ struct TimelineSectionView: View {
         }
     }
 
-    /// Right mono caption — "BY DAY · N". app.jsx:598-601, 614.
-    /// Pure mono-English, matching the untranslated MEMOS/WORDS row labels
-    /// (FINDING-010 convention) — no mixed-script "N 条" tail.
+    /// Right mono caption — localized as a compact structural label so the
+    /// museum treatment remains intact without mixing languages in Chinese.
     private var headerSub: String {
         let n = section.days.count
-        return "BY DAY · \(n)"
+        return String(format: NSLocalizedString("today.timeline.by_day", comment: "Timeline section day count"), n)
     }
 }
 

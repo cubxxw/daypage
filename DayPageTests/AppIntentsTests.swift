@@ -85,6 +85,22 @@ struct AppIntentsTests {
 
     // MARK: - AppNavigationModel deep-link state
 
+    @Test func qaSelectedTab_isResolvedBeforePersistentHostsMount() {
+        #expect(AppNavigationModel.initialTab(arguments: ["DayPage", "-qaSelectedTab", "archive"]) == .archive)
+        #expect(AppNavigationModel.initialTab(arguments: ["DayPage", "-qaSelectedTab", "graph"]) == .graph)
+        #expect(AppNavigationModel.initialTab(arguments: ["DayPage", "-qaSelectedTab", "today"]) == .today)
+    }
+
+    @Test func qaArchiveDate_launchContractRemainsAvailable() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("DayPage/App/AppNavigationModel.swift"),
+            encoding: .utf8
+        )
+        #expect(source.contains("-qaArchiveDate"))
+        #expect(source.contains("pendingArchiveDate = date"))
+    }
+
     @Test func openArchive_setsPendingDateAndSwitchesTab() {
         let nav = AppNavigationModel()
         nav.selectedTab = .today

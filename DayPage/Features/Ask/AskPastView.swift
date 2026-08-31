@@ -33,6 +33,7 @@ struct AskPastView: View {
     /// 不允许再把用户拽回底部。
     @State private var didInitialLanding = false
     @FocusState private var inputFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -43,25 +44,25 @@ struct AskPastView: View {
                 inputBar
             }
             .background(DSColor.bgWarm.ignoresSafeArea())
-            .navigationTitle("和过去对话")
+            .navigationTitle(NSLocalizedString("ask.title", comment: "Ask Past screen title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("关闭", action: onClose)
+                    Button(NSLocalizedString("common.close", comment: "Close"), action: onClose)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     // /clear 语义：封口当前会话——它以胶囊形态沉入长河，
                     // 输入框归零。spring 让「封存」这件事被看见。
                     Button {
                         Haptics.soft()
-                        withAnimation(Motion.spring) {
+                        withAnimation(Motion.respectReduceMotion(Motion.spring)) {
                             chat.reset()
                             river.refresh(excluding: nil)
                         }
                         draft = ""
                     } label: { Image(systemName: "square.and.pencil") }
                         .disabled(chat.turns.isEmpty)
-                        .accessibilityLabel("新对话")
+                        .accessibilityLabel(NSLocalizedString("ask.new_chat", comment: "Start a new Ask Past conversation"))
                 }
             }
             .sheet(isPresented: Binding(
@@ -82,7 +83,8 @@ struct AskPastView: View {
             river.refresh(excluding: chat.sessionRef?.id)
             if let seed = seedQuestion?.trimmingCharacters(in: .whitespacesAndNewlines), !seed.isEmpty {
                 await chat.ask(seed)
-            } else if chat.turns.isEmpty {
+            } else if chat.turns.isEmpty,
+                      !ProcessInfo.processInfo.arguments.contains("-qaOpenAskPast") {
                 inputFocused = true
             }
         }
@@ -97,7 +99,7 @@ struct AskPastView: View {
                     // 长河：封存会话的沉积层。上滑即历史；点开原位回放，
                     // 「继续这段对话」把整段交还给活跃会话。
                     ChatRiverSection(river: river) { loaded in
-                        withAnimation(Motion.spring) {
+                        withAnimation(Motion.respectReduceMotion(Motion.spring)) {
                             chat.resume(loaded)
                             river.exitSelection()
                             river.refresh(excluding: loaded.summary.id)
@@ -210,17 +212,17 @@ struct AskPastView: View {
                 HStack(spacing: 6) {
                     Image(systemName: pinned ? "checkmark.circle.fill" : "text.badge.plus")
                         .font(.system(size: 13, weight: .semibold))
-                    Text(pinned ? "已存入今日" : "存入今日日记")
+                    Text(NSLocalizedString(pinned ? "ask.pin.done" : "ask.pin", comment: "Ask Past pin answer action"))
                         .font(DSType.labelSM)
                 }
                 .foregroundColor(pinned ? DSColor.successGreen : DSColor.accentOnBg)
             }
             .buttonStyle(.plain)
             .disabled(pinned)
-            .accessibilityLabel(pinned ? "已存入今日日记" : "把这条回答存入今日日记")
+            .accessibilityLabel(NSLocalizedString(pinned ? "ask.pin.done.a11y" : "ask.pin.a11y", comment: "Ask Past pin answer accessibility label"))
 
             if justPinnedTurnID == turn.id {
-                Text("✓ 已加入今日 timeline")
+                Text(NSLocalizedString("chat.pin.toast", comment: "Confirmation after saving an answer to today"))
                     .font(DSType.labelSM)
                     .foregroundColor(DSColor.inkMuted)
                     .transition(.opacity)
@@ -232,7 +234,7 @@ struct AskPastView: View {
     /// 引用来源 chips：把检索到的 memo 日期与实体显式呈现。
     private func sourceChips(_ context: RetrievedContext) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("依据")
+            Text(NSLocalizedString("ask.sources", comment: "Ask Past sources heading"))
                 .font(DSType.labelSM)
                 .foregroundColor(DSColor.inkMuted)
             FlowChips(items: chipLabels(from: context))
@@ -252,10 +254,10 @@ struct AskPastView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("问问你的过去")
+            Text(NSLocalizedString("ask.empty.title", comment: "Ask Past empty state title"))
                 .font(DSType.serifBody20)
                 .foregroundColor(DSColor.inkPrimary)
-            Text("基于你记录过的内容回答，并标注依据来源。试试：")
+            Text(NSLocalizedString("ask.empty.body", comment: "Ask Past empty state guidance"))
                 .font(DSType.bodySM)
                 .foregroundColor(DSColor.inkSecondary)
             ForEach(Self.examplePrompts, id: \.self) { example in
@@ -287,7 +289,7 @@ struct AskPastView: View {
     private var respondingIndicator: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text("正在翻看你的记录…")
+            Text(NSLocalizedString("ask.responding", comment: "Ask Past response progress"))
                 .font(DSType.bodySM)
                 .foregroundColor(DSColor.inkSecondary)
         }
@@ -308,7 +310,7 @@ struct AskPastView: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("问问你的过去…", text: $draft, axis: .vertical)
+            TextField(NSLocalizedString("ask.input.placeholder", comment: "Ask Past input placeholder"), text: $draft, axis: .vertical)
                 .font(DSType.bodySM)
                 .focused($inputFocused)
                 .lineLimit(1...4)
@@ -330,14 +332,16 @@ struct AskPastView: View {
                     .foregroundColor(isRecordingVoice ? DSColor.error : DSColor.inkMuted)
                     // Simple recording pulse — matches the composer's mic
                     // affordance without depending on iOS 17's symbolEffect.
-                    .scaleEffect(isRecordingVoice ? 1.08 : 1.0)
+                    .scaleEffect(!reduceMotion && isRecordingVoice ? 1.08 : 1.0)
                     .animation(
-                        isRecordingVoice ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
+                        !reduceMotion && isRecordingVoice
+                            ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
+                            : nil,
                         value: isRecordingVoice
                     )
             }
             .disabled(chat.isResponding)
-            .accessibilityLabel(isRecordingVoice ? "停止录音并转录" : "语音提问")
+            .accessibilityLabel(NSLocalizedString(isRecordingVoice ? "ask.voice.stop" : "ask.voice.start", comment: "Ask Past voice input accessibility label"))
 
             Button(action: submit) {
                 Image(systemName: "arrow.up.circle.fill")
@@ -345,7 +349,7 @@ struct AskPastView: View {
                     .foregroundColor(canSend ? DSColor.accentOnBg : DSColor.inkSubtle)
             }
             .disabled(!canSend)
-            .accessibilityLabel("发送")
+            .accessibilityLabel(NSLocalizedString("common.send", comment: "Send"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -417,11 +421,13 @@ struct AskPastView: View {
 
     // MARK: - Static
 
-    static let examplePrompts = [
-        "我最近的情绪有什么变化？",
-        "去年这个时候我在做什么？",
-        "我提到最多的地方是哪里？"
-    ]
+    static var examplePrompts: [String] {
+        [
+            NSLocalizedString("ask.example.mood", comment: "Ask Past example about mood"),
+            NSLocalizedString("ask.example.last_year", comment: "Ask Past example about last year"),
+            NSLocalizedString("ask.example.place", comment: "Ask Past example about places")
+        ]
+    }
 }
 
 // MARK: - FlowChips

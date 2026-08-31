@@ -159,14 +159,11 @@ struct TodayViewModelTests {
         #expect(vm.isSubmitting == false)
         #expect(vm.pendingAttachments.isEmpty)
 
-        // The durable append runs off-main; poll until the raw file reflects it.
-        let deadline = Date().addingTimeInterval(5)
-        var persisted: [Memo] = []
-        while Date() < deadline {
-            persisted = (try? RawStorage.read(for: Date())) ?? []
-            if !persisted.isEmpty { break }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
+        // The durable append runs off-main; await its explicit completion so
+        // the next test cannot switch the global isolated-vault override while
+        // this task is still writing.
+        await vm.waitForSubmissionPersistence()
+        let persisted = (try? RawStorage.read(for: Date(), vaultRoot: tempDir)) ?? []
         #expect(persisted.contains { $0.body == "optimistic hello" })
     }
 
@@ -176,6 +173,24 @@ struct TodayViewModelTests {
         vm.submitCombinedMemo(body: "   \n  ")
         #expect(vm.memos.isEmpty)
         #expect(vm.isSubmitting == false)
+    }
+
+    @Test func undoLastSubmission_removesMemoAndRestoresDraftPayload() async throws {
+        defer { cleanup() }
+
+        vm.submitCombinedMemo(body: "bring this back")
+        #expect(vm.memos.count == 1)
+
+        let restoredBody = vm.undoLastSubmission()
+        #expect(restoredBody == "bring this back")
+        #expect(vm.memos.isEmpty, "Undo must remove the optimistic card, not merely copy its text")
+
+        // The undo is ordered after the in-flight append, then removes the
+        // exact memo id atomically. Await that storage pipeline before reading.
+        await vm.waitForSubmissionUndo()
+        let persisted = (try? RawStorage.read(for: Date(), vaultRoot: tempDir)) ?? []
+
+        #expect(persisted.isEmpty, "Undo send must remove the committed memo from disk")
     }
 
     // MARK: - signalCount

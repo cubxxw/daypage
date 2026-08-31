@@ -36,6 +36,7 @@ struct MemoDetailHost: View {
                     backLabel: reference.source.backLabel,
                     onUpdateBody: updateBody,
                     onDelete: deleteMemo,
+                    onRestore: restoreMemo,
                     onMemoChanged: memoDidChange
                 )
 
@@ -44,6 +45,7 @@ struct MemoDetailHost: View {
             }
         }
         .task(id: reference) { await load() }
+        .bannerOverlay(topInset: 8)
     }
 
     private func load() async {
@@ -83,6 +85,10 @@ struct MemoDetailHost: View {
 
     private func deleteMemo() async throws {
         try await MemoRecordStore.shared.delete(id: reference.id, day: reference.day)
+    }
+
+    private func restoreMemo(_ memo: Memo) async throws {
+        try await MemoRecordStore.shared.restore(memo, day: reference.day)
     }
 
     private func memoDidChange(_ memo: Memo) {

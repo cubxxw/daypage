@@ -755,6 +755,7 @@ final class CaptureReminderService: ObservableObject {
         case .denied:
             return false
         case .notDetermined:
+            UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasRequestedNotifications)
             let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
             return granted
         @unknown default:
@@ -861,9 +862,12 @@ enum ReminderPreset: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .once:   return "每天一次"
-        case .thrice: return "早中晚"
-        case .custom: return "自定义"
+        case .once:
+            return NSLocalizedString("settings.reminder.preset.once", comment: "One reminder each day")
+        case .thrice:
+            return NSLocalizedString("settings.reminder.preset.thrice", comment: "Morning, noon, and evening")
+        case .custom:
+            return NSLocalizedString("settings.reminder.preset.custom", comment: "Custom reminder schedule")
         }
     }
 }

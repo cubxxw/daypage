@@ -198,11 +198,42 @@ final class AppNavigationModel: ObservableObject {
     /// and editing cannot diverge between entry paths.
     @Published var systemActionPresentation: SystemActionPresentation?
 
-    init() {}
+    init() {
+        #if DEBUG
+        // Direct pre-mount route for screenshot/E2E runs. `simctl openurl`
+        // presents an OS confirmation alert and cannot exercise the in-app
+        // destination unattended, while this uses Archive's normal pending
+        // date consumer and NavigationStack push.
+        let args = ProcessInfo.processInfo.arguments
+        if let index = args.firstIndex(of: "-qaArchiveDate"),
+           args.indices.contains(index + 1) {
+            let date = args[index + 1]
+            if date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+                selectedTab = .archive
+                pendingArchiveDate = date
+            }
+        }
+        #endif
+    }
 
     private static func initialTab() -> AppTab {
-        let args = ProcessInfo.processInfo.arguments
-        guard let index = args.firstIndex(of: "-selectedTab"),
+        initialTab(arguments: ProcessInfo.processInfo.arguments)
+    }
+
+    /// Pure launch-routing helper so the pre-mount QA path stays covered by
+    /// unit tests instead of relying on a screenshot to reveal lifecycle races.
+    static func initialTab(arguments args: [String]) -> AppTab {
+        #if DEBUG
+        // QA screenshots need the destination selected before persistent tab
+        // hosts mount. Switching in RootView.onAppear made Archive appear while
+        // its first `isActive` lifecycle value remained false, so its month
+        // scan never ran and populated fixtures looked empty.
+        let index = args.firstIndex(of: "-qaSelectedTab")
+            ?? args.firstIndex(of: "-selectedTab")
+        #else
+        let index = args.firstIndex(of: "-selectedTab")
+        #endif
+        guard let index,
               args.indices.contains(index + 1) else {
             return .today
         }

@@ -208,7 +208,7 @@ private struct MemoDetailFilesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            memoDetailSectionLabel("Files")
+            memoDetailSectionLabel(NSLocalizedString("memo.detail.section.files", comment: ""))
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
                     if index > 0 {

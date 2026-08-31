@@ -45,8 +45,8 @@ struct InlineMicButton: View {
         // long-press lands on the enlarged area (gesture attaches after).
         .minTapTarget()
         .gesture(longPressGesture)
-        .accessibilityLabel(isRecording ? "松开停止录音" : "长按录音")
-        .accessibilityHint("长按开始录音，松手后自动转写为文字")
+        .accessibilityLabel(NSLocalizedString(isRecording ? "daily.mic.stop" : "daily.mic.start", comment: "Inline mic accessibility label"))
+        .accessibilityHint(NSLocalizedString("daily.mic.hint", comment: "Inline mic accessibility hint"))
     }
 
     // MARK: - Gesture

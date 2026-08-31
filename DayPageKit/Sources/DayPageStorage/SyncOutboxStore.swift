@@ -93,7 +93,11 @@ public enum SyncOutboxStore {
     private static let queue = DispatchQueue(label: "com.daypage.sync-outbox")
 
     public static var outboxURL: URL {
-        VaultInitializer.vaultURL
+        outboxURL(for: VaultInitializer.vaultURL)
+    }
+
+    public static func outboxURL(for vaultRoot: URL) -> URL {
+        vaultRoot
             .appendingPathComponent("_agent", isDirectory: true)
             .appendingPathComponent("sync", isDirectory: true)
             .appendingPathComponent("outbox-v1.json")
@@ -149,10 +153,25 @@ public enum SyncOutboxStore {
         vaultPath: String,
         modifiedAt: Date = Date()
     ) throws {
+        try recordUpsert(
+            memo,
+            vaultPath: vaultPath,
+            vaultRoot: VaultInitializer.vaultURL,
+            modifiedAt: modifiedAt
+        )
+    }
+
+    public static func recordUpsert(
+        _ memo: Memo,
+        vaultPath: String,
+        vaultRoot: URL,
+        modifiedAt: Date = Date()
+    ) throws {
         try queue.sync {
-            var state = try load()
+            let url = outboxURL(for: vaultRoot)
+            var state = try load(from: url)
             recordUpsert(memo, vaultPath: vaultPath, modifiedAt: modifiedAt, state: &state)
-            try save(state)
+            try save(state, to: url)
         }
     }
 
@@ -162,8 +181,25 @@ public enum SyncOutboxStore {
         vaultPath: String,
         modifiedAt: Date = Date()
     ) throws {
+        try recordChanges(
+            before: before,
+            after: after,
+            vaultPath: vaultPath,
+            vaultRoot: VaultInitializer.vaultURL,
+            modifiedAt: modifiedAt
+        )
+    }
+
+    public static func recordChanges(
+        before: [Memo],
+        after: [Memo],
+        vaultPath: String,
+        vaultRoot: URL,
+        modifiedAt: Date = Date()
+    ) throws {
         try queue.sync {
-            var state = try load()
+            let url = outboxURL(for: vaultRoot)
+            var state = try load(from: url)
             let afterIDs = Set(after.map(\.id))
             for memo in after {
                 recordUpsert(memo, vaultPath: vaultPath, modifiedAt: modifiedAt, state: &state)
@@ -171,7 +207,7 @@ public enum SyncOutboxStore {
             for memo in before where !afterIDs.contains(memo.id) {
                 recordDelete(memoID: memo.id, modifiedAt: modifiedAt, state: &state)
             }
-            try save(state)
+            try save(state, to: url)
         }
     }
 
@@ -286,8 +322,8 @@ public enum SyncOutboxStore {
         ))
     }
 
-    private static func load() throws -> State {
-        let url = outboxURL
+    private static func load(from url: URL? = nil) throws -> State {
+        let url = url ?? outboxURL
         guard FileManager.default.fileExists(atPath: url.path) else {
             return State(deviceID: UUID().uuidString.lowercased())
         }
@@ -301,8 +337,8 @@ public enum SyncOutboxStore {
         return state
     }
 
-    private static func save(_ state: State) throws {
-        let url = outboxURL
+    private static func save(_ state: State, to url: URL? = nil) throws {
+        let url = url ?? outboxURL
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true

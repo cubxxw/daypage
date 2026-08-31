@@ -66,6 +66,8 @@ struct MemoDetailBodySection: View {
             "memo.detail.a11y.tap_to_edit", value: "双击以编辑正文",
             comment: "Detail view — body tap-to-edit VoiceOver hint"
         ))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { startEditing() }
     }
 
     private var editor: some View {
@@ -99,6 +101,8 @@ struct MemoDetailBodySection: View {
                     .foregroundColor(DSColor.inkMuted)
                 }
                 .buttonStyle(.plain)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
 
                 Spacer()
 
@@ -117,7 +121,7 @@ struct MemoDetailBodySection: View {
                 }
                 .foregroundColor(DSColor.accentOnBg)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .frame(minHeight: 44)
                 .amberPillSurface(Capsule())
                 .buttonStyle(.plain)
                 .disabled(isSaving || editedBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

@@ -9,9 +9,10 @@ appId: com.daypage.app
       hasRequestedNotifications: "true"
 - takeScreenshot: launch
 
-# 等待 Today View 加载（品牌文字 DAYPAGE 可见）
+# 等待 Today View 的真实导航入口可交互。
 - extendedWaitUntil:
-    visible: "DAYPAGE"
+    visible:
+      id: "sidebar-menu-button"
     timeout: 10000
 
 - takeScreenshot: today_view_loaded
@@ -37,16 +38,19 @@ appId: com.daypage.app
 - tapOn:
     id: "write-sheet-input"
 
-- inputText: "UI测试：今天天气很好，适合写代码"
+- inputText: "E2E note: the capture flow feels calm and direct"
 - takeScreenshot: after_input
 
 # Verify the typed text is visible inside the WriteSheet
-- assertVisible: "UI测试：今天天气很好，适合写代码"
+- assertVisible: "E2E note: the capture flow feels calm and direct"
 - takeScreenshot: text_visible_in_input
 
 # Save & dismiss the sheet (accessibilityIdentifier="write-sheet-save")
 - tapOn:
     id: "write-sheet-save"
-    optional: true
 
+- extendedWaitUntil:
+    # Timeline cards intentionally expose a contextual VoiceOver label.
+    visible: "Memo: E2E note: the capture flow feels calm and direct"
+    timeout: 5000
 - takeScreenshot: after_send

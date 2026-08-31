@@ -468,6 +468,8 @@ struct SearchView: View {
                             .font(.system(size: 14))
                             .foregroundColor(DSColor.inkMuted)
                             .scaleEffect(clearPressed ? 0.8 : 1.0)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(NSLocalizedString("search.a11y.clearSearch", comment: "Accessibility label for the clear search button"))
@@ -488,6 +490,8 @@ struct SearchView: View {
                 Image(systemName: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     .font(.system(size: 20))
                     .foregroundColor(filters.isActive ? DSColor.accentOnBg : DSColor.inkMuted)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(NSLocalizedString("search.a11y.filter", comment: "Accessibility label for the filter button"))
@@ -498,6 +502,8 @@ struct SearchView: View {
                 Text(NSLocalizedString("search.cancel", comment: "Cancel button in search bar"))
                     .monoLabelStyle(size: 11)
                     .foregroundColor(DSColor.accentOnBg)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(NSLocalizedString("search.a11y.cancelSearch", comment: "Accessibility label for the cancel search button"))
@@ -778,7 +784,9 @@ struct SearchView: View {
                                 .foregroundColor(DSColor.inkMuted)
                             Text(NSLocalizedString("search.empty.hint", comment: "Empty search state hint text"))
                                 .monoLabelStyle(size: 10)
-                                .foregroundColor(DSColor.outline)
+                                // This explains the searchable scope; it is
+                                // semantic helper copy, not a decorative rule.
+                                .foregroundColor(DSColor.inkTertiaryAA)
                         }
 
                         VStack(alignment: .leading, spacing: 10) {
@@ -1055,7 +1063,7 @@ struct SearchView: View {
                     Section {
                         ForEach(group.results) { result in
                             let appeared = appearedIDs.contains(result.id)
-                            resultRow(result)
+                            resultRow(result, showsDate: group.section != .today)
                                 // Hairline rows sit flush (the row draws its
                                 // own 0.5pt bottom rule), so the per-card bottom
                                 // gap is gone; horizontal inset relaxes from xl
@@ -1143,7 +1151,7 @@ struct SearchView: View {
         .accessibilityHint(isActive ? NSLocalizedString("search.a11y.kindChip.deselect.hint", comment: "Accessibility hint to deselect kind filter") : NSLocalizedString("search.a11y.kindChip.select.hint", comment: "Accessibility hint to select kind filter"))
     }
 
-    private func resultRow(_ result: SearchResult) -> some View {
+    private func resultRow(_ result: SearchResult, showsDate: Bool) -> some View {
         let badgeLabel = result.isDailyPageCompiled
             ? NSLocalizedString("search.badge.compiled", comment: "Result badge: day has a compiled daily page")
             : NSLocalizedString("search.badge.raw", comment: "Result badge: day has raw memos only")
@@ -1161,14 +1169,16 @@ struct SearchView: View {
             onSelect(result.dateString)
         }) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(formatDate(result.dateString))
-                        .font(DSFonts.serif(size: 15, weight: .semibold, relativeTo: .subheadline))
-                        .foregroundColor(DSColor.inkPrimary)
-                    Spacer()
-                    Text(badgeLabel)
-                        .monoLabelStyle(size: 9)
-                        .foregroundColor(result.isDailyPageCompiled ? DSColor.accentOnBg : DSColor.inkMuted)
+                if showsDate {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(formatDate(result.dateString))
+                            .font(DSFonts.serif(size: 15, weight: .semibold, relativeTo: .subheadline))
+                            .foregroundColor(DSColor.inkPrimary)
+                        Spacer()
+                        Text(badgeLabel)
+                            .monoLabelStyle(size: 9)
+                            .foregroundColor(result.isDailyPageCompiled ? DSColor.accentOnBg : DSColor.inkMuted)
+                    }
                 }
 
                 highlightedSnippet(result.snippet, keyword: vm.query)
@@ -1190,6 +1200,13 @@ struct SearchView: View {
                         Text(type.displayName.uppercased())
                             .monoLabelStyle(size: 10)
                             .foregroundColor(DSColor.inkMuted)
+                    }
+
+                    if !showsDate {
+                        Spacer()
+                        Text(badgeLabel)
+                            .monoLabelStyle(size: 9)
+                            .foregroundColor(result.isDailyPageCompiled ? DSColor.accentOnBg : DSColor.inkMuted)
                     }
                 }
             }

@@ -32,7 +32,7 @@ struct ScheduleHubView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("schedule.hub.title", value: "调度", comment: "Schedule hub page title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

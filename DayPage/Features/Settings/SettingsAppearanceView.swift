@@ -24,7 +24,7 @@ struct SettingsAppearanceView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.appearance.section", comment: "Appearance page title"))
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -100,7 +100,7 @@ struct SettingsAppearanceView: View {
     /// A miniature memo card that mirrors the real card aesthetic and
     /// re-renders live as the appearance pickers change.
     private var appearancePreviewCard: some View {
-        let accent = appSettings.accentColor.color
+        let accent = DSColor.userAccent(appSettings.accentColor)
         return VStack(alignment: .leading, spacing: DSSpacing.sm) {
             HStack(spacing: 6) {
                 Circle()

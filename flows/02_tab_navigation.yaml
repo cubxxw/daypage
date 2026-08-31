@@ -9,9 +9,10 @@ appId: com.daypage.app
       hasRequestedNotifications: "true"
 - takeScreenshot: launch
 
-# 等待 Today View 加载（DAYPAGE 可见）
+# 等待 Today View 的真实导航入口。
 - extendedWaitUntil:
-    visible: "DAYPAGE"
+    visible:
+      id: "sidebar-menu-button"
     timeout: 10000
 - takeScreenshot: today_view
 
@@ -26,13 +27,13 @@ appId: com.daypage.app
 # `Archive|归档` covers both. `forceLocale` is not bridged into the app
 # yet (only `hasOnboarded`/`authSkipped` are), so we can't pin to en.
 - tapOn:
-    text: "Archive|归档"
+    id: "sidebar.tab.archive"
 - waitForAnimationToEnd
 - takeScreenshot: archive_view
 
 # 验证 Archive View 已显示 — match the header pill in either locale.
 - assertVisible:
-    text: "ARCHIVE|归档"
+    text: "Archive|归档"
 
 # 重新打开侧边栏
 - tapOn:
@@ -42,9 +43,10 @@ appId: com.daypage.app
 
 # 返回 Today View
 - tapOn:
-    text: "Today|今日"
+    id: "sidebar.tab.today"
 - waitForAnimationToEnd
 - takeScreenshot: back_to_today
 
 # 验证回到 Today View
-- assertVisible: "DAYPAGE"
+- assertVisible:
+    id: "sidebar-menu-button"

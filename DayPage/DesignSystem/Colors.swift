@@ -81,6 +81,10 @@ enum DSColor {
     static let inkSecondary  = Color(light: Color(hex: "241B10").opacity(0.75), dark: Color(hex: "F0E8DC").opacity(0.75))
     /// Muted ink — secondary copy.
     static let inkMuted      = Color(light: Color(hex: "241B10").opacity(0.62), dark: Color(hex: "F0E8DC").opacity(0.62))
+    /// Quiet informational ink that still clears AA on light/glass surfaces.
+    /// Use for small tertiary labels; keep `inkSubtle` for disabled content
+    /// and non-semantic decoration.
+    static let inkTertiaryAA = DSTokens.Colors.fgSubtleAa
     /// Subtle ink — tertiary copy, disabled labels.
     static let inkSubtle     = Color(light: Color(hex: "241B10").opacity(0.38), dark: Color(hex: "F0E8DC").opacity(0.38))
     /// Faint ink — separators, decorative strokes.
@@ -129,6 +133,40 @@ enum DSColor {
     /// live accent, letting the whole dock speak one warm language while the
     /// orb stays the row's only saturated voice via its fill.
     static let dockChrome = Color(light: Color(hex: "A8541B"), dark: Color(hex: "D9975A"))
+
+    /// User-selectable accent ink. `AccentColorOption.color` lives in the
+    /// cross-platform services package and is intentionally just a portable
+    /// value; rendering resolves it here so every option keeps AA contrast on
+    /// the app's warm light and dark canvases.
+    static func userAccent(_ option: AccentColorOption) -> Color {
+        switch option {
+        case .amber:
+            return Color(light: Color(hex: "5D3000"), dark: Color(hex: "D9975A"))
+        case .sage:
+            return Color(light: Color(hex: "4A6B4A"), dark: Color(hex: "8FBE7A"))
+        case .slate:
+            return Color(light: Color(hex: "4A5568"), dark: Color(hex: "A8B4C7"))
+        case .rose:
+            return Color(light: Color(hex: "9B4D6B"), dark: Color(hex: "D98AA7"))
+        case .ink:
+            return Color(light: Color(hex: "2D2D2D"), dark: Color(hex: "D8D4CE"))
+        }
+    }
+
+    static func userAccentSoft(_ option: AccentColorOption) -> Color {
+        switch option {
+        case .amber:
+            return Color(light: Color(hex: "F5EDE3"), dark: Color(hex: "2A1F0E"))
+        case .sage:
+            return Color(light: Color(hex: "E8F0E8"), dark: Color(hex: "1B2E18"))
+        case .slate:
+            return Color(light: Color(hex: "E8ECF0"), dark: Color(hex: "202936"))
+        case .rose:
+            return Color(light: Color(hex: "F5E8EE"), dark: Color(hex: "321D25"))
+        case .ink:
+            return Color(light: Color(hex: "EAEAEA"), dark: Color(hex: "2A2927"))
+        }
+    }
 
     // MARK: - Graph category hues (#828)
     //
@@ -241,21 +279,21 @@ enum DSColor {
     /// amber is INK (text, icon, outline) rather than a filled surface —
     /// #5D3000 vanishes against the dark-scheme charcoal background.
     static let accentOnBg = Color(light: Color(hex: "5D3000"), dark: Color(hex: "D9975A"))
-    static let accentAmberHover = Color(hex: "7A3F00")
-    static let accentSoft = Color(hex: "F5EDE3")
-    static let accentBorder = Color(hex: "E8DCCA")
+    static let accentAmberHover = DSTokens.Colors.accentHover
+    static let accentSoft = DSTokens.Colors.accentSoft
+    static let accentBorder = DSTokens.Colors.accentBorder
 
     /// 语义色：成功
-    static let successGreen = Color(hex: "4C7A3F")
-    static let successSoft = Color(hex: "EBF3E5")
+    static let successGreen = DSTokens.Colors.success
+    static let successSoft = DSTokens.Colors.successSoft
 
     /// 语义色：警告
-    static let warningAmber = Color(hex: "A66A00")
-    static let warningSoft = Color(hex: "F8ECD6")
+    static let warningAmber = DSTokens.Colors.warning
+    static let warningSoft = DSTokens.Colors.warningSoft
 
     /// 语义色：错误
-    static let errorRed = Color(hex: "A23A2E")
-    static let errorSoft = Color(hex: "F5E1DC")
+    static let errorRed = DSTokens.Colors.error
+    static let errorSoft = DSTokens.Colors.errorSoft
 
     /// 热力图密度刻度（归档日历 / 侧边栏 16 周热力图）。
     /// Adaptive: in dark scheme the scale inverts perceptually — empty cells

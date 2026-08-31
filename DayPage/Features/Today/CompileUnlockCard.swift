@@ -52,11 +52,11 @@ struct CompileUnlockCard: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(isOneAway ? "再记 1 条，今日成稿就解锁" : "再记 \(remaining) 条解锁今日成稿")
+                Text(String(format: NSLocalizedString(isOneAway ? "compile.unlock.one_away" : "compile.unlock.remaining", comment: "Compilation unlock progress"), remaining))
                     .font(DSFonts.jetBrainsMono(size: 10, relativeTo: .caption2))
                     .tracking(1.2)
                     .foregroundColor(DSColor.accentOnBg)
-                Text("AI 将把今天的碎片连缀成一篇日页。")
+                Text(NSLocalizedString("compile.unlock.body", comment: "Compilation unlock explanation"))
                     .font(.custom("Inter-Regular", size: 13))
                     .foregroundColor(DSColor.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -110,13 +110,13 @@ struct CompileUnlockCard: View {
                 }
                 .pressScale(scale: 0.98, animation: .easeInOut(duration: 0.12))
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("再记 \(remaining) 条解锁今日成稿，已记 \(memoCount) 条")
-                .accessibilityHint("轻点聚焦输入框记录新内容")
+                .accessibilityLabel(String(format: NSLocalizedString("compile.unlock.a11y", comment: "Compilation unlock accessibility label"), remaining, memoCount))
+                .accessibilityHint(NSLocalizedString("compile.unlock.hint", comment: "Compilation unlock accessibility hint"))
                 .accessibilityAddTraits(.isButton)
             } else {
                 cardContent
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("再记 \(remaining) 条解锁今日成稿，已记 \(memoCount) 条")
+                    .accessibilityLabel(String(format: NSLocalizedString("compile.unlock.a11y", comment: "Compilation unlock accessibility label"), remaining, memoCount))
             }
         }
         .onChange(of: memoCount) { newCount in

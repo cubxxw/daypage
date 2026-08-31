@@ -28,7 +28,7 @@ struct SettingsRemindersView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.hub.reminders", comment: "Reminders & notifications page title"))
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -39,17 +39,16 @@ struct SettingsRemindersView: View {
         Section {
             // 提醒的增删改现在归到「调度中心」(侧边栏 › 调度)。这里只留频率、
             // 静音、系统提醒等全局配置 + 一行指引,避免两处都能改造成漂移。
-            HStack {
+            NavigationLink {
+                ScheduleHubView()
+            } label: {
                 SettingsLabel(
-                    title: NSLocalizedString("settings.reminder.hub_hint", value: "在调度中心增删改提醒", comment: "Pointer to schedule hub for CRUD"),
+                    title: NSLocalizedString("settings.reminder.hub_hint", comment: "Pointer to reminder manager"),
                     systemImage: "clock.badge"
                 )
-                Spacer()
-                Image(systemName: "arrow.up.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(DSColor.inkSubtle)
             }
             .accessibilityIdentifier("reminder-hub-hint")
+            .accessibilityHint(NSLocalizedString("settings.reminder.hub_hint.a11y", comment: "Opens reminder manager"))
 
             Picker(
                 NSLocalizedString("settings.reminder.frequency", value: "提醒频率", comment: "Capture reminder frequency preset"),
@@ -131,7 +130,7 @@ struct SettingsRemindersView: View {
                         systemImage: "exclamationmark.triangle"
                     )
                     .font(.caption)
-                    .foregroundColor(DSColor.warnAmber)
+                    .foregroundColor(DSColor.inkTertiaryAA)
                     .accessibilityIdentifier("reminder-alarmkit-denied-hint")
                 }
             }

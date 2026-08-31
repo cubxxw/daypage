@@ -37,32 +37,63 @@ struct SettingsSyncDataView: View {
     @State private var showPurgeAllConfirm = false
 
     var body: some View {
-        List {
-            Group {
-                iCloudSyncSection
-                webSyncSection
-                timeZoneSection
-                dataSection
-                dangerSection
+        ScrollViewReader { proxy in
+            List {
+                Group {
+                    iCloudSyncSection
+                    webSyncSection
+                    timeZoneSection
+                    dataSection
+                    dangerSection
+                        .id("settings-danger")
+                }
+                .listRowBackground(DSColor.surfaceWhite)
             }
-            .listRowBackground(DSColor.surfaceWhite)
-        }
-        .scrollContentBackground(.hidden)
-        .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
-        .appErrorAlert($appError)
-        .navigationTitle(NSLocalizedString("settings.hub.syncdata", comment: "Sync & data page title"))
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { computeVaultSize() }
-        .bannerOverlay()
-        .sheet(isPresented: $showObsidianShareSheet, onDismiss: {
-            obsidianExportURL = nil
-        }) {
-            if let url = obsidianExportURL {
-                ShareSheet(activityItems: [url])
-                    .ignoresSafeArea()
+            .scrollContentBackground(.hidden)
+            .background(DSColor.bgWarm.ignoresSafeArea())
+            .tint(DSColor.accentOnBg)
+            .appErrorAlert($appError)
+            .navigationTitle(NSLocalizedString("settings.hub.syncdata", comment: "Sync & data page title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                computeVaultSize()
+                scrollToQADestination(using: proxy)
+                openQAConfirmationIfRequested()
+            }
+            .bannerOverlay()
+            .sheet(isPresented: $showObsidianShareSheet, onDismiss: {
+                obsidianExportURL = nil
+            }) {
+                if let url = obsidianExportURL {
+                    ShareSheet(activityItems: [url])
+                        .ignoresSafeArea()
+                }
             }
         }
+    }
+
+    private func scrollToQADestination(using proxy: ScrollViewProxy) {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-qaSettingsAnchor"),
+              arguments.indices.contains(flag + 1),
+              arguments[flag + 1].lowercased() == "danger" else { return }
+        DispatchQueue.main.async {
+            proxy.scrollTo("settings-danger", anchor: .bottom)
+        }
+#endif
+    }
+
+    private func openQAConfirmationIfRequested() {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-qaSettingsConfirm"),
+              arguments.indices.contains(flag + 1),
+              arguments[flag + 1].lowercased() == "purge" else { return }
+        DispatchQueue.main.async {
+            showPurgeAllConfirm = true
+        }
+#endif
     }
 
     // MARK: iCloud
@@ -147,9 +178,12 @@ struct SettingsSyncDataView: View {
                 Label(NSLocalizedString("settings.icloud.enable.button", comment: ""), systemImage: "arrow.up.right.square")
                     .font(.caption)
                     .fontWeight(.medium)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.borderedProminent)
+            .tint(DSColor.amberAccent)
+            .controlSize(.regular)
+            .accessibilityHint(NSLocalizedString("settings.icloud.enable.hint", comment: "Leaves DayPage for iOS Settings"))
         }
         .padding(.vertical, DSSpacing.xs)
     }
@@ -260,28 +294,38 @@ struct SettingsSyncDataView: View {
 
     private var webSyncSection: some View {
         Section {
-            HStack {
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
                 SettingsLabel(title: NSLocalizedString("settings.websync.url", comment: "Web address row"), systemImage: "globe")
-                Spacer()
                 TextField("https://daypage.app", text: $webSyncBaseURL)
-                    .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
                     .keyboardType(.URL)
-                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .font(.callout)
+                    .foregroundColor(DSColor.onSurface)
+                    .padding(.horizontal, DSSpacing.md)
+                    .frame(minHeight: 44)
+                    .background(DSColor.bgWarm)
+                    .clipShape(RoundedRectangle(cornerRadius: DSRadius.sm, style: .continuous))
+                    .submitLabel(.next)
                     .accessibilityIdentifier("sync-baseurl-field")
             }
+            .padding(.vertical, 2)
 
-            HStack {
-                SettingsLabel(title: "API Key", systemImage: "key.fill")
-                Spacer()
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                SettingsLabel(title: NSLocalizedString("settings.websync.key", comment: "Web sync API key"), systemImage: "key.fill")
                 SecureField(NSLocalizedString("settings.websync.key.placeholder", comment: "Paste key placeholder"), text: $webSyncAPIKey)
-                    .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
-                    .foregroundColor(DSColor.onSurfaceVariant)
+                    .font(.callout)
+                    .foregroundColor(DSColor.onSurface)
+                    .padding(.horizontal, DSSpacing.md)
+                    .frame(minHeight: 44)
+                    .background(DSColor.bgWarm)
+                    .clipShape(RoundedRectangle(cornerRadius: DSRadius.sm, style: .continuous))
+                    .submitLabel(.done)
                     .accessibilityIdentifier("sync-apikey-field")
             }
+            .padding(.vertical, 2)
 
             Button {
                 saveWebSyncConfig()
@@ -300,6 +344,11 @@ struct SettingsSyncDataView: View {
                 }
             }
             .accessibilityIdentifier("sync-save-button")
+            .disabled(!canSaveWebSync)
+            .opacity(canSaveWebSync ? 1 : 0.42)
+            .accessibilityHint(canSaveWebSync
+                ? NSLocalizedString("settings.websync.save.hint", comment: "Save and start syncing")
+                : NSLocalizedString("settings.websync.save.disabled_hint", comment: "Missing setup requirements"))
 
             Toggle(isOn: $allowsCellularMedia) {
                 SettingsLabel(
@@ -311,7 +360,7 @@ struct SettingsSyncDataView: View {
                 Task { await SyncQueueService.shared.flushIfOnline() }
             }
 
-            if syncQueue.pendingCount > 0 {
+            if SyncSettings.isConfigured && syncQueue.pendingCount > 0 {
                 HStack {
                     SettingsLabel(title: NSLocalizedString("settings.websync.pending", comment: "Pending row"), systemImage: "clock.arrow.circlepath")
                     Spacer()
@@ -330,9 +379,30 @@ struct SettingsSyncDataView: View {
         } header: {
             Text(NSLocalizedString("settings.websync.section", comment: "Web sync section header"))
         } footer: {
-            Text(NSLocalizedString("settings.websync.footer", comment: "Cloud sync and encryption disclosure"))
+            Text(webSyncFooterText)
                 .font(.caption)
         }
+    }
+
+    private var canSaveWebSync: Bool {
+        let normalized = SyncSettings.normalizeBaseURL(webSyncBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard let components = URLComponents(string: normalized),
+              ["http", "https"].contains(components.scheme?.lowercased() ?? ""),
+              components.host?.isEmpty == false else {
+            return false
+        }
+        return !webSyncAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var webSyncFooterText: String {
+        if !SyncSettings.isConfigured && syncQueue.pendingCount > 0 {
+            let setup = String(
+                format: NSLocalizedString("settings.websync.pending_setup", comment: "Pending items wait for setup"),
+                syncQueue.pendingCount
+            )
+            return setup + "\n\n" + NSLocalizedString("settings.websync.footer", comment: "Cloud sync and encryption disclosure")
+        }
+        return NSLocalizedString("settings.websync.footer", comment: "Cloud sync and encryption disclosure")
     }
 
     private func saveWebSyncConfig() {

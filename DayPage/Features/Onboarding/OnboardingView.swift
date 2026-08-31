@@ -9,37 +9,105 @@ import DayPageServices
 
 struct OnboardingView: View {
 
-    @State private var currentPage: Int = 0
+    @State private var currentPage: Int
     @Binding var hasOnboarded: Bool
 
+    init(hasOnboarded: Binding<Bool>) {
+        _hasOnboarded = hasOnboarded
+        _currentPage = State(initialValue: Self.initialPage(arguments: ProcessInfo.processInfo.arguments))
+    }
+
+    static func initialPage(arguments: [String]) -> Int {
+#if DEBUG
+        guard let flag = arguments.firstIndex(of: "-qaOnboardingPage"),
+              arguments.indices.contains(flag + 1),
+              let page = Int(arguments[flag + 1]),
+              (0...4).contains(page) else { return 0 }
+        return page
+#else
+        return 0
+#endif
+    }
+
     var body: some View {
-        TabView(selection: $currentPage) {
-            WelcomePage(
-                onNext: { currentPage = 1 },
-                hasOnboarded: $hasOnboarded
-            )
-            .tag(0)
-            PermissionsPage(onNext: { currentPage = 2 })
-                .tag(1)
-            // 「记录提醒」引导:紧跟权限页,默认开启,引导用户挑一天一次/三次的
-            // 记录节奏,并顺势注册定时提醒。可跳过。
-            ReminderPage(onNext: { currentPage = 3 })
-                .tag(2)
-            // P0 privacy disclosure: must appear BEFORE ApiKeysPage so the
-            // user understands which data leaves the device, and to which
-            // provider, before they paste any secrets. Issue #25.
-            DataFlowPage(onNext: { currentPage = 4 })
-                .tag(3)
-            ApiKeysPage(onComplete: {
-                UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasOnboarded)
-                SampleDataSeeder.seedIfNeeded()
-                hasOnboarded = true
-            })
-            .tag(4)
+        VStack(spacing: 0) {
+            OnboardingProgress(currentPage: currentPage, pageCount: 5)
+
+            TabView(selection: $currentPage) {
+                WelcomePage(
+                    onNext: { currentPage = 1 },
+                    hasOnboarded: $hasOnboarded
+                )
+                .tag(0)
+                PermissionsPage(onNext: { currentPage = 2 })
+                    .tag(1)
+                // 「记录提醒」引导:紧跟权限页,默认开启,引导用户挑一天一次/三次的
+                // 记录节奏,并顺势注册定时提醒。可跳过。
+                ReminderPage(onNext: { currentPage = 3 })
+                    .tag(2)
+                // P0 privacy disclosure: must appear BEFORE ApiKeysPage so the
+                // user understands which data leaves the device, and to which
+                // provider, before they paste any secrets. Issue #25.
+                DataFlowPage(onNext: { currentPage = 4 })
+                    .tag(3)
+                ApiKeysPage(onComplete: {
+                    UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasOnboarded)
+                    SampleDataSeeder.seedIfNeeded()
+                    hasOnboarded = true
+                })
+                .tag(4)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
         }
-        .tabViewStyle(.page(indexDisplayMode: .always))
         .background(DSColor.backgroundWarm.ignoresSafeArea())
         .tint(DSColor.accentOnBg)
+        .onChange(of: currentPage) { _ in
+            // The visual page swipe is obvious but VoiceOver otherwise keeps
+            // focus on the button that disappeared. Announce the destination
+            // as a screen change so focus restarts in the new page's heading.
+            UIAccessibility.post(
+                notification: .screenChanged,
+                argument: currentPageAnnouncement
+            )
+        }
+    }
+
+    private var currentPageAnnouncement: String {
+        let keys = [
+            "onboarding.welcome.headline",
+            "onboarding.permissions.title",
+            "onboarding.reminder.title",
+            "onboarding.dataflow.title",
+            "onboarding.apikeys.title"
+        ]
+        return NSLocalizedString(keys[currentPage], comment: "Onboarding page VoiceOver announcement")
+    }
+}
+
+private struct OnboardingProgress: View {
+    let currentPage: Int
+    let pageCount: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<pageCount, id: \.self) { page in
+                Capsule()
+                    .fill(page <= currentPage ? DSColor.accentOnBg : DSColor.surfaceSunken)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 3)
+            }
+        }
+        .padding(.horizontal, DSSpacing.xl2)
+        .padding(.top, DSSpacing.md)
+        .padding(.bottom, DSSpacing.xs)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            String(
+                format: NSLocalizedString("onboarding.progress", comment: ""),
+                currentPage + 1,
+                pageCount
+            )
+        )
     }
 }
 
@@ -77,13 +145,14 @@ private struct ReminderPage: View {
                     .font(.system(size: 44, weight: .light))
                     .foregroundColor(DSColor.accentOnBg)
                     .padding(.bottom, DSSpacing.xs)
+                    .accessibilityHidden(true)
 
-                Text("到点,轻轻叫你记一句")
+                Text("onboarding.reminder.title", bundle: .main)
                     .h1()
                     .foregroundColor(DSColor.onBackgroundPrimary)
                     .multilineTextAlignment(.center)
 
-                Text("选一个记录节奏。到点时灵动岛会悄悄浮出,点一下就落进录音 —— 不响铃、不打扰。")
+                Text("onboarding.reminder.subtitle", bundle: .main)
                     .captionText()
                     .foregroundColor(DSColor.onBackgroundMuted)
                     .multilineTextAlignment(.center)
@@ -92,14 +161,14 @@ private struct ReminderPage: View {
                 // 频率选择:一天一次(晚) / 早中晚三次。
                 VStack(spacing: DSSpacing.md) {
                     ReminderPresetRow(
-                        title: "每天一次",
-                        detail: "睡前 21:00 · 把今天收进一句话",
+                        title: NSLocalizedString("settings.reminder.preset.once", comment: ""),
+                        detail: NSLocalizedString("onboarding.reminder.once.detail", comment: ""),
                         isSelected: selected == .once,
                         onTap: { selected = .once }
                     )
                     ReminderPresetRow(
-                        title: "早中晚三次",
-                        detail: "09:00 · 13:00 · 21:00",
+                        title: NSLocalizedString("settings.reminder.preset.thrice", comment: ""),
+                        detail: NSLocalizedString("onboarding.reminder.thrice.detail", comment: ""),
                         isSelected: selected == .thrice,
                         onTap: { selected = .thrice }
                     )
@@ -114,21 +183,21 @@ private struct ReminderPage: View {
                         onNext()
                     }
                 }) {
-                    Text(isRequesting ? "开启中…" : "开启提醒")
-                        .bodyText()
-                        .foregroundColor(DSColor.surfaceWhite)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DSSpacing.lg)
-                        .background(DSColor.accentAmber)
-                        .cornerRadius(DSRadius.md)
+                    Text(isRequesting
+                         ? NSLocalizedString("onboarding.reminder.enabling", comment: "")
+                         : NSLocalizedString("onboarding.reminder.enable", comment: ""))
                 }
+                .buttonStyle(.dsPrimary(size: .large, font: DSType.bodyMD))
+                .disabled(isRequesting)
                 .padding(.top, DSSpacing.sm)
                 .accessibilityIdentifier("onboarding.reminder.enable")
 
-                Button(action: onNext) {
-                    Text("暂不,稍后在设置里开")
+                Button(action: skipReminders) {
+                    Text("onboarding.reminder.skip", bundle: .main)
                         .captionText()
-                        .foregroundColor(DSColor.onBackgroundMuted)
+                        .foregroundColor(DSColor.inkTertiaryAA)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityIdentifier("onboarding.reminder.skip")
 
@@ -136,6 +205,14 @@ private struct ReminderPage: View {
             }
             .padding(.horizontal, DSSpacing.xl2)
         }
+    }
+
+    private func skipReminders() {
+        // Skipping here is the user's last notification decision in the
+        // onboarding journey. Respect it so the app does not throw an
+        // uncontextualized system prompt over the first Today screen.
+        UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasRequestedNotifications)
+        onNext()
     }
 }
 
@@ -151,6 +228,7 @@ private struct ReminderPresetRow: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundColor(isSelected ? DSColor.accentAmber : DSColor.onBackgroundMuted)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: DSSpacing.xs) {
                     Text(title)
@@ -183,12 +261,13 @@ private struct DataFlowPage: View {
     var body: some View {
         ScrollView {
             VStack(spacing: DSSpacing.xl) {
-                Spacer(minLength: 48)
+                Spacer(minLength: DSSpacing.xl2)
 
                 Image(systemName: "lock.shield")
                     .font(.system(size: 44, weight: .light))
                     .foregroundColor(DSColor.accentOnBg)
                     .padding(.bottom, DSSpacing.xs)
+                    .accessibilityHidden(true)
 
                 Text("onboarding.dataflow.title", bundle: .main)
                     .h1()
@@ -241,31 +320,40 @@ private struct DataFlowPage: View {
                     .padding(.horizontal, DSSpacing.md)
                     .padding(.top, DSSpacing.xs)
 
-                Button(action: {
-                    // Persist consent so future builds (and the API-keys
-                    // settings screen) can verify the user saw this
-                    // disclosure before any third-party traffic.
-                    UserDefaults.standard.set(
-                        Date().timeIntervalSince1970,
-                        forKey: AppSettings.Keys.dataFlowDisclosureAcceptedAt
-                    )
-                    onNext()
-                }) {
-                    Text("onboarding.dataflow.continue", bundle: .main)
-                        .bodyText()
-                        .foregroundColor(DSColor.surfaceWhite)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DSSpacing.lg)
-                        .background(DSColor.accentAmber)
-                        .cornerRadius(DSRadius.md)
-                }
-                .padding(.top, DSSpacing.sm)
-                .accessibilityIdentifier("onboarding.dataflow.continue")
-
-                Spacer(minLength: 48)
+                Spacer(minLength: DSSpacing.xl2)
             }
             .padding(.horizontal, DSSpacing.xl2)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [DSColor.backgroundWarm.opacity(0), DSColor.backgroundWarm],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: DSSpacing.lg)
+                .allowsHitTesting(false)
+
+                Button(action: acceptAndContinue) {
+                    Text("onboarding.dataflow.continue", bundle: .main)
+                }
+                .buttonStyle(.dsPrimary(size: .large, font: DSType.bodyMD))
+                .accessibilityIdentifier("onboarding.dataflow.continue")
+                .padding(.horizontal, DSSpacing.xl2)
+                .padding(.bottom, DSSpacing.md)
+                .background(DSColor.backgroundWarm)
+            }
+        }
+    }
+
+    private func acceptAndContinue() {
+        // Persist consent so future builds (and the API-keys settings screen)
+        // can verify the user saw this disclosure before third-party traffic.
+        UserDefaults.standard.set(
+            Date().timeIntervalSince1970,
+            forKey: AppSettings.Keys.dataFlowDisclosureAcceptedAt
+        )
+        onNext()
     }
 }
 
@@ -282,6 +370,7 @@ private struct DataFlowRow: View {
                 .foregroundColor(DSColor.accentOnBg)
                 .frame(width: 28)
                 .padding(.top, 2)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(feature)
@@ -301,6 +390,7 @@ private struct DataFlowRow: View {
         .background(DSColor.surfaceWhite)
         .cornerRadius(DSRadius.md)
         .surfaceElevatedShadow()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -321,29 +411,54 @@ private struct WelcomePage: View {
     let onNext: () -> Void
     @Binding var hasOnboarded: Bool
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var usesAccessibilityLayout: Bool {
+        dynamicTypeSize.isAccessibilitySize
+    }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: DSSpacing.xl) {
-                Spacer(minLength: 40)
+            VStack(spacing: usesAccessibilityLayout ? DSSpacing.md : DSSpacing.lg) {
+                Spacer(minLength: usesAccessibilityLayout ? DSSpacing.sm : DSSpacing.xl2)
 
-                ZStack {
-                    Circle()
-                        .fill(DSColor.accentSoft)
-                        .frame(width: 92, height: 92)
-                    Image(systemName: "pencil.and.scribble")
-                        .font(.system(size: 40, weight: .light))
-                        .foregroundColor(DSColor.accentAmber)
-                }
-
-                Text("onboarding.welcome.tagline", bundle: .main)
-                    .font(DSType.mono10)
-                    .tracking(1.4)
-                    .textCase(.uppercase)
-                    .foregroundColor(DSColor.amberDeep)
+                if usesAccessibilityLayout {
+                    HStack(alignment: .firstTextBaseline, spacing: DSSpacing.sm) {
+                        Image(systemName: "pencil.and.scribble")
+                            .font(.system(size: 20, weight: .light))
+                            .accessibilityHidden(true)
+                        Text("onboarding.welcome.tagline", bundle: .main)
+                            .font(DSType.mono10)
+                            .tracking(1.2)
+                            .textCase(.uppercase)
+                    }
+                    .foregroundColor(DSColor.accentOnBg)
                     .padding(.horizontal, DSSpacing.md)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, DSSpacing.sm)
                     .background(DSColor.accentSoft)
                     .cornerRadius(8)
+                    .dynamicTypeSize(.xSmall ... .xxxLarge)
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(DSColor.accentSoft)
+                            .frame(width: 76, height: 76)
+                        Image(systemName: "pencil.and.scribble")
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundColor(DSColor.accentOnBg)
+                    }
+                    .accessibilityHidden(true)
+
+                    Text("onboarding.welcome.tagline", bundle: .main)
+                        .font(DSType.mono10)
+                        .tracking(1.4)
+                        .textCase(.uppercase)
+                        .foregroundColor(DSColor.accentOnBg)
+                        .padding(.horizontal, DSSpacing.md)
+                        .padding(.vertical, 6)
+                        .background(DSColor.accentSoft)
+                        .cornerRadius(8)
+                }
 
                 Text("onboarding.welcome.headline", bundle: .main)
                     .font(DSFonts.serif(size: 20, weight: .regular, relativeTo: .title3))
@@ -352,13 +467,20 @@ private struct WelcomePage: View {
                     .padding(.horizontal, DSSpacing.sm)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
-                    .dynamicTypeSize(.xSmall ... .accessibility2)
+                    // The display line is decorative/summary copy; cap it at
+                    // the largest standard size so it does not become a
+                    // full-screen wall of type. The detailed benefit rows
+                    // below still honor accessibility sizes and remain
+                    // vertically scrollable.
+                    .dynamicTypeSize(.xSmall ... .xxxLarge)
                     .minimumScaleFactor(0.75)
 
                 Text("onboarding.welcome.slogan", bundle: .main)
                     .captionText()
                     .foregroundColor(DSColor.onBackgroundMuted)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .dynamicTypeSize(.xSmall ... .accessibility2)
 
                 VStack(spacing: 10) {
                     benefitRow(
@@ -379,49 +501,57 @@ private struct WelcomePage: View {
                 }
                 .padding(.top, DSSpacing.xs)
 
-                Spacer(minLength: 16)
-
-                VStack(spacing: 10) {
-                    // #13: migrated to DSPrimary (now supports layout/font
-                    // overrides). `font: DSType.bodyMD` preserves the original
-                    // 16pt bodyText size; the style adds press feedback +
-                    // Reduce Motion + 44pt that the hand-rolled version lacked.
-                    Button(action: onNext) {
-                        Text("onboarding.welcome.begin", bundle: .main)
-                    }
-                    .buttonStyle(.dsPrimary(size: .large, font: DSType.bodyMD))
-                    .accessibilityIdentifier("onboarding.welcome.begin")
-
-                    Button {
-                        UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasOnboarded)
-                        SampleDataSeeder.seedIfNeeded()
-                        // Issue #18: same funnel as the Today empty-state
-                        // link, tagged with surface so the debug board can
-                        // tell "user tapped sample in Welcome" apart from
-                        // "user tapped sample from Today empty".
-                        AnalyticsService.shared.record(
-                            AnalyticsService.Name.welcomeCtaSample,
-                            props: ["surface": "welcome"]
-                        )
-                        hasOnboarded = true
-                    } label: {
-                        // Kept hand-rolled: DSGhost's idle ink is inkMuted, but
-                        // this action wants amber (accentOnBg). Not a clean style
-                        // match — migrating would recolor it. #13 only migrates
-                        // buttons the styles express without visual change.
+                if usesAccessibilityLayout {
+                    Button(action: showSample) {
                         Text("onboarding.welcome.try_sample", bundle: .main)
                             .bodyText()
                             .foregroundColor(DSColor.accentOnBg)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .dynamicTypeSize(.xSmall ... .accessibility1)
                     .accessibilityIdentifier("onboarding.welcome.try_sample")
                 }
-                .padding(.horizontal, DSSpacing.sm)
-                .padding(.bottom, 32)
+
+                Spacer(minLength: DSSpacing.xl2)
             }
             .padding(.horizontal, DSSpacing.xl2)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: DSSpacing.xs) {
+                Button(action: onNext) {
+                    Text("onboarding.welcome.begin", bundle: .main)
+                }
+                .buttonStyle(.dsPrimary(size: .large, font: DSType.bodyMD))
+                .accessibilityIdentifier("onboarding.welcome.begin")
+
+                if !usesAccessibilityLayout {
+                    Button(action: showSample) {
+                        Text("onboarding.welcome.try_sample", bundle: .main)
+                            .bodyText()
+                            .foregroundColor(DSColor.accentOnBg)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityIdentifier("onboarding.welcome.try_sample")
+                }
+            }
+            .padding(.horizontal, DSSpacing.xl2 + DSSpacing.sm)
+            .padding(.top, DSSpacing.sm)
+            .padding(.bottom, DSSpacing.xs)
+            .background(DSColor.backgroundWarm)
+            .dynamicTypeSize(.xSmall ... .accessibility1)
+        }
+    }
+
+    private func showSample() {
+        UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasOnboarded)
+        SampleDataSeeder.seedIfNeeded()
+        AnalyticsService.shared.record(
+            AnalyticsService.Name.welcomeCtaSample,
+            props: ["surface": "welcome"]
+        )
+        hasOnboarded = true
     }
 
     private func benefitRow(icon: String, titleKey: String, bodyKey: String) -> some View {
@@ -431,6 +561,7 @@ private struct WelcomePage: View {
                 .foregroundColor(DSColor.accentOnBg)
                 .frame(width: 28)
                 .padding(.top, 2)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(LocalizedStringKey(titleKey), bundle: .main)
@@ -445,7 +576,7 @@ private struct WelcomePage: View {
 
             Spacer()
         }
-        .padding(DSSpacing.cardInner)
+        .padding(usesAccessibilityLayout ? DSSpacing.md : DSSpacing.lg)
         .background(DSColor.surfaceWhite)
         .cornerRadius(DSRadius.md)
         .surfaceElevatedShadow()
@@ -454,7 +585,8 @@ private struct WelcomePage: View {
         // no fixedSize was applied. Vertical fixedSize on both Texts
         // + capping the row at accessibility3 keeps the tallest row
         // from pushing the CTA off-screen.
-        .dynamicTypeSize(.xSmall ... .accessibility3)
+        .dynamicTypeSize(.xSmall ... .accessibility2)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -473,6 +605,7 @@ private struct PermissionsPage: View {
     // time — without scenePhase awareness the row labels would be stuck on
     // whatever they showed before the user left.
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private enum PermissionStatus {
         case unknown, granted, denied
@@ -493,67 +626,69 @@ private struct PermissionsPage: View {
     }
 
     var body: some View {
-        VStack(spacing: DSSpacing.xl2) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: dynamicTypeSize.isAccessibilitySize ? DSSpacing.lg : DSSpacing.xl2) {
+                Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? DSSpacing.md : DSSpacing.xl2)
 
-            Text("onboarding.permissions.title", bundle: .main)
-                .h1()
-                .foregroundColor(DSColor.onBackgroundPrimary)
+                Text("onboarding.permissions.title", bundle: .main)
+                    .h1()
+                    .foregroundColor(DSColor.onBackgroundPrimary)
+                    .multilineTextAlignment(.center)
+                    .dynamicTypeSize(.xSmall ... .accessibility2)
 
-            Text("onboarding.permissions.subtitle", bundle: .main)
-                .captionText()
-                .foregroundColor(DSColor.onBackgroundMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DSSpacing.sm)
+                Text("onboarding.permissions.subtitle", bundle: .main)
+                    .captionText()
+                    .foregroundColor(DSColor.onBackgroundMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, DSSpacing.sm)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .dynamicTypeSize(.xSmall ... .accessibility2)
 
-            VStack(spacing: DSSpacing.md) {
-                permissionCard(
-                    icon: "mic.fill",
-                    title: NSLocalizedString("onboarding.permissions.mic.title", comment: ""),
-                    description: NSLocalizedString("onboarding.permissions.mic.description", comment: ""),
-                    status: micStatus
-                ) {
-                    requestMicrophone()
+                VStack(spacing: DSSpacing.md) {
+                    permissionCard(
+                        icon: "mic.fill",
+                        title: NSLocalizedString("onboarding.permissions.mic.title", comment: ""),
+                        description: NSLocalizedString("onboarding.permissions.mic.description", comment: ""),
+                        status: micStatus
+                    ) {
+                        requestMicrophone()
+                    }
+
+                    permissionCard(
+                        icon: "location.fill",
+                        title: NSLocalizedString("onboarding.permissions.location.title", comment: ""),
+                        description: NSLocalizedString("onboarding.permissions.location.description", comment: ""),
+                        status: locationStatus
+                    ) {
+                        requestLocation()
+                    }
+
+                    permissionCard(
+                        icon: "bell.fill",
+                        title: NSLocalizedString("onboarding.permissions.notifications.title", comment: ""),
+                        description: NSLocalizedString("onboarding.permissions.notifications.description", comment: ""),
+                        status: notifStatus
+                    ) {
+                        requestNotifications()
+                    }
                 }
 
-                permissionCard(
-                    icon: "location.fill",
-                    title: NSLocalizedString("onboarding.permissions.location.title", comment: ""),
-                    description: NSLocalizedString("onboarding.permissions.location.description", comment: ""),
-                    status: locationStatus
-                ) {
-                    requestLocation()
-                }
-
-                permissionCard(
-                    icon: "bell.fill",
-                    title: NSLocalizedString("onboarding.permissions.notifications.title", comment: ""),
-                    description: NSLocalizedString("onboarding.permissions.notifications.description", comment: ""),
-                    status: notifStatus
-                ) {
-                    requestNotifications()
-                }
+                Spacer(minLength: DSSpacing.xl2)
             }
-
-            Spacer()
-
-            // B4: Next is always enabled. iOS users routinely skip these
-            // prompts and grant permissions later from Settings, and there's
-            // no path here to recover from a forced .denied → we'd lock them
-            // out of onboarding. Underlying features already degrade safely.
+            .padding(.horizontal, DSSpacing.xl2)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            // Always reachable even when the three cards become multi-line at
+            // accessibility sizes. Permission prompts stay optional.
             Button(action: onNext) {
                 Text("onboarding.permissions.next", bundle: .main)
-                    .bodyText()
-                    .foregroundColor(DSColor.surfaceWhite)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, DSSpacing.lg)
-                    .background(DSColor.accentAmber)
-                    .cornerRadius(DSRadius.md)
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 48)
+            .buttonStyle(.dsPrimary(size: .large, font: DSType.bodyMD))
+            .dynamicTypeSize(.xSmall ... .accessibility1)
+            .padding(.horizontal, DSSpacing.xl2)
+            .padding(.vertical, DSSpacing.sm)
+            .background(DSColor.backgroundWarm)
         }
-        .padding(.horizontal, DSSpacing.xl2)
         .onAppear { pollAllPermissions() }
         // B3: re-poll on every foreground transition so a trip through
         // Settings.app instantly updates the row labels here.
@@ -569,34 +704,69 @@ private struct PermissionsPage: View {
         status: PermissionStatus,
         onGrant: @escaping () -> Void
     ) -> some View {
-        HStack(spacing: DSSpacing.lg) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(DSColor.accentOnBg)
-                .frame(width: 32)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: DSSpacing.md) {
+                    HStack(alignment: .firstTextBaseline, spacing: DSSpacing.md) {
+                        Image(systemName: icon)
+                            .font(.system(size: 20))
+                            .foregroundColor(DSColor.accentOnBg)
+                            .frame(width: 32)
+                            .accessibilityHidden(true)
+                        Text(title)
+                            .bodyText()
+                            .foregroundColor(DSColor.onBackgroundPrimary)
+                    }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).bodyText().foregroundColor(DSColor.onBackgroundPrimary)
-                Text(description).captionText().foregroundColor(DSColor.onBackgroundMuted)
+                    Text(description)
+                        .captionText()
+                        .foregroundColor(DSColor.onBackgroundMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    permissionButton(title: title, status: status, onGrant: onGrant)
+                }
+            } else {
+                HStack(spacing: DSSpacing.lg) {
+                    Image(systemName: icon)
+                        .font(.system(size: 20))
+                        .foregroundColor(DSColor.accentOnBg)
+                        .frame(width: 32)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).bodyText().foregroundColor(DSColor.onBackgroundPrimary)
+                        Text(description).captionText().foregroundColor(DSColor.onBackgroundMuted)
+                    }
+
+                    Spacer()
+                    permissionButton(title: title, status: status, onGrant: onGrant)
+                }
             }
-
-            Spacer()
-
-            Button(action: onGrant) {
-                Text(status.label)
-                    .captionText()
-                    .foregroundColor(status == .unknown ? DSColor.surfaceWhite : status.color)
-                    .padding(.horizontal, DSSpacing.md)
-                    .padding(.vertical, 6)
-                    .background(status == .unknown ? DSColor.accentAmber : DSColor.surfaceSunken)
-                    .cornerRadius(8)
-            }
-            .disabled(status != .unknown)
         }
         .padding(DSSpacing.cardInner)
         .background(DSColor.surfaceWhite)
         .cornerRadius(DSRadius.md)
         .surfaceElevatedShadow()
+        .dynamicTypeSize(.xSmall ... .accessibility2)
+    }
+
+    private func permissionButton(
+        title: String,
+        status: PermissionStatus,
+        onGrant: @escaping () -> Void
+    ) -> some View {
+        Button(action: onGrant) {
+            Text(status.label)
+                .captionText()
+                .foregroundColor(status == .unknown ? DSColor.surfaceWhite : status.color)
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, 6)
+                .background(status == .unknown ? DSColor.accentAmber : DSColor.surfaceSunken)
+                .cornerRadius(8)
+        }
+        .minTapTarget()
+        .disabled(status != .unknown)
+        .accessibilityLabel("\(title), \(status.label)")
     }
 
     /// B3: single entry point that refreshes mic/location/notification status.
@@ -647,6 +817,7 @@ private struct PermissionsPage: View {
     }
 
     private func requestNotifications() {
+        UserDefaults.standard.set(true, forKey: AppSettings.Keys.hasRequestedNotifications)
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             DispatchQueue.main.async {
                 notifStatus = granted ? .granted : .denied
@@ -698,13 +869,8 @@ private struct ApiKeysPage: View {
 
                 Button(action: saveAndComplete) {
                     Text("onboarding.apikeys.complete", bundle: .main)
-                        .bodyText()
-                        .foregroundColor(DSColor.surfaceWhite)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DSSpacing.lg)
-                        .background(DSColor.accentAmber)
-                        .cornerRadius(DSRadius.md)
                 }
+                .buttonStyle(.dsPrimary(size: .large, font: DSType.bodyMD))
                 .padding(.top, DSSpacing.sm)
 
                 // B5: dedicated skip path. Pasting keys here is optional; the
@@ -716,8 +882,10 @@ private struct ApiKeysPage: View {
                 } label: {
                     Text(NSLocalizedString("onboarding.apikeys.skip", comment: ""))
                         .font(.footnote)
-                        .foregroundColor(DSColor.inkMuted)
+                        .foregroundColor(DSColor.inkTertiaryAA)
                         .underline()
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .padding(.top, DSSpacing.xs)
                 .accessibilityIdentifier("onboarding-apikeys-skip")
@@ -740,13 +908,18 @@ private struct ApiKeysPage: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
 
-                Button("粘贴") {
+                Button(NSLocalizedString("onboarding.apikeys.paste", comment: "")) {
                     if let s = UIPasteboard.general.string {
                         text.wrappedValue = s
                     }
                 }
                 .captionText()
                 .foregroundColor(DSColor.accentOnBg)
+                .minTapTarget()
+                .accessibilityLabel(String(
+                    format: NSLocalizedString("onboarding.apikeys.paste.a11y", comment: ""),
+                    label
+                ))
             }
             .padding(DSSpacing.md)
             .background(DSColor.surfaceSunken)
@@ -756,14 +929,17 @@ private struct ApiKeysPage: View {
 
     private func saveAndComplete() {
         // US-002: API keys are stored in Keychain (not UserDefaults) to prevent iCloud backup exposure.
-        if !deepSeekKey.isEmpty {
-            KeychainHelper.setAPIKey(deepSeekKey, for: "deepSeekApiKey")
+        let trimmedDeepSeekKey = deepSeekKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenAIKey = openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOpenWeatherKey = openWeatherKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDeepSeekKey.isEmpty {
+            KeychainHelper.setAPIKey(trimmedDeepSeekKey, for: "deepSeekApiKey")
         }
-        if !openAIKey.isEmpty {
-            KeychainHelper.setAPIKey(openAIKey, for: "openAIWhisperApiKey")
+        if !trimmedOpenAIKey.isEmpty {
+            KeychainHelper.setAPIKey(trimmedOpenAIKey, for: "openAIWhisperApiKey")
         }
-        if !openWeatherKey.isEmpty {
-            KeychainHelper.setAPIKey(openWeatherKey, for: "openWeatherApiKey")
+        if !trimmedOpenWeatherKey.isEmpty {
+            KeychainHelper.setAPIKey(trimmedOpenWeatherKey, for: "openWeatherApiKey")
         }
         onComplete()
     }

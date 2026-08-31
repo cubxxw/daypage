@@ -108,6 +108,23 @@ struct RootView: View {
 
                 installSessionBackedSyncUploader()
                 Task { await SyncQueueService.shared.reconcileVault() }
+
+                #if DEBUG
+                // Deterministic entry for visual and accessibility audits.
+                // Tab selection is resolved synchronously by
+                // AppNavigationModel.initialTab() so persistent hosts receive
+                // their correct first lifecycle value. The drawer still opens
+                // after mount to exercise its real animation/lifecycle.
+                let qaArgs = ProcessInfo.processInfo.arguments
+                if qaArgs.contains("-qaOpenSidebar") {
+                    DispatchQueue.main.async { nav.openSidebar() }
+                }
+                if qaArgs.contains("-qaOpenAskPast") {
+                    // Empty-but-present query drives the same global sheet used
+                    // by the sidebar and Siri route without issuing a real AI request.
+                    DispatchQueue.main.async { nav.pendingAskQuery = " " }
+                }
+                #endif
             }
             .task {
                 consumeSystemActionNavigationRequest()
@@ -145,18 +162,18 @@ struct RootView: View {
                 Task { await refreshReadOnlyEntitySnapshotIfPrepared() }
             }
             .alert(
-                "无法开启云同步",
+                NSLocalizedString("sync.account.error.title", comment: "Cloud sync setup error title"),
                 isPresented: Binding(
                     get: { syncAccountError != nil },
                     set: { if !$0 { syncAccountError = nil } }
                 )
             ) {
-                Button("好", role: .cancel) { syncAccountError = nil }
+                Button(NSLocalizedString("common.confirm", comment: "Confirm"), role: .cancel) { syncAccountError = nil }
             } message: {
                 Text(syncAccountError ?? "")
             }
             .preferredColorScheme(resolvedColorScheme)
-            .tint(appSettings.accentColor.color)
+            .tint(DSColor.userAccent(appSettings.accentColor))
     }
 
     /// The normal sync path follows the user's Supabase login session. No
@@ -333,13 +350,12 @@ struct RootView: View {
     }
 
     private func advanceFromOnboarding() {
-        let hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
-        if !hasSeenWelcome {
-            phase = .welcome
-        } else {
-            let authSkipped = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
-            phase = (authService.session == nil && !authSkipped) ? .auth : .ready
-        }
+        // The first onboarding page already carries the full welcome/value
+        // proposition. Do not make a new user dismiss a second welcome hero
+        // immediately after completing five setup pages.
+        UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
+        let authSkipped = UserDefaults.standard.bool(forKey: AppSettings.Keys.authSkipped)
+        phase = (authService.session == nil && !authSkipped) ? .auth : .ready
     }
 
     private func advanceFromWelcome() {

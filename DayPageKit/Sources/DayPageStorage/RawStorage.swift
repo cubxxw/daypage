@@ -44,8 +44,12 @@ public enum RawStorage {
 
     /// 返回给定日期的原始 memo 文件的 URL。
     public static func fileURL(for date: Date) -> URL {
+        fileURL(for: date, vaultRoot: VaultInitializer.vaultURL)
+    }
+
+    public static func fileURL(for date: Date, vaultRoot: URL) -> URL {
         let dateString = dateFormatter.string(from: date)
-        return VaultInitializer.vaultURL
+        return vaultRoot
             .appendingPathComponent("raw")
             .appendingPathComponent("\(dateString).md")
     }
@@ -68,8 +72,13 @@ public enum RawStorage {
     /// 使用原子写入（临时文件 + 重命名）以防止损坏。
     /// 写入操作由 writeQueue 序列化以防止并发追加时数据丢失。
     public static func append(_ memo: Memo) throws {
+        try append(memo, vaultRoot: VaultInitializer.vaultURL)
+    }
+
+    public static func append(_ memo: Memo, vaultRoot: URL) throws {
+        let capturedVaultRoot = vaultRoot
         try writeQueue.sync {
-            let url = fileURL(for: memo.created)
+            let url = fileURL(for: memo.created, vaultRoot: capturedVaultRoot)
             let newBlock = memo.toMarkdown()
 
             let existingContent: String
@@ -92,7 +101,8 @@ public enum RawStorage {
             do {
                 try SyncOutboxStore.recordUpsert(
                     memo,
-                    vaultPath: "raw/\(url.lastPathComponent)"
+                    vaultPath: "raw/\(url.lastPathComponent)",
+                    vaultRoot: capturedVaultRoot
                 )
                 outboxRecorded = true
             } catch {
@@ -292,8 +302,17 @@ public enum RawStorage {
         for date: Date,
         transform: ([Memo]) -> [Memo]?
     ) throws {
+        try mutate(for: date, vaultRoot: VaultInitializer.vaultURL, transform: transform)
+    }
+
+    public static func mutate(
+        for date: Date,
+        vaultRoot: URL,
+        transform: ([Memo]) -> [Memo]?
+    ) throws {
+        let capturedVaultRoot = vaultRoot
         try writeQueue.sync {
-            let url = fileURL(for: date)
+            let url = fileURL(for: date, vaultRoot: capturedVaultRoot)
             let existing: [Memo]
             if FileManager.default.fileExists(atPath: url.path) {
                 let content = try String(contentsOf: url, encoding: .utf8)
@@ -319,7 +338,8 @@ public enum RawStorage {
                 try SyncOutboxStore.recordChanges(
                     before: existing,
                     after: updated,
-                    vaultPath: "raw/\(url.lastPathComponent)"
+                    vaultPath: "raw/\(url.lastPathComponent)",
+                    vaultRoot: capturedVaultRoot
                 )
                 outboxRecorded = true
             } catch {
@@ -552,7 +572,11 @@ public enum RawStorage {
     /// 读取给定日期日文件中的所有 Memo。
     /// 如果文件不存在或不包含有效的 memo，返回空数组。
     public static func read(for date: Date) throws -> [Memo] {
-        let url = fileURL(for: date)
+        try read(for: date, vaultRoot: VaultInitializer.vaultURL)
+    }
+
+    public static func read(for date: Date, vaultRoot: URL) throws -> [Memo] {
+        let url = fileURL(for: date, vaultRoot: vaultRoot)
         guard FileManager.default.fileExists(atPath: url.path) else {
             SentryReporter.breadcrumb(
                 category: "rawstorage",

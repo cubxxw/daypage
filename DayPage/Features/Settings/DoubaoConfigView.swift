@@ -48,7 +48,7 @@ struct DoubaoConfigView: View {
         }
         .scrollContentBackground(.hidden)
         .background(DSColor.bgWarm.ignoresSafeArea())
-        .tint(DSColor.primary)
+        .tint(DSColor.accentOnBg)
         .navigationTitle(NSLocalizedString("settings.doubao.nav.title", comment: "Doubao config page title"))
         .navigationBarTitleDisplayMode(.inline)
         .bannerOverlay()

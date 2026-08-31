@@ -22,9 +22,12 @@ enum ASRProvider: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .doubao:   return "豆包 · 火山引擎"
-        case .whisper:  return "OpenAI Whisper"
-        case .onDevice: return "仅设备端"
+        case .doubao:
+            return NSLocalizedString("settings.voice.provider.doubao", comment: "Doubao speech provider name")
+        case .whisper:
+            return NSLocalizedString("settings.voice.provider.whisper", comment: "Whisper speech provider name")
+        case .onDevice:
+            return NSLocalizedString("settings.voice.provider.on_device", comment: "On-device speech provider name")
         }
     }
 

@@ -248,6 +248,11 @@ final class GraphViewModel: ObservableObject {
     }
 
     nonisolated private static func buildGraph() -> BuildResult {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-qaGraphFixtures") {
+            return qaFixtureGraph()
+        }
+        #endif
         let fm = FileManager.default
         let vaultURL = VaultInitializer.vaultURL
         let wikiURL = vaultURL.appendingPathComponent("wiki", isDirectory: true)
@@ -343,6 +348,55 @@ final class GraphViewModel: ObservableObject {
 
         return BuildResult(nodes: nodes, edges: rawEdges, hasCompiledDailies: hasCompiledDailies)
     }
+
+    #if DEBUG
+    /// Deterministic in-memory network for visual and interaction audits. It
+    /// enters through the production filtering, simulation, Canvas, legend,
+    /// focus, and accessibility paths while leaving the user's Vault untouched.
+    nonisolated private static func qaFixtureGraph() -> BuildResult {
+        let definitions: [(String, String, String, Int)] = [
+            ("themes/daypage", "DayPage", "themes", 18),
+            ("themes/product-design", "Product design", "themes", 12),
+            ("themes/slow-living", "Slow living", "themes", 8),
+            ("people/a-ling", "A-Ling", "people", 14),
+            ("people/mei", "Mei", "people", 7),
+            ("people/leo", "Leo", "people", 5),
+            ("places/riverside-cafe", "Riverside café", "places", 11),
+            ("places/west-bund", "West Bund", "places", 9),
+            ("places/shanghai", "Shanghai", "places", 16)
+        ]
+        let radius: CGFloat = 170
+        let nodes = definitions.enumerated().map { index, item -> GraphNode in
+            let angle = CGFloat(index) / CGFloat(definitions.count) * 2 * .pi
+            var node = GraphNode(
+                id: item.0,
+                name: item.1,
+                entityType: item.2,
+                position: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
+            )
+            node.occurrenceCount = item.3
+            node.dates = ["2026-08-29", "2026-08-30", "2026-08-31"]
+            return node
+        }
+        let links: [(String, String, Int)] = [
+            ("themes/daypage", "themes/product-design", 5),
+            ("themes/daypage", "people/a-ling", 4),
+            ("themes/daypage", "places/riverside-cafe", 3),
+            ("themes/daypage", "places/shanghai", 5),
+            ("themes/product-design", "people/mei", 2),
+            ("themes/product-design", "places/west-bund", 3),
+            ("themes/slow-living", "places/riverside-cafe", 2),
+            ("themes/slow-living", "people/leo", 1),
+            ("people/a-ling", "places/shanghai", 3),
+            ("people/mei", "places/west-bund", 2),
+            ("places/riverside-cafe", "places/shanghai", 4)
+        ]
+        let edges = links.map { link in
+            GraphEdge(id: "\(link.0)↔\(link.1)", sourceID: link.0, targetID: link.1, weight: link.2)
+        }
+        return BuildResult(nodes: nodes, edges: edges, hasCompiledDailies: true)
+    }
+    #endif
 
     // MARK: - Wikilink Extraction
 

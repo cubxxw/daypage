@@ -47,12 +47,12 @@ struct MemoDetailMetadataSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
-            memoDetailSectionLabel("Metadata")
+            memoDetailSectionLabel(NSLocalizedString("memo.detail.section.metadata", comment: ""))
                 .padding(.bottom, DSSpacing.xs)
 
-            row("Created", createdFull)
-            row("File", "vault/raw/\(DateFormatters.isoDate.string(from: memo.created)).md")
-            row("Kind", memo.type.rawValue.capitalized)
+            row(NSLocalizedString("memo.detail.meta.created", comment: ""), createdFull)
+            row(NSLocalizedString("memo.detail.meta.file", comment: ""), "vault/raw/\(DateFormatters.isoDate.string(from: memo.created)).md")
+            row(NSLocalizedString("memo.detail.meta.kind", comment: ""), memo.type.rawValue.capitalized)
 
             if !memo.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 if bodyStats.wordCount != bodyStats.characterCount {
@@ -75,8 +75,15 @@ struct MemoDetailMetadataSection: View {
     @ViewBuilder
     private var kindSpecificRows: some View {
         if let audio = memo.attachments.first(where: { $0.kind == "audio" }) {
-            if let duration = audio.presentationDuration { row("Duration", duration.mmss) }
-            row("Transcription", audio.transcript?.isEmpty == false ? "OpenAI Whisper" : "Pending")
+            if let duration = audio.presentationDuration {
+                row(NSLocalizedString("memo.detail.meta.duration", comment: ""), duration.mmss)
+            }
+            row(
+                NSLocalizedString("memo.detail.meta.transcription", comment: ""),
+                audio.transcript?.isEmpty == false
+                    ? NSLocalizedString("memo.detail.meta.transcription.provider", comment: "")
+                    : NSLocalizedString("memo.detail.meta.transcription.pending", comment: "")
+            )
         }
 
         if let photo = memo.attachments.first(where: { $0.kind == "photo" }),
@@ -88,12 +95,16 @@ struct MemoDetailMetadataSection: View {
 
         if let location = memo.location {
             if let coordinate = location.presentationCoordinate {
-                row("Coordinates", String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude))
+                row(NSLocalizedString("memo.detail.meta.coordinates", comment: ""), String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude))
             }
-            if let name = location.name, !name.isEmpty { row("Place", name) }
+            if let name = location.name, !name.isEmpty {
+                row(NSLocalizedString("memo.detail.meta.place", comment: ""), name)
+            }
         }
 
-        if let weather = memo.weather, !weather.isEmpty { row("Weather", weather) }
+        if let weather = memo.weather, !weather.isEmpty {
+            row(NSLocalizedString("memo.detail.meta.weather", comment: ""), weather)
+        }
     }
 
     private func row(_ label: String, _ value: String) -> some View {
@@ -110,5 +121,6 @@ struct MemoDetailMetadataSection: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityElement(children: .combine)
     }
 }
