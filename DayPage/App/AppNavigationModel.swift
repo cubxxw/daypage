@@ -217,8 +217,23 @@ final class AppNavigationModel: ObservableObject {
     }
 
     private static func initialTab() -> AppTab {
-        let args = ProcessInfo.processInfo.arguments
-        guard let index = args.firstIndex(of: "-selectedTab"),
+        initialTab(arguments: ProcessInfo.processInfo.arguments)
+    }
+
+    /// Pure launch-routing helper so the pre-mount QA path stays covered by
+    /// unit tests instead of relying on a screenshot to reveal lifecycle races.
+    static func initialTab(arguments args: [String]) -> AppTab {
+        #if DEBUG
+        // QA screenshots need the destination selected before persistent tab
+        // hosts mount. Switching in RootView.onAppear made Archive appear while
+        // its first `isActive` lifecycle value remained false, so its month
+        // scan never ran and populated fixtures looked empty.
+        let index = args.firstIndex(of: "-qaSelectedTab")
+            ?? args.firstIndex(of: "-selectedTab")
+        #else
+        let index = args.firstIndex(of: "-selectedTab")
+        #endif
+        guard let index,
               args.indices.contains(index + 1) else {
             return .today
         }
