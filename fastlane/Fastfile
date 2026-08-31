@@ -78,6 +78,7 @@ platform :ios do
     setup_secrets
     validate_release_supabase_config
     increment_build
+    release_api_key = api_key
 
     # CI 专用临时 keychain，避免 xcodebuild archive 时触发 UI 权限弹窗后永久挂起
     create_keychain(
@@ -91,7 +92,9 @@ platform :ios do
 
     match(
       type:              "appstore",
-      readonly:          true,
+      readonly:          false,
+      force:             true,
+      api_key:           release_api_key,
       git_url:           ENV["MATCH_GIT_URL"] || "git@github.com:getyak/daypage-certs.git",
       app_identifier:    "com.daypage.app",
       keychain_name:     "ci_keychain",
@@ -101,7 +104,8 @@ platform :ios do
     match(
       type:              "appstore",
       readonly:          false,
-      api_key:           api_key,
+      force:             true,
+      api_key:           release_api_key,
       git_url:           ENV["MATCH_GIT_URL"] || "git@github.com:getyak/daypage-certs.git",
       app_identifier:    "com.daypage.app.DayPageWidget",
       keychain_name:     "ci_keychain",
@@ -111,7 +115,7 @@ platform :ios do
     match(
       type:              "appstore",
       readonly:          false,
-      api_key:           api_key,
+      api_key:           release_api_key,
       git_url:           ENV["MATCH_GIT_URL"] || "git@github.com:getyak/daypage-certs.git",
       app_identifier:    "com.daypage.app.watchkitapp",
       keychain_name:     "ci_keychain",
@@ -185,6 +189,7 @@ platform :ios do
     setup_secrets
     validate_release_supabase_config
     increment_build
+    release_api_key = api_key
 
     create_keychain(
       name:               "ci_keychain",
@@ -197,7 +202,9 @@ platform :ios do
 
     match(
       type:              "appstore",
-      readonly:          true,
+      readonly:          false,
+      force:             true,
+      api_key:           release_api_key,
       git_url:           ENV["MATCH_GIT_URL"] || "git@github.com:getyak/daypage-certs.git",
       app_identifier:    "com.daypage.app",
       keychain_name:     "ci_keychain",
@@ -207,7 +214,8 @@ platform :ios do
     match(
       type:              "appstore",
       readonly:          false,
-      api_key:           api_key,
+      force:             true,
+      api_key:           release_api_key,
       git_url:           ENV["MATCH_GIT_URL"] || "git@github.com:getyak/daypage-certs.git",
       app_identifier:    "com.daypage.app.DayPageWidget",
       keychain_name:     "ci_keychain",
@@ -217,7 +225,7 @@ platform :ios do
     match(
       type:              "appstore",
       readonly:          false,
-      api_key:           api_key,
+      api_key:           release_api_key,
       git_url:           ENV["MATCH_GIT_URL"] || "git@github.com:getyak/daypage-certs.git",
       app_identifier:    "com.daypage.app.watchkitapp",
       keychain_name:     "ci_keychain",
