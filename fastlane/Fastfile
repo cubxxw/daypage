@@ -122,20 +122,11 @@ platform :ios do
       keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || "ci_temp_password"
     )
 
-    profile_name        = ENV["sigh_com.daypage.app_appstore_profile-name"] || "match AppStore com.daypage.app"
-    widget_profile_name = "match AppStore com.daypage.app.DayPageWidget"
-    watch_profile_name  = "match AppStore com.daypage.app.watchkitapp"
-    # Do NOT pass a bare `PROVISIONING_PROFILE_SPECIFIER` via xcargs — it
-    # applies globally and forces the widget target to use the main app's
-    # profile (mismatched bundle id, fails). The project.pbxproj already has
-    # `PROVISIONING_PROFILE_SPECIFIER = "match AppStore com.daypage.app.DayPageWidget"`
-    # on the DayPageWidget target's Release config, so per-target signing is
-    # already correct. We only need export_options.provisioningProfiles to
-    # tell -exportArchive which profile to embed for each bundle id.
-    #
-    # Conditional xcargs syntax `PROVISIONING_PROFILE_SPECIFIER[target=...]=...`
-    # is an .xcconfig-only form; xcodebuild on the command line interprets the
-    # whole `[target=...]=value` as the *value*, so we can't use it that way.
+    configure_release_signing
+    profile_mapping     = Actions.lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+    profile_name        = profile_mapping.fetch("com.daypage.app")
+    widget_profile_name = profile_mapping.fetch("com.daypage.app.DayPageWidget")
+    watch_profile_name  = profile_mapping.fetch("com.daypage.app.watchkitapp")
     build_app(
       scheme:           "DayPage",
       project:          "DayPage.xcodeproj",
@@ -232,20 +223,11 @@ platform :ios do
       keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || "ci_temp_password"
     )
 
-    profile_name        = ENV["sigh_com.daypage.app_appstore_profile-name"] || "match AppStore com.daypage.app"
-    widget_profile_name = "match AppStore com.daypage.app.DayPageWidget"
-    watch_profile_name  = "match AppStore com.daypage.app.watchkitapp"
-    # Do NOT pass a bare `PROVISIONING_PROFILE_SPECIFIER` via xcargs — it
-    # applies globally and forces the widget target to use the main app's
-    # profile (mismatched bundle id, fails). The project.pbxproj already has
-    # `PROVISIONING_PROFILE_SPECIFIER = "match AppStore com.daypage.app.DayPageWidget"`
-    # on the DayPageWidget target's Release config, so per-target signing is
-    # already correct. We only need export_options.provisioningProfiles to
-    # tell -exportArchive which profile to embed for each bundle id.
-    #
-    # Conditional xcargs syntax `PROVISIONING_PROFILE_SPECIFIER[target=...]=...`
-    # is an .xcconfig-only form; xcodebuild on the command line interprets the
-    # whole `[target=...]=value` as the *value*, so we can't use it that way.
+    configure_release_signing
+    profile_mapping     = Actions.lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+    profile_name        = profile_mapping.fetch("com.daypage.app")
+    widget_profile_name = profile_mapping.fetch("com.daypage.app.DayPageWidget")
+    watch_profile_name  = profile_mapping.fetch("com.daypage.app.watchkitapp")
     build_app(
       scheme:           "DayPage",
       project:          "DayPage.xcodeproj",
@@ -292,6 +274,33 @@ platform :ios do
     script = File.expand_path("../scripts/ci/validate_release_supabase_config.sh", __dir__)
     env_file = File.expand_path("../.env", __dir__)
     sh("bash", script, env_file)
+  end
+
+  # `match(force: true)` can append a timestamp when replacing an invalidated
+  # profile whose previous name is still present in the certificates repo.
+  # Read the exact names returned by match and apply them per target before
+  # archive; a checked-in or environment-cached profile name can be stale.
+  private_lane :configure_release_signing do
+    profile_mapping = Actions.lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
+    target_bundle_ids = {
+      "DayPage"       => "com.daypage.app",
+      "DayPageWidget" => "com.daypage.app.DayPageWidget",
+      "DayPageWatch"  => "com.daypage.app.watchkitapp"
+    }
+    missing = target_bundle_ids.values.reject { |bundle_id| profile_mapping[bundle_id] }
+    UI.user_error!("match did not provide profiles for: #{missing.join(', ')}") unless missing.empty?
+
+    target_bundle_ids.each do |target, bundle_id|
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path:                  "DayPage.xcodeproj",
+        team_id:               ENV["DEVELOPMENT_TEAM"],
+        targets:               [target],
+        build_configurations:  ["Release"],
+        code_sign_identity:    "Apple Distribution",
+        profile_name:          profile_mapping.fetch(bundle_id)
+      )
+    end
   end
 
   # 直接 sed 改 pbxproj，避开 agvtool 碰到 `GENERATE_INFOPLIST_FILE = YES`
