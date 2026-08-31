@@ -348,8 +348,8 @@ jobs:
     name: Maestro UI Tests
     runs-on: macos-15
     # GitHub-hosted macOS runners can spend 10+ min in simulator launch/screenshot
-    # and the visual-baseline flow alone can take 15-20 min. Keep enough headroom
-    # for all four flows so a slow but healthy runner is not reported as cancelled.
+    # and the isolated 24-state visual baseline can take several minutes. Keep
+    # enough headroom for visual capture plus the three interactive flows.
     timeout-minutes: 50
     needs: build
     # 仅 PR 和定时任务运行 UI 测试（push 跳过，加快常规开发循环）
@@ -427,14 +427,14 @@ jobs:
           xcrun simctl spawn "$SIMULATOR_UDID" \
             defaults write com.daypage.app authSkipped -bool YES
           # Two more gates discovered via diag-after-launch.png (2026-07-17):
-          # without hasRequestedNotifications the app fires the iOS
+          # without settings.hasRequestedNotifications the app fires the iOS
           # notification-permission dialog at cold launch — a SYSTEM alert
           # Maestro cannot see past, which is why flows died on
           # "Element not found: Archive" while Today was rendered right
           # behind it. And the first-run input-bar tutorial (Skip/Next
           # overlay) sits on top of the dock, hiding expand-text-composer.
           xcrun simctl spawn "$SIMULATOR_UDID" \
-            defaults write com.daypage.app hasRequestedNotifications -bool YES
+            defaults write com.daypage.app settings.hasRequestedNotifications -bool YES
           xcrun simctl spawn "$SIMULATOR_UDID" \
             defaults write com.daypage.app inputBarTutorialCompleted -bool YES
           # Pin app + system language to English so Maestro flow selectors
@@ -484,6 +484,19 @@ jobs:
             --output maestro-results/report.xml \
             --debug-output maestro-results/debug \
             || echo "MAESTRO_FAILED=true" >> "$GITHUB_ENV"
+
+      # Run the destructive state matrix after interaction flows: the harness
+      # reinstalls the app and intentionally ends in zh-Hans/dark/Graph state.
+      # Keeping it last prevents that truthful final state from contaminating
+      # Maestro's English Today-first navigation assumptions.
+      - name: Capture isolated visual baselines
+        env:
+          SIMULATOR_UDID: ${{ env.SIMULATOR_UDID }}
+        run: |
+          APP=$(find build/Products -name "DayPage.app" -maxdepth 3 | head -1)
+          bash scripts/ci/capture_ios_visual_baselines.sh \
+            "$APP" \
+            maestro-results/baseline
 
       - name: Upload Maestro results & screenshots
         if: always()

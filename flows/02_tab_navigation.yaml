@@ -6,7 +6,8 @@ appId: com.daypage.app
       hasOnboarded: "true"
       authSkipped: "true"
       hasSeenWelcome: "true"
-      hasRequestedNotifications: "true"
+      settings.hasRequestedNotifications: "true"
+      inputBarTutorialCompleted: "true"
 - takeScreenshot: launch
 
 # 等待 Today View 的真实导航入口。
@@ -24,8 +25,7 @@ appId: com.daypage.app
 
 # 在侧边栏点击 Archive (en) / 归档 (zh-Hans). The CI runner's default
 # locale may be zh-Hans, so an exact "Archive" match would miss. Regex
-# `Archive|归档` covers both. `forceLocale` is not bridged into the app
-# yet (only `hasOnboarded`/`authSkipped` are), so we can't pin to en.
+# `Archive|归档` covers both.
 - tapOn:
     id: "sidebar.tab.archive"
 - waitForAnimationToEnd

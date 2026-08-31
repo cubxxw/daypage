@@ -650,8 +650,18 @@ struct DayPageApp: App {
                     Task.detached(priority: .userInitiated) {
                         await OnThisDayIndex.shared.loadIndex()
                     }
-                    // 在首次启动且完成引导后填充示例数据
-                    if UserDefaults.standard.bool(forKey: AppSettings.Keys.hasOnboarded) {
+                    // 在首次启动且完成引导后填充示例数据。Visual/E2E audits
+                    // can suppress this one automatic side effect without
+                    // pretending the sample is already installed — doing the
+                    // latter made the empty-state CTA falsely say “Ready”.
+                    #if DEBUG
+                    let qaDisablesSampleSeed = ProcessInfo.processInfo.arguments
+                        .contains("-qaDisableAutoSampleSeed")
+                    #else
+                    let qaDisablesSampleSeed = false
+                    #endif
+                    if UserDefaults.standard.bool(forKey: AppSettings.Keys.hasOnboarded),
+                       !qaDisablesSampleSeed {
                         SampleDataSeeder.seedIfNeeded()
                     }
                 }

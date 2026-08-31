@@ -14,7 +14,7 @@ public enum SampleDataSeeder {
 
     public static func seedIfNeeded() {
         guard !UserDefaults.standard.bool(forKey: seededKey) else { return }
-        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) else { return }
 
         do {
             let existing = (try? RawStorage.read(for: yesterday)) ?? []
@@ -48,7 +48,12 @@ public enum SampleDataSeeder {
     private static func writeSampleDailyPage(for date: Date) throws {
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
-        df.timeZone = TimeZone(identifier: "UTC")
+        // Match RawStorage's configured day boundary exactly. Formatting the
+        // local start-of-day in UTC shifts the filename backward for positive
+        // offsets (for example Shanghai's 2026-08-31 became 2026-08-30), so
+        // the seeded raw memos looked permanently uncompiled and triggered a
+        // misleading missing-key backfill banner on every fresh launch.
+        df.timeZone = AppSettings.currentTimeZone()
         let dateString = df.string(from: date)
 
         let dailyURL = VaultInitializer.vaultURL
@@ -102,7 +107,7 @@ public enum SampleDataSeeder {
     // MARK: - Clear sample data
 
     public static func clearSampleData() {
-        guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) else { return }
 
         do {
             let existing = try RawStorage.read(for: yesterday)
@@ -123,7 +128,7 @@ public enum SampleDataSeeder {
             // daily the user has since produced.
             let df = DateFormatter()
             df.dateFormat = "yyyy-MM-dd"
-            df.timeZone = TimeZone(identifier: "UTC")
+            df.timeZone = AppSettings.currentTimeZone()
             let dailyURL = VaultInitializer.vaultURL
                 .appendingPathComponent("wiki")
                 .appendingPathComponent("daily")
@@ -161,7 +166,7 @@ public enum SampleDataSeeder {
     }
 
     private static func makeSampleMemos(for date: Date) -> [Memo] {
-        let cal = Calendar.current
+        let cal = calendar
         let base = cal.startOfDay(for: date)
         let morning = base.addingTimeInterval(9 * 3600)
         let noon = base.addingTimeInterval(12 * 3600)
@@ -218,5 +223,14 @@ public enum SampleDataSeeder {
         )
 
         return [memo1, memo2, memo3]
+    }
+
+    /// Sample fixtures must use the same user-selected day boundary as
+    /// RawStorage and the compiler, even when the device/system time zone is
+    /// different from the DayPage preference.
+    private static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = AppSettings.currentTimeZone()
+        return calendar
     }
 }

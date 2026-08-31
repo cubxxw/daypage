@@ -162,6 +162,83 @@ struct AccessibilityTests {
         #expect(!pill.contains("undo_pill.closing"))
     }
 
+    @Test func compileProgressAndAIKeyStatus_haveLocalizedCopy() throws {
+        let root = try projectRoot()
+        let en = try String(
+            contentsOf: root.appendingPathComponent("DayPage/Resources/en.lproj/Localizable.strings"),
+            encoding: .utf8
+        )
+        let zh = try String(
+            contentsOf: root.appendingPathComponent("DayPage/Resources/zh-Hans.lproj/Localizable.strings"),
+            encoding: .utf8
+        )
+        let requiredKeys = [
+            "today.compile.stage.collecting",
+            "today.compile.stage.cleaning",
+            "today.compile.stage.clustering",
+            "today.compile.stage.generating",
+            "today.compile.stage.linking",
+            "today.compile.progress.a11y.label",
+            "today.compile.progress.a11y.value",
+            "today.banner.ai_key_missing",
+            "today.banner.ai_key_missing.cta.a11y"
+        ]
+
+        for key in requiredKeys {
+            #expect(en.contains("\"\(key)\""), "Missing English localization for \(key)")
+            #expect(zh.contains("\"\(key)\""), "Missing Simplified Chinese localization for \(key)")
+        }
+    }
+
+    @Test func visualBaselineHarness_capturesTruthfulIsolatedStates() throws {
+        let root = try projectRoot()
+        let scriptURL = root.appendingPathComponent("scripts/ci/capture_ios_visual_baselines.sh")
+        let script = try String(contentsOf: scriptURL, encoding: .utf8)
+        let app = try String(
+            contentsOf: root.appendingPathComponent("DayPage/App/DayPageApp.swift"),
+            encoding: .utf8
+        )
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/ci.yml"),
+            encoding: .utf8
+        )
+
+        #expect(script.contains("simctl uninstall"), "The audit app container must start empty")
+        #expect(script.contains("for fixture in empty memos"), "Empty screenshots must precede seeded screenshots")
+        #expect(
+            script.contains("-qaDisableAutoSampleSeed YES"),
+            "Automatic onboarding samples must not contaminate the empty fixture or falsify its CTA"
+        )
+        #expect(
+            script.contains("defaults delete \"$bundle_id\" hasSeededSamples"),
+            "A long-lived Simulator must not leak a cached sample-ready claim into an empty vault"
+        )
+        #expect(
+            app.contains("-qaDisableAutoSampleSeed"),
+            "The audit-only sample suppression argument must be consumed by the app"
+        )
+        #expect(script.contains("-qaSeedTodayMemos YES"), "Memo screenshots need deterministic vault evidence")
+        #expect(
+            script.contains("DAYPAGE_VISUAL_SETTLE_SECONDS:-6"),
+            "The capture window must outlast cold-launch skeletons seen in the audit"
+        )
+        #expect(script.contains("-AppleLanguages"), "Screenshot locale must be set before process launch")
+        #expect(script.contains("-qaSelectedTab"), "Each destination must be selected before its first lifecycle pass")
+        #expect(script.contains("Expected 24 visual baselines"), "The full state matrix must be enforced")
+        let maestroRange = try #require(workflow.range(of: "- name: Run Maestro flows"))
+        let baselineRange = try #require(workflow.range(of: "- name: Capture isolated visual baselines"))
+        #expect(
+            maestroRange.lowerBound < baselineRange.lowerBound,
+            "The destructive visual matrix must run after interactive Maestro flows"
+        )
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("flows/04_visual_baseline_ios.yaml").path
+            ),
+            "The old flow silently ignored locale and fixture arguments and must not return"
+        )
+    }
+
     @Test func aiSummaryCard_guardsRepeatForever() throws {
         try assertGuardedRepeatForever(in: "DayPage/Features/Today/AISummaryCard.swift")
     }

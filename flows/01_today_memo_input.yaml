@@ -6,7 +6,8 @@ appId: com.daypage.app
       hasOnboarded: "true"
       authSkipped: "true"
       hasSeenWelcome: "true"
-      hasRequestedNotifications: "true"
+      settings.hasRequestedNotifications: "true"
+      inputBarTutorialCompleted: "true"
 - takeScreenshot: launch
 
 # 等待 Today View 的真实导航入口可交互。

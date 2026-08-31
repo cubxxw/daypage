@@ -674,6 +674,15 @@
 "today.compile.action.settings"   = "前往设置";
 "today.compile.action.viewLog"    = "查看日志";
 "today.compile.background.failed" = "后台编译失败，请检查网络或 API Key 后重试";
+"today.compile.stage.collecting" = "正在收集记录";
+"today.compile.stage.cleaning" = "正在整理记录";
+"today.compile.stage.clustering" = "正在归纳主题";
+"today.compile.stage.generating" = "正在生成 Daily Page";
+"today.compile.stage.linking" = "正在关联记忆";
+"today.compile.progress.a11y.label" = "Daily Page 编译进度";
+"today.compile.progress.a11y.value" = "%@，完成 %d%%";
+"today.banner.ai_key_missing" = "配置 AI 密钥后即可开启夜间编译";
+"today.banner.ai_key_missing.cta.a11y" = "打开设置并配置 AI 密钥";
 
 /* Settings (P0-3) */
 "settings.data.vault.computing"              = "计算中…";

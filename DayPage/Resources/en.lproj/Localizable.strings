@@ -612,6 +612,15 @@
 "today.compile.action.settings"   = "Go to Settings";
 "today.compile.action.viewLog"    = "View Log";
 "today.compile.background.failed" = "Background compilation failed — check your network or API Key and try again";
+"today.compile.stage.collecting" = "Gathering your notes";
+"today.compile.stage.cleaning" = "Preparing your notes";
+"today.compile.stage.clustering" = "Finding themes";
+"today.compile.stage.generating" = "Writing your Daily Page";
+"today.compile.stage.linking" = "Linking memories";
+"today.compile.progress.a11y.label" = "Daily Page compilation progress";
+"today.compile.progress.a11y.value" = "%@, %d percent";
+"today.banner.ai_key_missing" = "Add your AI keys to enable nightly compilation";
+"today.banner.ai_key_missing.cta.a11y" = "Open Settings to configure AI keys";
 
 /* Timeline section dividers (en parity — previously missing, fell back to raw keys) */
 "today.section.earlier"   = "EARLIER";
