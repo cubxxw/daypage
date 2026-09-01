@@ -651,6 +651,22 @@ struct WeeklyRecapDetailView: View {
                 iconColor: DSColor.inkMuted,
                 showRetry: false
             )
+        case .backendRequested:
+            return ErrorCopy(
+                title: NSLocalizedString(
+                    "weekly.recap.error.backendRequested",
+                    value: "已提交后台生成",
+                    comment: "Weekly recap status: backend generation accepted"
+                ),
+                detail: NSLocalizedString(
+                    "weekly.recap.error.backendRequested.detail",
+                    value: "完成后会自动更新",
+                    comment: "Weekly recap backend generation detail line"
+                ),
+                systemImage: "clock.arrow.circlepath",
+                iconColor: DSColor.accentOnBg,
+                showRetry: false
+            )
         case .missingApiKey:
             return ErrorCopy(
                 title: NSLocalizedString(
