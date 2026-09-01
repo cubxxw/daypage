@@ -27,6 +27,7 @@ import { getEntityEvolution } from "@/lib/temporal";
 import { sendEvent } from "@/lib/inngest/client";
 import { sanitizeMemoBody } from "@/lib/sanitize";
 import { hasScope, type ApiAuthResult } from "@/lib/api-auth";
+import { memoContentHash } from "@/lib/memo-revision";
 
 // MCP protocol revision we implement. Clients negotiate via `initialize`.
 const PROTOCOL_VERSION = "2024-11-05";
@@ -371,6 +372,9 @@ async function runAddMemo(auth: ApiAuthResult, args: Record<string, unknown>) {
       origin: "api",
       ingest_mode: "light",
       word_count: body.split(/\s+/).filter(Boolean).length,
+      sync_revision: 1,
+      source_modified_at: new Date(),
+      content_hash: memoContentHash(body),
     })
     .returning();
 

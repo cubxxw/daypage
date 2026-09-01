@@ -7,6 +7,7 @@ import { CreateMemoSchema, ListMemosQuerySchema } from "@/lib/schemas/memo";
 import { checkMutationRateLimit } from "@/lib/ratelimit";
 import { sendEvent } from "@/lib/inngest/client";
 import { sanitizeMemoBody } from "@/lib/sanitize";
+import { memoContentHash } from "@/lib/memo-revision";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -149,6 +150,9 @@ export async function POST(req: NextRequest) {
       device_id: input.device_id ?? null,
       mood: input.mood ?? null,
       word_count: input.word_count ?? input.body.split(/\s+/).filter(Boolean).length,
+      sync_revision: 1,
+      source_modified_at: new Date(),
+      content_hash: memoContentHash(input.body),
     })
     .returning();
 

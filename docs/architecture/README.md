@@ -15,6 +15,8 @@
 - [ADR-0016](decisions/ADR-0016-revisioned-attachment-sync.md): revisioned local-first attachment synchronization with resumable transfer and garbage collection.
 - [ADR-0017](decisions/ADR-0017-apple-system-actions.md): local-first Apple System Actions with native confirmation, device execution, immutable receipts, and bounded agent proposals.
 - [Issue #887 verification matrix](../verification-issue-887-apple-system-actions.md): automated gates plus the matching-OS and real-device release checklist.
+- [ADR-0018](decisions/ADR-0018-backend-first-agent-data-plane.md): backend-first Agent runs, artifacts, reducers, automations, and approved tool execution over local-first capture.
+- [ADR-0019](decisions/ADR-0019-agent-evaluation-learning-plane.md): authoritative feedback/evaluator records, privacy-bounded Opik projection, versioned datasets, experiments, annotation, and promotion gates.
 
 The overview is descriptive and should track executable reality. ADRs explain durable
 choices and trade-offs. Product requirements belong in a current PRD or issue, not in an

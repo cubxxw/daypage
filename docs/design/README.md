@@ -13,6 +13,11 @@ contain or read a user vault.
   inline compiled-day presentation.
 - `receipt-artifacts.html`: three proposed presentation levels for outbound-effect
   receipts.
+- `backend-first-agent-data-plane.md`: accepted 2026-08-28 design for local-first
+  capture plus a backend-first Agent data plane, covering versioned skills,
+  automations, tools, structured run artifacts, approvals, and migration. The
+  durable decision is recorded in
+  [`ADR-0018`](../architecture/decisions/ADR-0018-backend-first-agent-data-plane.md).
 
 Current documentation is routed from [`docs/README.md`](../README.md). Any proposal
 selected for implementation requires a scoped GitHub issue; durable architecture

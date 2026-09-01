@@ -1027,6 +1027,8 @@
 "weekly.recap.error.offline.waiting"              = "Waiting for network…";
 "weekly.recap.error.aiDisabled"                   = "AI features are off";
 "weekly.recap.error.aiDisabled.detail"            = "Re-enable AI compile in Settings";
+"weekly.recap.error.backendRequested"             = "Generating in the background";
+"weekly.recap.error.backendRequested.detail"      = "This recap will update automatically when ready";
 "weekly.recap.error.missingApiKey"                = "API key not configured";
 "weekly.recap.error.missingApiKey.detail"         = "Add a DeepSeek key in Settings → API Keys";
 "weekly.recap.error.networkTimeout"               = "Network timed out — tap to retry";

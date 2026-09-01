@@ -82,7 +82,19 @@ const ORDER: WorkOrderRow = {
   budget_tokens: 100_000,
   status: "pending",
   result_ref: null,
+  run_id: null,
+  tool_key: null,
+  arguments: null,
+  effect: null,
+  approval_required: true,
+  approved_at: null,
+  approved_by: null,
+  rejected_at: null,
+  rejection_reason: null,
+  provider_idempotency_key: null,
+  provider_receipt: null,
   created_at: new Date("2026-06-10T00:00:00.000Z"),
+  updated_at: new Date("2026-06-10T00:00:00.000Z"),
 };
 
 const NOW = new Date("2026-06-10T01:00:00.000Z");

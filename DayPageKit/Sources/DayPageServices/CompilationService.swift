@@ -11,6 +11,7 @@ import DayPageStorage
 public enum CompileOutcome: Equatable {
     case compiled
     case skippedUnchanged
+    case requestedBackend
 }
 
 // MARK: - CompilationStage
@@ -65,7 +66,7 @@ public final class CompilationService: ObservableObject {
     /// - Parameter force: 为 true 时跳过 source_hash 去重守卫，强制重新编译
     ///   （DailyPageView「重新编译」的显式意图）。
     /// - Parameter onRetry: 每次重试前调用，参数为 (当前次数, 最大次数)。
-    /// - Returns: `.compiled` 或 `.skippedUnchanged`（内容未变，未调 LLM）。
+    /// - Returns: 本地编译、未变化跳过，或已提交后端 reducer。
     /// - Throws: 当 API、解析或文件系统失败时抛出 `CompilationError`。
     @discardableResult
     public func compile(
@@ -111,6 +112,21 @@ public final class CompilationService: ObservableObject {
             force: force,
             existingDailyRevision: existingDailyRevision
         )
+
+        // Phase 5 convergence: once enabled, Native stops authoring derived
+        // wiki state. Raw memos still commit locally first; the service flushes
+        // their durable sync operations, requests a backend reducer run, and
+        // reads the result later through the isolated derived cache.
+        if FeatureFlagStore.shared.isEnabled(.backendFirstIntelligence) {
+            _ = try await BackendIntelligenceService.shared.requestDaily(
+                localDate: dateString,
+                timezone: AppSettings.currentTimeZone().identifier,
+                force: force
+            )
+            stage = .done
+            compilationProgress = .done
+            return .requestedBackend
+        }
 
         // Issue #814 cost guard: when the substantive memo content is
         // unchanged since the last compile, skip the LLM round-trip

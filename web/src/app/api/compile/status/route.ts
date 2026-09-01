@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isCompileServiceConnected } from "@/lib/inngest/client";
+import { agentDataPlaneMode } from "@/lib/agent-data-plane/feature-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -7,5 +8,8 @@ export const dynamic = "force-dynamic";
 // actually reachable. When false, the UI must explain that compilation will not
 // run rather than show memos stuck at "queued" forever.
 export async function GET() {
-  return NextResponse.json({ connected: await isCompileServiceConnected() });
+  return NextResponse.json({
+    connected: await isCompileServiceConnected(),
+    agent_data_plane_mode: agentDataPlaneMode(),
+  });
 }

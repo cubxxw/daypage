@@ -102,6 +102,13 @@ public enum FeatureFlag: String, CaseIterable {
     /// **Default**: on
     case markdownRendering
 
+    /// **Used in**: Native compilation and derived-artifact readers.
+    /// **When on**: raw capture still commits locally first, while Daily and
+    /// Weekly intelligence is requested from the backend and read from the
+    /// replaceable `_agent/cache`; existing `vault/wiki` files stay untouched.
+    /// **Default**: off until the backend rollout reaches this account.
+    case backendFirstIntelligence
+
     /// Default state when the user has never touched the toggle. All Round 4
     /// flags default-on so the app behaves the way the user already expects
     /// after upgrading — Experiments only lets them *opt out*.
@@ -122,6 +129,8 @@ public enum FeatureFlag: String, CaseIterable {
              .chatHistory,
              .markdownRendering:
             return true
+        case .backendFirstIntelligence:
+            return false
         }
     }
 
@@ -144,6 +153,7 @@ public enum FeatureFlag: String, CaseIterable {
         case .todayFocusCollapsed:    return "今日焦点折叠"
         case .chatHistory:            return "聊天历史长河"
         case .markdownRendering:      return "Markdown 渲染"
+        case .backendFirstIntelligence: return "后端智能数据面"
         }
     }
 }

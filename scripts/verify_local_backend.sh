@@ -66,6 +66,10 @@ docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres \
 bash web/scripts/verify-system-actions-concurrency.sh
 docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres \
     < web/scripts/verify-local-first-sync.sql
+docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres \
+    < web/scripts/verify-agent-data-plane.sql
+docker exec -i "${DB_CONTAINER}" psql -U postgres -d postgres \
+    < web/scripts/verify-agent-evaluation.sql
 
 curl -fsS "${LOCAL_MCP_URL}/healthz" \
     | jq -e '.status == "ok" and .runtime == "supabase-edge"' >/dev/null

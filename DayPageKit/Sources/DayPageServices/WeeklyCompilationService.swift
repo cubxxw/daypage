@@ -17,6 +17,7 @@ public enum WeeklyCompilationError: LocalizedError {
     case apiError(statusCode: Int, body: String)
     case parseFailed(String)
     case fileSystemError(String)
+    case backendRequested
     case unknown(Error)
 
     public var errorDescription: String? {
@@ -33,6 +34,8 @@ public enum WeeklyCompilationError: LocalizedError {
             return "AI 返回解析失败：\(msg)"
         case .fileSystemError(let msg):
             return "文件写入失败：\(msg)"
+        case .backendRequested:
+            return "已提交后台生成，完成后会自动更新"
         case .unknown(let err):
             return "未知错误：\(err.localizedDescription)"
         }
@@ -213,6 +216,25 @@ public final class WeeklyCompilationService {
             return cached
         }
 
+        if FeatureFlagStore.shared.isEnabled(.backendFirstIntelligence) {
+            let timezone = AppSettings.currentTimeZone()
+            var calendar = Self.weekCalendar
+            calendar.timeZone = timezone
+            guard let interval = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
+                throw WeeklyCompilationError.noData
+            }
+            let weekStart = Self.backendDateString(
+                calendar.startOfDay(for: interval.start),
+                timezone: timezone
+            )
+            _ = try await BackendIntelligenceService.shared.requestWeekly(
+                weekStart: weekStart,
+                timezone: timezone.identifier,
+                force: forceRefresh
+            )
+            throw WeeklyCompilationError.backendRequested
+        }
+
         guard AppSettings.aiFeaturesEnabled else {
             throw WeeklyCompilationError.aiDisabled
         }
@@ -300,11 +322,22 @@ public final class WeeklyCompilationService {
     /// `vault/wiki/weekly/{isoWeek}.md`. Returns nil when the file does not
     /// exist or cannot be parsed.
     public func loadCached(for referenceDate: Date) -> WeeklyRecapOutput? {
-        let calendar = Self.weekCalendar
+        var calendar = Self.weekCalendar
+        if FeatureFlagStore.shared.isEnabled(.backendFirstIntelligence) {
+            calendar.timeZone = AppSettings.currentTimeZone()
+        }
         guard let interval = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
             return nil
         }
         let weekStart = calendar.startOfDay(for: interval.start)
+        if FeatureFlagStore.shared.isEnabled(.backendFirstIntelligence) {
+            let timezone = AppSettings.currentTimeZone()
+            let weekStartString = Self.backendDateString(weekStart, timezone: timezone)
+            guard let artifact = BackendIntelligenceService.shared.weeklyArtifact(for: weekStartString) else {
+                return nil
+            }
+            return Self.backendOutput(from: artifact, weekStart: weekStart)
+        }
         let isoWeek = Self.isoWeekKey(for: weekStart)
         let url = Self.weeklyURL(isoWeek: isoWeek)
         guard FileManager.default.fileExists(atPath: url.path),
@@ -312,6 +345,29 @@ public final class WeeklyCompilationService {
             return nil
         }
         return Self.parseCachedFile(content)
+    }
+
+    private static func backendOutput(
+        from artifact: RemoteDerivedArtifact,
+        weekStart: Date
+    ) -> WeeklyRecapOutput {
+        let end = weekCalendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
+        let payload = artifact.payload
+        let trends = payload["trends"]?.stringArrayValue ?? []
+        let openLoops = payload["open_loops"]?.stringArrayValue ?? []
+        let standouts = payload["standouts"]?.stringArrayValue ?? []
+        let timezone = AppSettings.currentTimeZone()
+        return WeeklyRecapOutput(
+            isoWeek: isoWeekKey(for: weekStart),
+            dateRange: "\(backendDateString(weekStart, timezone: timezone)) to \(backendDateString(end, timezone: timezone))",
+            compiledAt: artifact.updatedAt,
+            keywords: Array(trends.prefix(8)),
+            moodNotes: payload["narrative"]?.stringValue ?? artifact.bodyMarkdown ?? "",
+            placeNotes: openLoops.joined(separator: "\n"),
+            highlights: standouts.isEmpty ? trends : standouts,
+            reflectionQuestions: payload["reflection_questions"]?.stringArrayValue ?? [],
+            outliers: standouts
+        )
     }
 
     // MARK: - Prompt
@@ -608,6 +664,14 @@ public final class WeeklyCompilationService {
         f.timeZone = TimeZone.current
         return f
     }()
+
+    private static func backendDateString(_ date: Date, timezone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        return formatter.string(from: date)
+    }
 
     public static let backupTimestampFormatter: DateFormatter = {
         let f = DateFormatter()

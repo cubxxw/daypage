@@ -11,6 +11,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
+    "eval:validate": "tsx scripts/agent-evaluation.ts validate",
+    "eval:run": "tsx scripts/agent-evaluation.ts run",
+    "eval:gate": "tsx scripts/agent-evaluation.ts gate",
+    "eval:sync-opik": "tsx scripts/agent-evaluation.ts sync-opik",
+    "eval:upload-opik": "tsx scripts/agent-evaluation.ts upload-opik",
+    "eval:annotation-queue": "tsx scripts/agent-evaluation.ts annotation-queue",
     "dev:inngest": "npx inngest-cli@latest dev",
     "test:e2e": "playwright test"
   },
@@ -36,6 +42,7 @@
     "lucide-react": "^1.14.0",
     "next": "16.2.6",
     "ogl": "^1.0.11",
+    "opik": "2.2.45",
     "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -56,6 +63,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "4.20.6",
     "typescript": "^5",
     "vitest": "^4.1.5"
   }

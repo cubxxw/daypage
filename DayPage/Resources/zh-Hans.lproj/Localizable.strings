@@ -1034,6 +1034,8 @@
 "weekly.recap.error.offline.waiting"              = "等待网络恢复…";
 "weekly.recap.error.aiDisabled"                   = "AI 功能已关闭";
 "weekly.recap.error.aiDisabled.detail"            = "请在设置中重新启用 AI 编译";
+"weekly.recap.error.backendRequested"             = "已提交后台生成";
+"weekly.recap.error.backendRequested.detail"      = "完成后会自动更新";
 "weekly.recap.error.missingApiKey"                = "尚未配置 API 密钥";
 "weekly.recap.error.missingApiKey.detail"         = "请在设置 → API 密钥中填入 DeepSeek 密钥";
 "weekly.recap.error.networkTimeout"               = "网络请求超时，点击重试";
