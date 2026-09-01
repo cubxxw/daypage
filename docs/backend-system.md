@@ -17,6 +17,9 @@ remain authoritative when details conflict.
 | Photo/audio/PDF byte sync | Implemented locally; staging pending | ADR-0016, v2 RPCs, two-Vault + TUS live tests |
 | Delayed attachment deletion | Implemented locally; scheduler not deployed | 30-day queue + leased private Storage-API worker |
 | Apple system action replica and MCP proposal boundary | Implemented locally; native rollout pending | ADR-0017, migration 0030, transactional two-tenant verifier |
+| Backend-first Agent data plane | Implemented locally; shadow is the safe default | ADR-0018, migration 0031, transactional verifier |
+| Native derived-artifact convergence | Implemented behind default-off flag | session-backed RPC/read client + `_agent/cache` |
+| External tool execution | Fail-closed gateway contract; connectors not configured by default | approval + scoped connection + leased outbox + receipt |
 | Guaranteed iOS background execution | Not promised | foreground/process-lifetime sync by ADR-0008 |
 | Production migration/deployment | Not authorized | staging evidence exists; production remains unchanged |
 
@@ -36,6 +39,9 @@ flowchart LR
     DB["Postgres + RLS + receipts + tombstones"]
     Storage["Private attachment Storage"]
     Edge["Cloud MCP Edge Function"]
+    Jobs["Durable Agent jobs + Automations"]
+    Runtime["Versioned Skills / Runs / Artifacts"]
+    ToolOutbox["Approved tool execution outbox"]
   end
 
   Outbox -->|"user JWT; v2 push"| RPC
@@ -52,6 +58,9 @@ flowchart LR
 
   Web["Next.js web + jobs"] --> DB
   Web --> Storage
+  DB --> Jobs --> Runtime --> DB
+  Runtime --> ToolOutbox
+  ToolOutbox --> Gateway["Optional connector gateway"]
 ```
 
 The Vault is the capture source of truth. Postgres is the authenticated cross-device
@@ -191,6 +200,24 @@ caller-supplied user ID and exposes no underlying key table to the anonymous rol
 Neither path puts a service-role key or `DATABASE_URL` in the request handler. MCP logs
 exclude memo content and credentials.
 
+## Backend-first intelligence path
+
+Every accepted raw memo revision emits one durable `memo.synced` job. A leased worker
+runs the immutable `memo-understand@1` Skill, validates source spans, and persists
+observations, Daily contributions, bounded page patches, and proposal-only actions under
+an audited Run. Canonical Runs are idempotent by user, memo, revision, and Skill
+checksum; explicit retry creates a new attempt.
+
+Daily and Weekly are timezone-aware reducers over artifacts rather than competing raw
+compilers. Living Daily work coalesces, finalization and Weekly use per-user local
+schedules, and late arrivals create superseding artifact revisions. Page materialization
+uses optimistic locking and preserves unresolved concurrent edits as `needs_review`.
+
+Native keeps raw capture local-first. Under its rollout flag it requests reducers with
+the user's Supabase session and reads canonical artifacts through RLS into
+`vault/_agent/cache/derived-artifacts-v1.json`; it does not overwrite existing
+`vault/wiki` files. See the [Agent Data Plane runbook](agent-data-plane-runbook.md).
+
 ## Environments
 
 | Environment | Purpose | Rules |
@@ -283,5 +310,8 @@ Related decisions and operations:
 - [ADR-0008](architecture/decisions/ADR-0008-local-first-sync-and-cloud-mcp.md)
 - [ADR-0009](architecture/decisions/ADR-0009-native-surfaces-shared-contracts.md)
 - [ADR-0017](architecture/decisions/ADR-0017-apple-system-actions.md)
+- [ADR-0018](architecture/decisions/ADR-0018-backend-first-agent-data-plane.md)
+- [ADR-0019](architecture/decisions/ADR-0019-agent-evaluation-learning-plane.md)
+- [Agent Data Plane runbook](agent-data-plane-runbook.md)
 - [Supabase Auth setup](supabase-auth-setup.md)
 - [Cloud MCP staging runbook](mcp-cloud-runbook.md)

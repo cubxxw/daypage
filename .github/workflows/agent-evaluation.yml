@@ -1,0 +1,71 @@
+name: Agent Evaluation Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/src/lib/evaluation/**"
+      - "web/src/lib/agent-data-plane/**"
+      - "web/src/lib/ai/prompts/**"
+      - "web/scripts/agent-evaluation.ts"
+      - "web/package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/agent-evaluation.yml"
+  pull_request:
+    paths:
+      - "web/src/lib/evaluation/**"
+      - "web/src/lib/agent-data-plane/**"
+      - "web/src/lib/ai/prompts/**"
+      - "web/scripts/agent-evaluation.ts"
+      - "web/package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/agent-evaluation.yml"
+
+concurrency:
+  group: agent-evaluation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-gate:
+    name: 148-case deterministic gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check Web evaluation contracts
+        run: pnpm --filter daypage-web typecheck
+
+      - name: Run Agent Data Plane and evaluation tests
+        run: >-
+          pnpm --filter daypage-web exec vitest run
+          src/lib/agent-data-plane/__tests__
+          src/lib/evaluation/__tests__
+
+      - name: Run deterministic promotion gate
+        run: >-
+          pnpm --filter daypage-web eval:validate --
+          --output ../output/evaluation/ci-golden.json
+
+      - name: Upload evaluation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-evaluation-${{ github.sha }}
+          path: output/evaluation/ci-golden.json
+          retention-days: 14

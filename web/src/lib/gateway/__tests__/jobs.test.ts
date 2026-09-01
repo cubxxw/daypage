@@ -81,6 +81,10 @@ const baseJob = {
   gate_state: null,
   attempts: 0,
   last_error: null,
+  available_at: new Date("2026-06-09T00:00:00Z"),
+  lease_token: null,
+  lease_expires_at: null,
+  coalesce_key: null,
   created_at: new Date("2026-06-09T00:00:00Z"),
   updated_at: new Date("2026-06-09T00:00:00Z"),
 };

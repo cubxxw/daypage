@@ -13,6 +13,7 @@ import { schedulerTick } from "@/lib/inngest/functions/scheduler-tick";
 import { executorDispatch } from "@/lib/inngest/functions/executor-dispatch";
 import { evolverStep } from "@/lib/inngest/functions/evolver-step";
 import { sessionReaper } from "@/lib/inngest/functions/session-reaper";
+import { agentDataPlaneWorker } from "@/lib/inngest/functions/agent-data-plane-worker";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -30,5 +31,6 @@ export const { GET, POST, PUT } = serve({
     executorDispatch,
     evolverStep,
     sessionReaper,
+    agentDataPlaneWorker,
   ],
 });

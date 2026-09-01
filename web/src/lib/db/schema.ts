@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   primaryKey,
   customType,
+  check,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -133,6 +134,8 @@ export const workOrderGateEnum = pgEnum("work_order_gate", [
 export const workOrderStatusEnum = pgEnum("work_order_status", [
   "pending",
   "gated",
+  "approved",
+  "rejected",
   "running",
   "done",
   "failed",
@@ -156,6 +159,73 @@ export const agentSessionStatusEnum = pgEnum("agent_session_status", [
   "idle",
   "timed_out",
   "closed",
+]);
+
+// ─── Backend-first Agent Data Plane enums ───────────────────────────────────
+
+export const skillVersionStatusEnum = pgEnum("skill_version_status", [
+  "active",
+  "deprecated",
+  "disabled",
+]);
+
+export const toolEffectEnum = pgEnum("tool_effect", [
+  "read",
+  "internal_write",
+  "external_write",
+  "destructive",
+]);
+
+export const approvalModeEnum = pgEnum("approval_mode", [
+  "auto",
+  "confirm",
+  "forbidden",
+]);
+
+export const automationTriggerTypeEnum = pgEnum("automation_trigger_type", [
+  "event",
+  "schedule",
+  "manual",
+]);
+
+export const agentRunStatusEnum = pgEnum("agent_run_status", [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+  "needs_review",
+]);
+
+export const agentRunStepStatusEnum = pgEnum("agent_run_step_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "skipped",
+]);
+
+export const artifactStatusEnum = pgEnum("artifact_status", [
+  "draft",
+  "live",
+  "superseded",
+  "archived",
+  "needs_review",
+]);
+
+export const toolExecutionStatusEnum = pgEnum("tool_execution_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "dead",
+]);
+
+export const evaluationExportStatusEnum = pgEnum("evaluation_export_status", [
+  "pending",
+  "running",
+  "completed",
+  "dead",
 ]);
 
 // ─── US-006: Wave 1b — users + memos + memo_attachments ───────────────────────
@@ -1020,6 +1090,16 @@ export const agents = pgTable(
     }),
     // Max wiki pages to recall per turn (passed to retrievePages topK).
     top_k: integer("top_k").notNull().default(8),
+    instructions: text("instructions").notNull().default(""),
+    model_policy: jsonb("model_policy")
+      .notNull()
+      .default(sql`'{"preferredModel":"gpt-4o-mini"}'::jsonb`),
+    knowledge_scope: jsonb("knowledge_scope")
+      .notNull()
+      .default(sql`'{"topK":8}'::jsonb`),
+    budget_policy: jsonb("budget_policy")
+      .notNull()
+      .default(sql`'{"maxInputTokens":16000,"maxOutputTokens":2048,"maxToolCalls":4,"timeoutSeconds":120}'::jsonb`),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1119,6 +1199,12 @@ export const gateway_jobs = pgTable(
     gate_state: text("gate_state"),
     attempts: integer("attempts").notNull().default(0),
     last_error: text("last_error"),
+    available_at: timestamp("available_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lease_token: uuid("lease_token"),
+    lease_expires_at: timestamp("lease_expires_at", { withTimezone: true }),
+    coalesce_key: text("coalesce_key"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1129,6 +1215,7 @@ export const gateway_jobs = pgTable(
   },
   (t) => [
     index("gateway_jobs_user_status").on(t.user_id, t.status),
+    index("gateway_jobs_claimable").on(t.status, t.available_at, t.lease_expires_at),
     unique("gateway_jobs_idempotency_key_unique").on(t.idempotency_key),
   ]
 );
@@ -1196,6 +1283,21 @@ export const work_orders = pgTable(
     budget_tokens: integer("budget_tokens"),
     status: workOrderStatusEnum("status").notNull().default("pending"),
     result_ref: text("result_ref"),
+    run_id: uuid("run_id"),
+    tool_key: text("tool_key"),
+    arguments: jsonb("arguments"),
+    effect: toolEffectEnum("effect"),
+    approval_required: boolean("approval_required").notNull().default(true),
+    approved_at: timestamp("approved_at", { withTimezone: true }),
+    approved_by: uuid("approved_by"),
+    rejected_at: timestamp("rejected_at", { withTimezone: true }),
+    rejection_reason: text("rejection_reason"),
+    provider_idempotency_key: text("provider_idempotency_key"),
+    provider_receipt: jsonb("provider_receipt"),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1227,6 +1329,517 @@ export type WorkOrder = typeof work_orders.$inferSelect;
 export type NewWorkOrder = typeof work_orders.$inferInsert;
 export type AgentSession = typeof agent_sessions.$inferSelect;
 export type NewAgentSession = typeof agent_sessions.$inferInsert;
+
+// ─── Backend-first Agent Data Plane ─────────────────────────────────────────
+
+export const skill_versions = pgTable(
+  "skill_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    key: text("key").notNull(),
+    version: text("version").notNull(),
+    description: text("description").notNull().default(""),
+    manifest: jsonb("manifest").notNull().default(sql`'{}'::jsonb`),
+    input_schema: jsonb("input_schema").notNull().default(sql`'{}'::jsonb`),
+    output_schema: jsonb("output_schema").notNull().default(sql`'{}'::jsonb`),
+    required_tools: jsonb("required_tools").notNull().default(sql`'[]'::jsonb`),
+    optional_tools: jsonb("optional_tools").notNull().default(sql`'[]'::jsonb`),
+    default_risk: toolEffectEnum("default_risk").notNull().default("read"),
+    implementation_ref: text("implementation_ref").notNull(),
+    checksum: text("checksum").notNull(),
+    status: skillVersionStatusEnum("status").notNull().default("active"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("skill_versions_key_version_unique").on(t.key, t.version),
+    unique("skill_versions_checksum_unique").on(t.checksum),
+    index("skill_versions_key_status").on(t.key, t.status),
+  ],
+);
+
+export const tool_definitions = pgTable("tool_definitions", {
+  key: text("key").primaryKey(),
+  source: text("source").notNull(),
+  effect: toolEffectEnum("effect").notNull(),
+  input_schema: jsonb("input_schema").notNull().default(sql`'{}'::jsonb`),
+  output_schema: jsonb("output_schema").notNull().default(sql`'{}'::jsonb`),
+  default_approval: approvalModeEnum("default_approval").notNull().default("forbidden"),
+  required_scopes: jsonb("required_scopes").notNull().default(sql`'[]'::jsonb`),
+  timeout_seconds: integer("timeout_seconds").notNull().default(30),
+  max_result_bytes: integer("max_result_bytes").notNull().default(65_536),
+  enabled: boolean("enabled").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tool_connections = pgTable(
+  "tool_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    auth_ref: text("auth_ref").notNull(),
+    scopes: jsonb("scopes").notNull().default(sql`'[]'::jsonb`),
+    status: text("status").notNull().default("active"),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    revoked_at: timestamp("revoked_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("tool_connections_user_status").on(t.user_id, t.status),
+    unique("tool_connections_user_provider_auth_unique").on(t.user_id, t.provider, t.auth_ref),
+  ],
+);
+
+export const agent_skill_bindings = pgTable(
+  "agent_skill_bindings",
+  {
+    agent_id: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    skill_version_id: uuid("skill_version_id")
+      .notNull()
+      .references(() => skill_versions.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    priority: integer("priority").notNull().default(0),
+    config: jsonb("config").notNull().default(sql`'{}'::jsonb`),
+  },
+  (t) => [primaryKey({ columns: [t.agent_id, t.skill_version_id] })],
+);
+
+export const agent_tool_bindings = pgTable(
+  "agent_tool_bindings",
+  {
+    agent_id: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    tool_key: text("tool_key")
+      .notNull()
+      .references(() => tool_definitions.key, { onDelete: "cascade" }),
+    connection_id: uuid("connection_id").references(() => tool_connections.id, {
+      onDelete: "set null",
+    }),
+    approval_override: approvalModeEnum("approval_override"),
+    enabled: boolean("enabled").notNull().default(true),
+  },
+  (t) => [primaryKey({ columns: [t.agent_id, t.tool_key] })],
+);
+
+export const automations = pgTable(
+  "automations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    trigger_type: automationTriggerTypeEnum("trigger_type").notNull(),
+    trigger: jsonb("trigger").notNull().default(sql`'{}'::jsonb`),
+    timezone: text("timezone").notNull().default("UTC"),
+    agent_id: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+    skill_version_id: uuid("skill_version_id")
+      .notNull()
+      .references(() => skill_versions.id, { onDelete: "restrict" }),
+    input_selector: jsonb("input_selector").notNull().default(sql`'{}'::jsonb`),
+    coalesce_policy: jsonb("coalesce_policy").notNull().default(sql`'{}'::jsonb`),
+    enabled: boolean("enabled").notNull().default(true),
+    next_due_at: timestamp("next_due_at", { withTimezone: true }),
+    last_enqueued_at: timestamp("last_enqueued_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("automations_due").on(t.enabled, t.next_due_at)],
+);
+
+export const agent_runs = pgTable(
+  "agent_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    trigger_type: text("trigger_type").notNull(),
+    trigger_ref: text("trigger_ref"),
+    trigger_snapshot: jsonb("trigger_snapshot").notNull().default(sql`'{}'::jsonb`),
+    memo_id: uuid("memo_id").references(() => memos.id, { onDelete: "set null" }),
+    memo_revision: bigint("memo_revision", { mode: "number" }),
+    agent_id: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+    skill_version_id: uuid("skill_version_id")
+      .notNull()
+      .references(() => skill_versions.id, { onDelete: "restrict" }),
+    agent_snapshot: jsonb("agent_snapshot").notNull().default(sql`'{}'::jsonb`),
+    skill_snapshot: jsonb("skill_snapshot").notNull().default(sql`'{}'::jsonb`),
+    tool_policy_snapshot: jsonb("tool_policy_snapshot").notNull().default(sql`'{}'::jsonb`),
+    skill_checksum: text("skill_checksum").notNull(),
+    idempotency_key: text("idempotency_key").notNull(),
+    attempt: integer("attempt").notNull().default(1),
+    is_canonical: boolean("is_canonical").notNull().default(true),
+    shadow: boolean("shadow").notNull().default(false),
+    status: agentRunStatusEnum("status").notNull().default("queued"),
+    summary: text("summary"),
+    budget: jsonb("budget").notNull().default(sql`'{}'::jsonb`),
+    error: jsonb("error"),
+    started_at: timestamp("started_at", { withTimezone: true }),
+    completed_at: timestamp("completed_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("agent_runs_user_key_attempt_unique").on(t.user_id, t.idempotency_key, t.attempt),
+    uniqueIndex("agent_runs_one_canonical")
+      .on(t.user_id, t.idempotency_key)
+      .where(sql`${t.is_canonical} = true`),
+    index("agent_runs_user_status_created").on(t.user_id, t.status, t.created_at),
+    index("agent_runs_memo").on(t.user_id, t.memo_id, t.created_at),
+  ],
+);
+
+export const agent_run_steps = pgTable(
+  "agent_run_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    run_id: uuid("run_id")
+      .notNull()
+      .references(() => agent_runs.id, { onDelete: "cascade" }),
+    ordinal: integer("ordinal").notNull(),
+    step_key: text("step_key").notNull(),
+    tool_key: text("tool_key").references(() => tool_definitions.key, {
+      onDelete: "set null",
+    }),
+    status: agentRunStepStatusEnum("status").notNull().default("pending"),
+    input_hash: text("input_hash"),
+    output_hash: text("output_hash"),
+    tokens_in: integer("tokens_in").notNull().default(0),
+    tokens_out: integer("tokens_out").notNull().default(0),
+    duration_ms: integer("duration_ms").notNull().default(0),
+    receipt: jsonb("receipt").notNull().default(sql`'{}'::jsonb`),
+    error: jsonb("error"),
+    started_at: timestamp("started_at", { withTimezone: true }),
+    completed_at: timestamp("completed_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("agent_run_steps_run_ordinal_unique").on(t.run_id, t.ordinal),
+    unique("agent_run_steps_run_key_unique").on(t.run_id, t.step_key),
+  ],
+);
+
+export const agent_artifacts = pgTable(
+  "agent_artifacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    run_id: uuid("run_id")
+      .notNull()
+      .references(() => agent_runs.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    schema_version: integer("schema_version").notNull().default(1),
+    logical_key: text("logical_key").notNull(),
+    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    body_md: text("body_md"),
+    status: artifactStatusEnum("status").notNull().default("draft"),
+    revision: integer("revision").notNull().default(1),
+    source_set_hash: text("source_set_hash"),
+    local_date: text("local_date"),
+    timezone: text("timezone"),
+    perspective_key: text("perspective_key").notNull().default("canonical"),
+    supersedes_id: uuid("supersedes_id").references(
+      (): AnyPgColumn => agent_artifacts.id,
+      { onDelete: "set null" },
+    ),
+    finalized_at: timestamp("finalized_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("agent_artifacts_logical_revision_unique").on(
+      t.user_id,
+      t.logical_key,
+      t.perspective_key,
+      t.revision,
+    ),
+    index("agent_artifacts_user_kind_status").on(t.user_id, t.kind, t.status),
+    index("agent_artifacts_local_date").on(t.user_id, t.local_date, t.kind),
+  ],
+);
+
+export const artifact_sources = pgTable(
+  "artifact_sources",
+  {
+    artifact_id: uuid("artifact_id")
+      .notNull()
+      .references(() => agent_artifacts.id, { onDelete: "cascade" }),
+    memo_id: uuid("memo_id").references(() => memos.id, { onDelete: "set null" }),
+    page_id: uuid("page_id").references(() => pages.id, { onDelete: "set null" }),
+    source_artifact_id: uuid("source_artifact_id").references(
+      () => agent_artifacts.id,
+      { onDelete: "set null" },
+    ),
+    span_start: integer("span_start"),
+    span_end: integer("span_end"),
+    provenance: text("provenance").notNull().default("direct"),
+    weight: real("weight").notNull().default(1),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("artifact_sources_unique").on(
+      t.artifact_id,
+      t.memo_id,
+      t.page_id,
+      t.source_artifact_id,
+      t.span_start,
+      t.span_end,
+    ),
+    index("artifact_sources_memo").on(t.memo_id, t.artifact_id),
+  ],
+);
+
+export const tool_execution_outbox = pgTable(
+  "tool_execution_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    work_order_id: uuid("work_order_id")
+      .notNull()
+      .references(() => work_orders.id, { onDelete: "cascade" }),
+    tool_key: text("tool_key")
+      .notNull()
+      .references(() => tool_definitions.key, { onDelete: "restrict" }),
+    connection_id: uuid("connection_id").references(() => tool_connections.id, {
+      onDelete: "set null",
+    }),
+    arguments: jsonb("arguments").notNull().default(sql`'{}'::jsonb`),
+    idempotency_key: text("idempotency_key").notNull(),
+    status: toolExecutionStatusEnum("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    available_at: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+    lease_token: uuid("lease_token"),
+    lease_expires_at: timestamp("lease_expires_at", { withTimezone: true }),
+    provider_receipt: jsonb("provider_receipt"),
+    last_error: text("last_error"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("tool_execution_outbox_idempotency_unique").on(t.idempotency_key),
+    index("tool_execution_outbox_due").on(t.status, t.available_at, t.lease_expires_at),
+  ],
+);
+
+// ─── Agent Evaluation Plane ─────────────────────────────────────────────────
+
+export const agent_feedback_events = pgTable(
+  "agent_feedback_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    run_id: uuid("run_id")
+      .notNull()
+      .references(() => agent_runs.id, { onDelete: "cascade" }),
+    artifact_id: uuid("artifact_id").references(() => agent_artifacts.id, {
+      onDelete: "set null",
+    }),
+    work_order_id: uuid("work_order_id").references(() => work_orders.id, {
+      onDelete: "set null",
+    }),
+    event_type: text("event_type").notNull(),
+    value: real("value"),
+    reason_code: text("reason_code"),
+    correction: jsonb("correction"),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    idempotency_key: text("idempotency_key").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("agent_feedback_events_idempotency_unique").on(t.idempotency_key),
+    index("agent_feedback_events_run_created").on(t.run_id, t.created_at),
+    index("agent_feedback_events_user_type_created").on(t.user_id, t.event_type, t.created_at),
+    check(
+      "agent_feedback_events_value_check",
+      sql`${t.value} is null or (${t.value} >= -1 and ${t.value} <= 1)`,
+    ),
+    check(
+      "agent_feedback_events_target_check",
+      sql`${t.artifact_id} is null or ${t.work_order_id} is null`,
+    ),
+  ],
+);
+
+export const evaluation_results = pgTable(
+  "evaluation_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    run_id: uuid("run_id")
+      .notNull()
+      .references(() => agent_runs.id, { onDelete: "cascade" }),
+    step_id: uuid("step_id").references(() => agent_run_steps.id, { onDelete: "cascade" }),
+    evaluator_key: text("evaluator_key").notNull(),
+    evaluator_version: text("evaluator_version").notNull(),
+    source: text("source").notNull(),
+    score: real("score").notNull(),
+    passed: boolean("passed").notNull(),
+    reason: text("reason"),
+    evidence: jsonb("evidence").notNull().default(sql`'{}'::jsonb`),
+    idempotency_key: text("idempotency_key").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("evaluation_results_idempotency_unique").on(t.idempotency_key),
+    index("evaluation_results_run_key").on(t.run_id, t.evaluator_key),
+    index("evaluation_results_user_passed_created").on(t.user_id, t.passed, t.created_at),
+    check("evaluation_results_score_check", sql`${t.score} >= 0 and ${t.score} <= 1`),
+    check(
+      "evaluation_results_source_check",
+      sql`${t.source} in ('deterministic', 'llm_judge', 'human', 'behavior')`,
+    ),
+  ],
+);
+
+export const evaluation_case_candidates = pgTable(
+  "evaluation_case_candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    run_id: uuid("run_id")
+      .notNull()
+      .references(() => agent_runs.id, { onDelete: "cascade" }),
+    feedback_event_id: uuid("feedback_event_id").references(() => agent_feedback_events.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason").notNull(),
+    privacy_class: text("privacy_class").notNull().default("private"),
+    sanitization_status: text("sanitization_status").notNull().default("pending"),
+    review_status: text("review_status").notNull().default("candidate"),
+    sanitized_case: jsonb("sanitized_case"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("evaluation_case_candidates_review").on(t.review_status, t.created_at),
+    unique("evaluation_case_candidates_feedback_unique").on(t.feedback_event_id),
+    check(
+      "evaluation_case_candidates_privacy_check",
+      sql`${t.privacy_class} in ('private', 'redacted', 'synthetic', 'consented')`,
+    ),
+    check(
+      "evaluation_case_candidates_sanitization_check",
+      sql`${t.sanitization_status} in ('pending', 'redacted', 'approved', 'rejected')`,
+    ),
+    check(
+      "evaluation_case_candidates_review_check",
+      sql`${t.review_status} in ('candidate', 'reviewing', 'accepted', 'rejected')`,
+    ),
+  ],
+);
+
+export const evaluation_export_outbox = pgTable(
+  "evaluation_export_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    run_id: uuid("run_id").references(() => agent_runs.id, { onDelete: "cascade" }),
+    entity_type: text("entity_type").notNull(),
+    entity_id: uuid("entity_id").notNull(),
+    operation: text("operation").notNull(),
+    privacy_mode: text("privacy_mode").notNull().default("metadata_only"),
+    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    idempotency_key: text("idempotency_key").notNull(),
+    status: evaluationExportStatusEnum("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    available_at: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+    lease_token: uuid("lease_token"),
+    lease_expires_at: timestamp("lease_expires_at", { withTimezone: true }),
+    external_id: text("external_id"),
+    last_error: text("last_error"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("evaluation_export_outbox_idempotency_unique").on(t.idempotency_key),
+    index("evaluation_export_outbox_due").on(t.status, t.available_at, t.lease_expires_at),
+    index("evaluation_export_outbox_run").on(t.run_id, t.created_at),
+    check("evaluation_export_outbox_attempts_check", sql`${t.attempts} >= 0`),
+    check(
+      "evaluation_export_outbox_entity_check",
+      sql`${t.entity_type} in ('trace', 'feedback', 'evaluation_result', 'dataset_item', 'experiment')`,
+    ),
+    check(
+      "evaluation_export_outbox_operation_check",
+      sql`${t.operation} in ('upsert', 'score', 'insert', 'delete')`,
+    ),
+    check(
+      "evaluation_export_outbox_privacy_check",
+      sql`${t.privacy_mode} in ('metadata_only', 'redacted', 'full_content_opt_in')`,
+    ),
+  ],
+);
+
+export const evaluation_experiments = pgTable(
+  "evaluation_experiments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    dataset_name: text("dataset_name").notNull(),
+    dataset_version: text("dataset_version").notNull(),
+    baseline_config: jsonb("baseline_config").notNull().default(sql`'{}'::jsonb`),
+    candidate_config: jsonb("candidate_config").notNull().default(sql`'{}'::jsonb`),
+    thresholds: jsonb("thresholds").notNull().default(sql`'{}'::jsonb`),
+    results: jsonb("results").notNull().default(sql`'{}'::jsonb`),
+    git_sha: text("git_sha"),
+    status: text("status").notNull().default("pending"),
+    promotion_decision: text("promotion_decision"),
+    opik_experiment_id: text("opik_experiment_id"),
+    opik_url: text("opik_url"),
+    started_at: timestamp("started_at", { withTimezone: true }),
+    completed_at: timestamp("completed_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("evaluation_experiments_name_unique").on(t.name),
+    index("evaluation_experiments_dataset_created").on(t.dataset_name, t.created_at),
+    check(
+      "evaluation_experiments_status_check",
+      sql`${t.status} in ('pending', 'running', 'completed', 'failed')`,
+    ),
+    check(
+      "evaluation_experiments_promotion_check",
+      sql`${t.promotion_decision} is null or ${t.promotion_decision} in ('promote', 'hold', 'reject')`,
+    ),
+  ],
+);
+
+export type SkillVersion = typeof skill_versions.$inferSelect;
+export type ToolDefinition = typeof tool_definitions.$inferSelect;
+export type ToolConnection = typeof tool_connections.$inferSelect;
+export type Automation = typeof automations.$inferSelect;
+export type AgentRun = typeof agent_runs.$inferSelect;
+export type AgentRunStep = typeof agent_run_steps.$inferSelect;
+export type AgentArtifact = typeof agent_artifacts.$inferSelect;
+export type ArtifactSource = typeof artifact_sources.$inferSelect;
+export type ToolExecutionOutboxItem = typeof tool_execution_outbox.$inferSelect;
+export type AgentFeedbackEvent = typeof agent_feedback_events.$inferSelect;
+export type EvaluationResult = typeof evaluation_results.$inferSelect;
+export type EvaluationCaseCandidate = typeof evaluation_case_candidates.$inferSelect;
+export type EvaluationExportOutboxItem = typeof evaluation_export_outbox.$inferSelect;
+export type EvaluationExperiment = typeof evaluation_experiments.$inferSelect;
 
 // ─── Re-export helper types ────────────────────────────────────────────────────
 

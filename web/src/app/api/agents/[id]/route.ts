@@ -39,6 +39,17 @@ const UpdateAgentSchema = z.object({
     .refine((m) => m === undefined || isValidAgentModel(m), "Unknown model"),
   domain_id: z.string().uuid().nullable().optional(),
   top_k: z.number().int().min(1).max(20).optional(),
+  instructions: z.string().max(16_000).optional(),
+  model_policy: z.record(z.string(), z.unknown()).optional(),
+  knowledge_scope: z.record(z.string(), z.unknown()).optional(),
+  budget_policy: z
+    .object({
+      maxInputTokens: z.number().int().min(256).max(1_000_000),
+      maxOutputTokens: z.number().int().min(128).max(100_000),
+      maxToolCalls: z.number().int().min(0).max(100),
+      timeoutSeconds: z.number().int().min(5).max(600),
+    })
+    .optional(),
 });
 
 // GET /api/agents/:id
@@ -103,6 +114,10 @@ export async function PATCH(
   if (patch.model !== undefined) updates.model = patch.model;
   if (patch.domain_id !== undefined) updates.domain_id = patch.domain_id;
   if (patch.top_k !== undefined) updates.top_k = patch.top_k;
+  if (patch.instructions !== undefined) updates.instructions = patch.instructions.trim();
+  if (patch.model_policy !== undefined) updates.model_policy = patch.model_policy;
+  if (patch.knowledge_scope !== undefined) updates.knowledge_scope = patch.knowledge_scope;
+  if (patch.budget_policy !== undefined) updates.budget_policy = patch.budget_policy;
 
   if (Object.keys(updates).length === 0) return badRequest("No fields to update");
 

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { canonicalSystemActionJson } from "../../contracts/system-action-hash.mjs";
 import type { DayPageAuthContext } from "./auth.js";
@@ -285,6 +285,9 @@ class SupabaseDayPageRepository implements DayPageRepository {
         idempotency_key: `mcp:${this.auth.clientId}:${randomUUID()}`,
         created_at: now,
         updated_at: now,
+        source_modified_at: now,
+        sync_revision: 1,
+        content_hash: createHash("sha256").update(text, "utf8").digest("hex"),
       })
       .select("id,body,type,origin,created_at,updated_at,deleted_at")
       .single();

@@ -7,6 +7,11 @@ import { z } from "zod";
 import { sendEvent } from "@/lib/inngest/client";
 import { authenticateApiKey, hasScope } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { randomUUID } from "node:crypto";
+import { readUserTimezone } from "@/lib/agent-data-plane/artifacts";
+import { addCalendarDays, zonedLocalDateTimeToUtc } from "@/lib/agent-data-plane/time";
+import { enqueueUniqueDataPlaneJob } from "@/lib/agent-data-plane/jobs";
+import { isAgentDataPlaneEnabled, shouldRunLegacyCompiler } from "@/lib/agent-data-plane/feature-flags";
 
 // NOTE: iOS BackgroundCompilationService.swift is deprecated in favour of this endpoint.
 // The iOS client should call POST /api/compile instead of running its own BGAppRefreshTask
@@ -105,9 +110,11 @@ export async function POST(req: NextRequest) {
       return badRequest("No matching memos found for the provided IDs");
     }
   } else {
-    // Resolve by date — fetch all memos for that UTC day
-    const date = new Date(parsed.data.date + "T00:00:00Z");
-    const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+    // Resolve by the user's IANA timezone; UTC calendar slicing is incorrect for
+    // most users and across DST transitions.
+    const timezone = await readUserTimezone(userId);
+    const date = zonedLocalDateTimeToUtc(parsed.data.date, "00:00", timezone);
+    const nextDay = zonedLocalDateTimeToUtc(addCalendarDays(parsed.data.date, 1), "00:00", timezone);
 
     const rows = await db
       .select({ id: memos.id })
@@ -135,8 +142,26 @@ export async function POST(req: NextRequest) {
     .set({ compile_status: "pending", compile_error: null })
     .where(inArray(memos.id, memoIds));
 
-  for (const memo_id of memoIds) {
-    await sendEvent({ name: "memo/created", data: { memo_id } });
+  const memoRows = await db
+    .select({ id: memos.id, sync_revision: memos.sync_revision, sync_change_sequence: memos.sync_change_sequence })
+    .from(memos)
+    .where(and(eq(memos.user_id, userId), inArray(memos.id, memoIds)));
+  for (const memo of memoRows) {
+    if (isAgentDataPlaneEnabled()) {
+      await enqueueUniqueDataPlaneJob({
+        userId,
+        type: "memo.synced",
+        payload: {
+          memo_id: memo.id,
+          accepted_revision: memo.sync_revision > 0 ? memo.sync_revision : memo.sync_change_sequence,
+          explicit_retry: true,
+        },
+        idempotencyKey: `manual-recompile:${userId}:${memo.id}:${randomUUID()}`,
+      });
+    }
+    if (shouldRunLegacyCompiler()) {
+      await sendEvent({ name: "memo/created", data: { memo_id: memo.id } });
+    }
   }
 
   // Return the associated compiled pages if they already exist

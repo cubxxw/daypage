@@ -23,6 +23,7 @@ import {
 import { crossedEvolveThreshold } from "@/lib/gateway/evolver";
 import fs from "fs";
 import path from "path";
+import { shouldRunLegacyCompiler } from "@/lib/agent-data-plane/feature-flags";
 
 const EMBED_CACHE_TTL_DAYS = 7;
 const FULL_RECALL_TOP_K = 8;
@@ -298,6 +299,9 @@ export const compileMemo = inngest.createFunction(
   { event: "memo/created" },
   async ({ event, step }) => {
     const { memo_id } = event.data as { memo_id: string };
+    if (!shouldRunLegacyCompiler()) {
+      return { memo_id, status: "skipped", reason: "agent-data-plane-primary" };
+    }
 
     // ── normalize ─────────────────────────────────────────────────────────────
     await step.run("normalize", async () => {

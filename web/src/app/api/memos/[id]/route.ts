@@ -5,6 +5,8 @@ import { memos, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { PatchMemoSchema } from "@/lib/schemas/memo";
 import { checkMutationRateLimit } from "@/lib/ratelimit";
+import { sanitizeMemoBody } from "@/lib/sanitize";
+import { memoContentHash } from "@/lib/memo-revision";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -77,10 +79,16 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   }
 
   const input = parsed.data;
+  const [current] = await db
+    .select()
+    .from(memos)
+    .where(and(eq(memos.id, id), eq(memos.user_id, userId)))
+    .limit(1);
+  if (!current) return notFound();
   const updateData: Record<string, unknown> = {};
 
   if (input.type !== undefined) updateData.type = input.type;
-  if (input.body !== undefined) updateData.body = input.body;
+  if (input.body !== undefined) updateData.body = sanitizeMemoBody(input.body);
   if (input.location !== undefined) updateData.location = input.location;
   if (input.weather !== undefined) updateData.weather = input.weather;
   if (input.device !== undefined) updateData.device = input.device;
@@ -95,18 +103,45 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     return badRequest("No fields to update");
   }
 
+  const rawRevisionFields = [
+    "type",
+    "body",
+    "location",
+    "weather",
+    "device",
+    "source_url",
+    "ingest_mode",
+  ] as const;
+  const rawChanged = rawRevisionFields.some((field) => input[field] !== undefined);
+  if (rawChanged) {
+    const nextBody = typeof updateData.body === "string" ? updateData.body : current.body;
+    updateData.sync_revision = current.sync_revision + 1;
+    updateData.source_modified_at = new Date();
+    updateData.content_hash = memoContentHash(nextBody);
+    updateData.compile_status = "pending";
+    updateData.compile_error = null;
+  }
+
   const rows = await db
     .update(memos)
     .set(updateData)
-    .where(and(eq(memos.id, id), eq(memos.user_id, userId)))
+    .where(
+      and(
+        eq(memos.id, id),
+        eq(memos.user_id, userId),
+        eq(memos.sync_revision, current.sync_revision),
+      ),
+    )
     .returning();
 
-  if (!rows.length) return notFound();
+  if (!rows.length) {
+    return NextResponse.json({ error: "Memo changed concurrently; reload and retry" }, { status: 409 });
+  }
   return NextResponse.json(rows[0]);
 }
 
-// DELETE /api/memos/:id — soft delete via compile_status='failed' is not right;
-// the schema has no deleted_at, so we do a hard delete scoped to the user.
+// DELETE /api/memos/:id — revisioned tombstone. Raw Vault deletion still follows
+// the client sync contract; remote ingress never hard-deletes a memo row.
 export async function DELETE(_req: NextRequest, ctx: RouteContext) {
   const session = await auth();
   if (!session?.user?.email) return unauthorized();
@@ -126,11 +161,33 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext) {
   const userId = await resolveUserId(session.user.email);
   if (!userId) return unauthorized();
 
-  const rows = await db
-    .delete(memos)
+  const [current] = await db
+    .select({ revision: memos.sync_revision })
+    .from(memos)
     .where(and(eq(memos.id, id), eq(memos.user_id, userId)))
+    .limit(1);
+  if (!current) return notFound();
+  const now = new Date();
+  const rows = await db
+    .update(memos)
+    .set({
+      deleted_at: now,
+      source_modified_at: now,
+      sync_revision: current.revision + 1,
+      compile_status: "pending",
+      compile_error: null,
+    })
+    .where(
+      and(
+        eq(memos.id, id),
+        eq(memos.user_id, userId),
+        eq(memos.sync_revision, current.revision),
+      ),
+    )
     .returning({ id: memos.id });
 
-  if (!rows.length) return notFound();
+  if (!rows.length) {
+    return NextResponse.json({ error: "Memo changed concurrently; reload and retry" }, { status: 409 });
+  }
   return new NextResponse(null, { status: 204 });
 }

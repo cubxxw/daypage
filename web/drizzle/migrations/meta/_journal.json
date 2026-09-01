@@ -218,6 +218,20 @@
       "when": 1787767200000,
       "tag": "0030_system_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787847600000,
+      "tag": "0031_backend_first_agent_data_plane",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788195600000,
+      "tag": "0032_agent_evaluation_plane",
+      "breakpoints": true
     }
   ]
 }
