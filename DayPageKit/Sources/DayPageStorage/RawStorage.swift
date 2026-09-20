@@ -431,6 +431,24 @@ public enum RawStorage {
     public static func applyRemoteChanges(
         _ changes: [SyncRemoteChange]
     ) throws -> SyncRemoteApplyResult {
+        try applyRemoteChanges(changes, afterWrite: { _ in })
+    }
+
+    /// Individual durable boundaries, exposed internally for interruption tests.
+    /// The callback is invocation-scoped so tests cannot affect another writer.
+    enum RemoteApplyWriteStage: CaseIterable {
+        case localOutbox
+        case conflictCopy
+        case conflictOutbox
+        case canonicalRemoval
+        case canonicalMemo
+        case remoteAcknowledgement
+    }
+
+    static func applyRemoteChanges(
+        _ changes: [SyncRemoteChange],
+        afterWrite: (RemoteApplyWriteStage) throws -> Void
+    ) throws -> SyncRemoteApplyResult {
         try writeQueue.sync {
             var appliedCount = 0
             var deletedCount = 0
@@ -438,45 +456,89 @@ public enum RawStorage {
             var affectedDates: [Date] = []
 
             for change in changes.sorted(by: { $0.changeSequence < $1.changeSequence }) {
-                let located = findMemoOnDisk(id: change.id)
+                let located = findMemoOnDisk(
+                    id: change.id,
+                    preferredFile: change.isDeleted ? nil : fileURL(for: change.createdAt)
+                )
                 let localMemo = located?.memo
+                // A raw edit can commit even if its outbox write fails. Repair
+                // this one record before trusting pending hashes (including an
+                // empty outbox), and fail before replacing raw data if that
+                // durable repair is unavailable. An unchanged hash is a no-op.
+                if let located {
+                    try SyncOutboxStore.recordUpsert(
+                        located.memo, vaultPath: "raw/\(located.file.lastPathComponent)"
+                    )
+                    try afterWrite(.localOutbox)
+                }
                 let pending = try SyncOutboxStore.pendingOperation(for: change.id)
                 let remoteMemo = change.isDeleted
                     ? nil
                     : change.makeMemo(preservingLocalMetadata: localMemo)
+                // Compare/acknowledge what the raw reader can actually restore:
+                // dates have millisecond precision and body edge whitespace is
+                // normalized by the existing Markdown parser.
+                let canonicalRemote = remoteMemo.flatMap { Memo.fromMarkdown($0.toMarkdown()) }
 
                 let pendingMatchesRemote = !change.isDeleted
                     && pending?.kind == .upsert
                     && pending?.contentHash != nil
                     && pending?.contentHash == change.contentHash
+                    && pending?.contentHash == localMemo.map { SyncOutboxStore.contentHash(for: $0) }
                     && change.attachmentManifestHash == nil
                     && localMemo?.attachments.isEmpty != false
 
-                var conflictCopy: Memo?
-                if pending != nil, !pendingMatchesRemote, var preserved = localMemo {
-                    preserved.id = UUID()
-                    conflictCopy = preserved
-                    conflictCopies.append(preserved.id)
+                // Reconciliation can have refreshed the pending operation after
+                // an interrupted canonical write. An exact canonical match is
+                // already applied; preserving it again would echo the remote
+                // version as another conflict on every restart.
+                let canonicalMatchesRemote = canonicalRemote != nil && localMemo == canonicalRemote
+                if let located {
+                    // Destination-first moves can leave a source with the same
+                    // ID after interruption. It may have been edited since the
+                    // crash; the sidecar cannot prove that it is stale. Preserve
+                    // each different source version before removing duplicate
+                    // IDs, even if this conservatively retains an old version.
+                    for source in try memoLocations(id: change.id) where !sameFileLocation(source.file, located.file) {
+                        let preserved = try preserveMovedSource(source.memo, afterWrite: afterWrite)
+                        conflictCopies.append(preserved.id)
+                        affectedDates.append(preserved.created)
+                    }
+                }
+                if let pending, !pendingMatchesRemote, !canonicalMatchesRemote {
+                    // The operation ID is minted once and persisted before this
+                    // pull. Reusing it as the conflict memo ID makes retries
+                    // stable without adding a journal or changing the format.
+                    // Never overwrite an existing copy: the canonical may
+                    // already be the remote version after an interruption.
+                    var conflictCopy = findMemoOnDisk(id: pending.operationID)?.memo
+                    if conflictCopy == nil, var preserved = localMemo {
+                        preserved.id = pending.operationID
+                        try insertMemoOnDisk(preserved)
+                        try afterWrite(.conflictCopy)
+                        conflictCopy = preserved
+                    }
+                    if let conflictCopy {
+                        try SyncOutboxStore.recordUpsert(
+                            conflictCopy,
+                            vaultPath: "raw/\(fileURL(for: conflictCopy.created).lastPathComponent)"
+                        )
+                        try afterWrite(.conflictOutbox)
+                        conflictCopies.append(conflictCopy.id)
+                        affectedDates.append(conflictCopy.created)
+                    }
                 }
 
                 if let localMemo { affectedDates.append(localMemo.created) }
                 if let remoteMemo { affectedDates.append(remoteMemo.created) }
-                try replaceMemoOnDisk(id: change.id, with: remoteMemo)
+                try replaceMemoOnDisk(id: change.id, with: remoteMemo, afterWrite: afterWrite)
                 try SyncOutboxStore.acceptRemoteChange(
-                    memo: remoteMemo,
+                    memo: canonicalRemote ?? remoteMemo,
                     memoID: change.id,
                     remoteRevision: change.syncRevision,
                     deleted: change.isDeleted
                 )
-
-                if let conflictCopy {
-                    try insertMemoOnDisk(conflictCopy)
-                    try SyncOutboxStore.recordUpsert(
-                        conflictCopy,
-                        vaultPath: "raw/\(fileURL(for: conflictCopy.created).lastPathComponent)"
-                    )
-                    affectedDates.append(conflictCopy.created)
-                }
+                try afterWrite(.remoteAcknowledgement)
 
                 if change.isDeleted {
                     deletedCount += 1
@@ -497,7 +559,7 @@ public enum RawStorage {
         }
     }
 
-    private static func findMemoOnDisk(id: UUID) -> (memo: Memo, file: URL)? {
+    private static func findMemoOnDisk(id: UUID, preferredFile: URL? = nil) -> (memo: Memo, file: URL)? {
         let rawDirectory = VaultInitializer.vaultURL.appendingPathComponent("raw", isDirectory: true)
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: rawDirectory,
@@ -505,7 +567,12 @@ public enum RawStorage {
             options: [.skipsHiddenFiles]
         ) else { return nil }
         let target = id.uuidString.lowercased()
-        for file in files where file.pathExtension == "md" {
+        // A moved-day write commits the destination before removing the source.
+        // On replay, use that committed destination rather than mistaking the
+        // stale source for a new local edit after outbox reconciliation.
+        let orderedFiles = files.filter { sameFileLocation($0, preferredFile) }
+            + files.filter { !sameFileLocation($0, preferredFile) }
+        for file in orderedFiles where file.pathExtension == "md" {
             guard let content = try? String(contentsOf: file, encoding: .utf8),
                   content.lowercased().contains(target) else { continue }
             if let memo = parse(fileContent: content, sourceFile: file).first(where: {
@@ -517,30 +584,105 @@ public enum RawStorage {
         return nil
     }
 
-    private static func replaceMemoOnDisk(id: UUID, with replacement: Memo?) throws {
-        if let located = findMemoOnDisk(id: id) {
-            let content = try String(contentsOf: located.file, encoding: .utf8)
-            var memos = parse(fileContent: content, sourceFile: located.file)
-            memos.removeAll { $0.id == id }
-            if let replacement, fileURL(for: replacement.created) == located.file {
-                memos.append(replacement)
+    private static func replaceMemoOnDisk(
+        id: UUID,
+        with replacement: Memo?,
+        afterWrite: (RemoteApplyWriteStage) throws -> Void
+    ) throws {
+        let target = replacement.map { fileURL(for: $0.created) }
+        if let replacement, let target {
+            let existing: [Memo]
+            if FileManager.default.fileExists(atPath: target.path) {
+                let content = try String(contentsOf: target, encoding: .utf8)
+                existing = parse(fileContent: content, sourceFile: target)
+            } else {
+                existing = []
             }
-            try writeRemoteMemoList(memos, to: located.file)
+            var updated = existing.filter { $0.id != id }
+            updated.append(replacement)
+            try writeRemoteMemoList(updated, to: target)
+            try afterWrite(.canonicalMemo)
         }
 
-        guard let replacement else { return }
-        let target = fileURL(for: replacement.created)
-        if findMemoOnDisk(id: id)?.file == target { return }
-        let existing: [Memo]
-        if FileManager.default.fileExists(atPath: target.path) {
-            let content = try String(contentsOf: target, encoding: .utf8)
-            existing = parse(fileContent: content, sourceFile: target)
-        } else {
-            existing = []
+        // A move must never leave a window with no canonical record. The
+        // destination is durable first, then every old occurrence is removed.
+        // Retrying after either write also cleans a temporarily duplicated ID.
+        let rawDirectory = VaultInitializer.vaultURL.appendingPathComponent("raw", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: rawDirectory.path) else { return }
+        let files = try FileManager.default.contentsOfDirectory(
+            at: rawDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )
+        let idText = id.uuidString.lowercased()
+        for file in files where file.pathExtension == "md" && !sameFileLocation(file, target) {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            guard content.lowercased().contains(idText) else { continue }
+            let existing = parse(fileContent: content, sourceFile: file)
+            let updated = existing.filter { $0.id != id }
+            guard updated.count != existing.count else { continue }
+            try writeRemoteMemoList(updated, to: file)
+            try afterWrite(.canonicalRemoval)
         }
-        var updated = existing.filter { $0.id != id }
-        updated.append(replacement)
-        try writeRemoteMemoList(updated, to: target)
+    }
+
+    private static func sameFileLocation(_ lhs: URL, _ rhs: URL?) -> Bool {
+        guard let rhs else { return false }
+        // URL equality also compares representation (relative bases, aliases).
+        // Destructive duplicate cleanup must compare actual file locations.
+        return lhs.resolvingSymlinksInPath().standardizedFileURL.path
+            == rhs.resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
+    private static func memoLocations(id: UUID? = nil) throws -> [(memo: Memo, file: URL)] {
+        let rawDirectory = VaultInitializer.vaultURL.appendingPathComponent("raw", isDirectory: true)
+        let files = try FileManager.default.contentsOfDirectory(
+            at: rawDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+        )
+        return try files.filter { $0.pathExtension == "md" }.flatMap { file in
+            try parse(fileContent: String(contentsOf: file, encoding: .utf8), sourceFile: file)
+                .filter { id == nil || $0.id == id }
+                .map { (memo: $0, file: file) }
+        }
+    }
+
+    private static func preserveMovedSource(
+        _ source: Memo,
+        afterWrite: (RemoteApplyWriteStage) throws -> Void
+    ) throws -> Memo {
+        // An earlier conflict copy may already preserve this exact preimage.
+        // Reuse it rather than adding a second memo during crash recovery.
+        var copy = try memoLocations().first { candidate in
+            guard candidate.memo.id != source.id else { return false }
+            var comparable = candidate.memo
+            comparable.id = source.id
+            return comparable == source
+        }?.memo
+        if copy == nil {
+            var preserved = source
+            // UUID v5: original memo as namespace, canonical content as name.
+            // Stable across process restarts and outbox reconciliation without
+            // adding any raw metadata or a new recovery sidecar format.
+            var namespace = source.id.uuid
+            var name = withUnsafeBytes(of: &namespace) { Array($0) }
+            name.append(contentsOf: Data(("daypage-move-recovery-v1:" + source.toMarkdown()).utf8))
+            var digest = Array(Insecure.SHA1.hash(data: Data(name)).prefix(16))
+            digest[6] = (digest[6] & 0x0f) | 0x50
+            digest[8] = (digest[8] & 0x3f) | 0x80
+            preserved.id = UUID(uuid: (
+                digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+                digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]
+            ))
+            // A user may have amended that recovery copy since the crash.
+            copy = findMemoOnDisk(id: preserved.id)?.memo
+            if copy == nil {
+                try insertMemoOnDisk(preserved)
+                try afterWrite(.conflictCopy)
+                copy = preserved
+            }
+        }
+        guard let copy else { throw RawStorageError.readFailed(fileURL(for: source.created)) }
+        try SyncOutboxStore.recordUpsert(copy, vaultPath: "raw/\(fileURL(for: copy.created).lastPathComponent)")
+        try afterWrite(.conflictOutbox)
+        return copy
     }
 
     private static func insertMemoOnDisk(_ memo: Memo) throws {

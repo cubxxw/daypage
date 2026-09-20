@@ -129,11 +129,11 @@ struct CompileUnlockCard: View {
             Haptics.soft()
             let stillNeeded = max(0, 3 - newCount)
             if stillNeeded > 0 {
-                let msg = NSLocalizedString(
+                let msg = String(format: NSLocalizedString(
                     "compile.unlock.progress",
-                    value: "还需 \(stillNeeded) 条",
+                    value: "%d more to go",
                     comment: "VoiceOver progress after adding a memo while unlock card is visible"
-                )
+                ), stillNeeded)
                 UIAccessibility.post(notification: .announcement, argument: msg)
             }
             // Dot-pop scale animation is suppressed under Reduce Motion.

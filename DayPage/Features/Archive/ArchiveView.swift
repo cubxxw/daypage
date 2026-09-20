@@ -1094,10 +1094,11 @@ struct ArchiveView: View {
                 .background(isSelected ? DSColor.amberDeep : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(NSLocalizedString(
-            label == "CAL" ? "archive.mode.calendar" : "archive.mode.list",
-            comment: "Archive view mode"
-        ))
+        .accessibilityLabel(
+            label == "CAL"
+                ? NSLocalizedString("archive.mode.calendar", comment: "Archive calendar view")
+                : NSLocalizedString("archive.mode.list", comment: "Archive list view")
+        )
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 

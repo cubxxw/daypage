@@ -210,12 +210,26 @@ struct RootView: View {
             )
             syncAccountError = nil
         } catch {
-            SyncQueueObserver.shared.clearSession()
+            SyncQueueObserver.shared.clearSession(rejectedConfiguration: true)
             syncAccountError = error.localizedDescription
+            // A previous successful session must not mask a rejected Vault
+            // binding as "synced" in the account screen. Keep diagnostics
+            // bounded; the error itself can contain account identifiers.
+            let code: String
+            switch error {
+            case SyncAccountStateError.accountMismatch: code = "conflict"
+            case SyncAccountStateError.invalidState: code = "invalid_response"
+            default: code = "unexpected"
+            }
+            SyncQueueService.shared.recordSyncFailure(
+                stage: "preflight",
+                code: code,
+                httpStatus: nil
+            )
             SentryReporter.breadcrumb(
                 category: "syncqueue",
                 level: .error,
-                message: "account binding rejected: \(error)"
+                message: "account binding rejected: \(code)"
             )
         }
     }

@@ -39,12 +39,22 @@ public final class SyncQueueObserver {
     private var puller: RemotePuller?
     private var accountID: UUID?
     private var periodicTask: Task<Void, Never>?
+    private var rejectedConfiguration = false
+    private var sessionGeneration: UInt = 0
+    private let syncQueue: SyncQueueService
+    private let legacyIsConfigured: () -> Bool
 
     /// Injected by the app after it has a Supabase session. The unconfigured
     /// uploader always fails closed and therefore can never falsely drain data.
     private var uploader: RemoteUploader = NoopRemoteUploader()
 
-    init(observeNotifications: Bool = true) {
+    init(
+        observeNotifications: Bool = true,
+        syncQueue: SyncQueueService? = nil,
+        legacyIsConfigured: @escaping () -> Bool = { SyncSettings.isConfigured }
+    ) {
+        self.syncQueue = syncQueue ?? .shared
+        self.legacyIsConfigured = legacyIsConfigured
         guard observeNotifications else { return }
         observer = NotificationCenter.default.addObserver(
             forName: .syncQueueFlushRequested,
@@ -61,6 +71,7 @@ public final class SyncQueueObserver {
     /// API-key bridge. Normal app sessions use `configureSession` so pull and
     /// account binding are installed atomically with the uploader.
     public func setUploader(_ uploader: RemoteUploader) {
+        sessionGeneration &+= 1
         self.uploader = uploader
     }
 
@@ -72,14 +83,25 @@ public final class SyncQueueObserver {
         puller: RemotePuller,
         periodicInterval: TimeInterval = 30
     ) throws {
-        try SyncAccountStateStore.bind(to: userID)
+        do {
+            try SyncAccountStateStore.bind(to: userID)
+        } catch {
+            clearSession(rejectedConfiguration: true)
+            throw error
+        }
+        sessionGeneration &+= 1
+        rejectedConfiguration = false
         self.accountID = userID
         self.uploader = uploader
         self.puller = puller
         startPeriodicSync(interval: periodicInterval)
     }
 
-    public func clearSession() {
+    /// Explicit sign-out clears the rejection. A failed session setup keeps
+    /// automatic/legacy sync blocked until a valid session is configured.
+    public func clearSession(rejectedConfiguration: Bool = false) {
+        sessionGeneration &+= 1
+        self.rejectedConfiguration = rejectedConfiguration
         periodicTask?.cancel()
         periodicTask = nil
         accountID = nil
@@ -91,11 +113,11 @@ public final class SyncQueueObserver {
     /// Legacy API-key bridge retained for existing dogfood installs. New app
     /// sessions install `SupabaseSyncUploader` directly from RootView.
     public func installConfiguredUploader() {
-        guard accountID == nil else { return }
-        if SyncSettings.isConfigured {
-            self.uploader = MemoSyncUploader()
+        guard accountID == nil, !rejectedConfiguration else { return }
+        if legacyIsConfigured() {
+            setUploader(MemoSyncUploader())
         } else {
-            self.uploader = NoopRemoteUploader()
+            setUploader(NoopRemoteUploader())
         }
     }
 
@@ -104,17 +126,21 @@ public final class SyncQueueObserver {
     /// mutate the set under our feet; the new memo will be picked up by
     /// the next flush trigger anyway.
     public func flush() async {
-        guard !isFlushing else { return }
+        guard !isFlushing, !rejectedConfiguration else { return }
+        let generation = sessionGeneration
+        let uploader = self.uploader
+        let puller = self.puller
+        let accountID = self.accountID
         isFlushing = true
         defer { isFlushing = false }
 
-        guard SyncQueueService.shared.beginFlush() else { return }
-        defer { SyncQueueService.shared.endFlush() }
+        guard syncQueue.beginFlush() else { return }
+        defer { syncQueue.endFlush() }
 
         let correlationID = UUID()
-        SyncQueueService.shared.recordSyncAttempt(
+        syncQueue.recordSyncAttempt(
             correlationID: correlationID,
-            pendingCount: SyncQueueService.shared.pendingCount
+            pendingCount: syncQueue.pendingCount
         )
 
         let operations: [SyncOutboxOperation]
@@ -128,14 +154,16 @@ public final class SyncQueueObserver {
         uploadLoop: for operation in operations {
             do {
                 _ = try await uploader.upload(operation: operation)
+                guard isCurrentSession(generation) else { return }
                 try SyncOutboxStore.acknowledge(operationID: operation.operationID)
                 if operation.kind == .delete {
                     try? AttachmentTransferStore.discardTransfers(
                         memoIDs: [operation.memoID]
                     )
                 }
-                SyncQueueService.shared.reloadFromOutbox()
+                syncQueue.reloadFromOutbox()
             } catch is AttachmentSyncError {
+                guard isCurrentSession(generation) else { return }
                 // Media has its own durable sidecar. Leave this memo pending,
                 // continue unrelated text operations, and still pull remote
                 // changes so a large or unsupported file cannot stall sync.
@@ -146,6 +174,7 @@ public final class SyncQueueObserver {
                 )
                 continue uploadLoop
             } catch let error as MemoSyncError {
+                guard isCurrentSession(generation) else { return }
                 recordFailure(stage: "push", error: error, correlationID: correlationID)
                 if case .conflict = error {
                     // Keep the operation until pull preserves the local variant
@@ -154,6 +183,7 @@ public final class SyncQueueObserver {
                 }
                 return
             } catch {
+                guard isCurrentSession(generation) else { return }
                 // Network/server problem — stop this pass so we don't
                 // burn through retries pointlessly. The next online
                 // transition or manual trigger will resume.
@@ -163,17 +193,23 @@ public final class SyncQueueObserver {
         }
 
         guard let puller, let accountID else {
-            if SyncSettings.isConfigured {
-                SyncQueueService.shared.recordSyncSuccess()
+            if legacyIsConfigured() {
+                syncQueue.recordSyncSuccess()
             }
             return
         }
         do {
-            try await pullAllChanges(using: puller, accountID: accountID)
-            SyncQueueService.shared.recordSyncSuccess()
+            try await pullAllChanges(using: puller, accountID: accountID, generation: generation)
+            guard isCurrentSession(generation) else { return }
+            syncQueue.recordSyncSuccess()
         } catch {
+            guard isCurrentSession(generation) else { return }
             recordFailure(stage: "pull", error: error, correlationID: correlationID)
         }
+    }
+
+    private func isCurrentSession(_ generation: UInt) -> Bool {
+        !rejectedConfiguration && sessionGeneration == generation
     }
 
     private func recordFailure(stage: String, error: Error, correlationID: UUID) {
@@ -193,7 +229,7 @@ public final class SyncQueueObserver {
             diagnostic = ("unexpected", nil)
         }
 
-        let queue = SyncQueueService.shared
+        let queue = syncQueue
         let networkState: OperationalEvent.NetworkState = NetworkMonitor.shared.isOnline ? .online : .offline
         let boundedEvent = OperationalEvent(
             area: "sync",
@@ -231,10 +267,12 @@ public final class SyncQueueObserver {
         ))
     }
 
-    private func pullAllChanges(using puller: RemotePuller, accountID: UUID) async throws {
+    private func pullAllChanges(using puller: RemotePuller, accountID: UUID, generation: UInt) async throws {
         for _ in 0..<20 {
+            guard isCurrentSession(generation) else { throw CancellationError() }
             let cursor = try SyncAccountStateStore.pullCursor(for: accountID)
             let page = try await puller.pull(after: cursor, limit: 200)
+            guard isCurrentSession(generation) else { throw CancellationError() }
             guard page.isValid(after: cursor) else {
                 throw MemoSyncError.invalidResponse
             }
@@ -242,11 +280,12 @@ public final class SyncQueueObserver {
                 _ = try await Task.detached(priority: .utility) {
                     try RawStorage.applyRemoteChanges(page.changes)
                 }.value
+                guard isCurrentSession(generation) else { throw CancellationError() }
                 try SyncAccountStateStore.advancePullCursor(
                     to: page.nextCursor,
                     for: accountID
                 )
-                SyncQueueService.shared.reloadFromOutbox()
+                syncQueue.reloadFromOutbox()
             }
             if !page.hasMore { return }
             guard !page.changes.isEmpty else { throw MemoSyncError.invalidResponse }

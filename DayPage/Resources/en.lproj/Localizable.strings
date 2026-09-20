@@ -44,6 +44,9 @@
 
 /* v8 WriteSheet — bottom-sheet text composer */
 "write.sheet.close"          = "Close";
+"write.sheet.discard.action" = "Discard draft";
+"archive.mode.calendar" = "Calendar view";
+"archive.mode.list" = "List view";
 "write.sheet.placeholder"    = "What's on your mind?";
 "write.sheet.save"           = "Save";
 "write.sheet.done"           = "Done";
@@ -2047,3 +2050,119 @@
 "today.template.hint" = "Fill the composer with this template";
 "settings.hub.system_access" = "System Access";
 "settings.hub.system_access.summary" = "Authorize as needed";
+
+/* ===== Localization audit fixes (2026-09-20) — static call-site key references that were absent from BOTH locales ===== */
+/* Markdown task checkbox + format bar accessibility */
+"markdown.task.done" = "Completed";
+"markdown.task.todo" = "Not completed";
+"markdown.bar.bold" = "Bold";
+"markdown.bar.italic" = "Italic";
+"markdown.bar.strike" = "Strikethrough";
+"markdown.bar.code" = "Inline code";
+"markdown.bar.bullet" = "Bulleted list";
+"markdown.bar.task" = "Task list";
+"markdown.bar.quote" = "Quote";
+
+/* Memo detail + navigation */
+"memo.detail.nav.back" = "Today";
+"memo.detail.loading" = "Loading memo";
+"memo.detail.unavailable" = "This memo is unavailable";
+"memo.detail.delete.success" = "Memo deleted";
+"memo.detail.delete.undo" = "Undo";
+"memo.detail.delete.restored" = "Memo restored";
+"memo.detail.delete.restore_failed" = "Couldn't restore memo";
+"common.error" = "Error";
+"photo.viewer.close" = "Close photo";
+"daily.empty.no_raw.detail" = "The source notes for this day are unavailable.";
+
+/* Recording sheet visible labels */
+"recording.cancel" = "Cancel";
+"recording.transcribe" = "Transcribe";
+"recording.save" = "Save";
+
+/* Reminder presets + onboarding reminder page */
+"settings.reminder.preset.once" = "Once a day";
+"settings.reminder.preset.thrice" = "Three times a day";
+"settings.reminder.preset.custom" = "Custom";
+"settings.reminder.hub_hint" = "Manage reminders in Schedule";
+"settings.reminder.hub_hint.a11y" = "Opens the reminder manager";
+"onboarding.reminder.title" = "Set a capture reminder";
+"onboarding.reminder.subtitle" = "DayPage can send a quiet local notification at set times to remind you to capture a line. You can change or turn this off later in Settings.";
+"onboarding.reminder.once.detail" = "Once a day, in the evening";
+"onboarding.reminder.thrice.detail" = "Morning, noon, and evening (9:00 / 13:00 / 21:00)";
+"onboarding.reminder.enabling" = "Enabling…";
+"onboarding.reminder.enable" = "Enable reminders";
+"onboarding.reminder.skip" = "Not now";
+
+/* Schedule hub footers */
+"schedule.empty" = "No reminders yet. Tap + in the top-right to schedule one, or ask the AI in Ask Past.";
+"schedule.section.reminders.footer" = "Tap a reminder to edit; swipe to delete; tap the level chip to switch between Quiet and Important. At the scheduled time a local notification (landing in the Dynamic Island) nudges you to log a line.";
+"schedule.section.frequency.footer" = "Switching presets replaces the repeating reminders above. Custom keeps each reminder you scheduled by hand.";
+"schedule.section.quiet.footer" = "Repeating reminders inside quiet hours are skipped automatically. Overnight ranges are supported (for example 23:30–08:00).";
+
+/* Settings — build, credentials, iCloud, web sync, reminder hub */
+"settings.about.build" = "Build";
+"settings.apikey.edit.label" = "Edit %@ key";
+"settings.icloud.enable.hint" = "Opens iOS Settings to enable iCloud Drive";
+"settings.websync.key" = "Web sync API key";
+"settings.websync.save.hint" = "Save and start syncing";
+"settings.websync.save.disabled_hint" = "Enter the web address and key first";
+"settings.websync.pending_setup" = "%d items waiting for setup";
+"settings.hub.reminders.summary.active" = "%d active";
+
+/* Voice providers + capture status */
+"settings.voice.provider.doubao" = "Doubao";
+"settings.voice.provider.whisper" = "Whisper";
+"settings.voice.provider.on_device" = "On-device";
+"voice.interruption.paused" = "Recording paused — it will resume automatically after the call or Siri.";
+"dockvoice.status.cancel" = "Release to cancel";
+"dockvoice.status.transcribe" = "Release to transcribe";
+"dockvoice.status.transcribing" = "Transcribing";
+"dockvoice.status.recording" = "Recording";
+"dockvoice.hint.cancel" = "Swipe up to cancel";
+"dockvoice.hint.transcribe" = "Swipe left to transcribe";
+"dockvoice.hint.send" = "Release to send";
+"composer.location.resolving" = "Located · resolving place…";
+"composer.location.unknown" = "Unknown location";
+
+/* Timeline, compile, sync queue + write sheet */
+"today.timeline.delete.message" = "This will permanently remove %1$d memo(s) and the compiled summary for %2$@.";
+"today.timeline.preview.moreMemos" = "+ %d more";
+"today.compile.skipped_unchanged" = "Nothing changed — skipped recompiling";
+"today.compile.foregroundRetry.success" = "Yesterday's Daily Page is now compiled";
+"compile.unlock.progress" = "%d more to go";
+"today.syncqueue.sheet.memo_row" = "memo";
+"write.sheet.destination" = "WILL SAVE TO";
+
+/* Chat river preview */
+"chat.river.preview.empty" = "This conversation has no content yet.";
+"chat.river.preview.moreTurns" = "+ %d more";
+
+/* Graph VoiceOver */
+"graph.node.a11y.full" = "Entity: %1$@, appears %2$lld times";
+
+/* Apple system actions — privacy disclosures + receipts */
+"system_action.privacy.device_only" = "Proposals and results stay on this device; Apple data never enters the cloud ledger.";
+"system_action.privacy.full_sync" = "Full proposals may sync; system results still keep only a bounded summary and an irreversible hash.";
+"system_action.privacy.policy_only" = "Only the capability-policy summary syncs; executable fields and Apple data stay on this device.";
+"system_action.receipt.executor" = "Executed on device …%1$@ · %2$@";
+
+/* Onboarding — paste API key accessibility */
+"onboarding.apikeys.paste.a11y" = "Paste %@ from clipboard";
+
+/* Account sync health */
+"account.sync.unverified.title" = "Sync not yet verified";
+"account.sync.unverified.detail" = "Your records are saved on this device. The status will update after a sync check.";
+"account.sync.failed.title" = "Sync incomplete";
+"account.sync.failed.detail" = "Your records are saved on this device. Retry syncing.";
+"account.sync.failed.pull_detail" = "Updates from other devices could not be fetched. Try again.";
+"account.sync.setup.title" = "Sync is not set up";
+"account.sync.setup.detail" = "Sync setup needs attention. Your records are saved on this device. Check the account error message.";
+
+/* Interrupted capture recovery */
+"today.recovery.count" = "%d unsaved records";
+"today.recovery.restore" = "Restore draft";
+"today.recovery.current_draft" = "Save or discard the current draft before restoring another.";
+"today.recovery.conflict" = "This record already contains different content. Your unsaved draft is preserved; review the saved record first.";
+"today.recovery.invalid_attachment" = "An attachment path could not be safely restored. The draft is still preserved.";
+"today.recovery.vault_changed" = "This draft or its attachments belong to another vault. Return to the original vault and remove attachments added elsewhere before saving.";

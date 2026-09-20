@@ -16,6 +16,13 @@ import DayPageServices
 struct FilePickerResult {
     let filePath: String   // relative path under vault
     let fileName: String
+    let fileURL: URL
+
+    init(filePath: String, fileName: String, vaultRoot: URL = VaultInitializer.vaultURL) {
+        self.filePath = filePath
+        self.fileName = fileName
+        self.fileURL = vaultRoot.appendingPathComponent(filePath)
+    }
 }
 
 /// Represents a staged attachment waiting to be included in the next submit.
@@ -29,6 +36,14 @@ enum PendingAttachment: Identifiable {
         case .photo(let r): return "photo-\(r.filePath)"
         case .voice(let r): return "voice-\(r.filePath)"
         case .file(let r): return "file-\(r.filePath)"
+        }
+    }
+
+    var fileURL: URL {
+        switch self {
+        case .photo(let result): return result.fileURL
+        case .voice(let result): return result.fileURL
+        case .file(let result): return result.fileURL
         }
     }
 
@@ -177,6 +192,12 @@ final class TodayViewModel: ObservableObject {
     /// Body text of the most recently failed submission; non-nil until the view consumes it.
     @Published var lastFailedBody: String? = nil
 
+    /// Durable records awaiting an explicit restore/save or confirmed discard.
+    @Published private(set) var recoverableDrafts: [InflightDraftEntry] = []
+    @Published private(set) var activeRecoveryDraft: InflightDraftEntry?
+    private var recoveryVaultRoots = Set<URL>()
+    private var submittedInflightURLs = Set<URL>()
+
     /// Whether location fetch is in progress.
     @Published var isLocating: Bool = false
 
@@ -272,18 +293,29 @@ final class TodayViewModel: ObservableObject {
     private var locationTask: Task<Void, Never>?
     private var compilationTask: Task<Void, Never>?
     private var deleteUndoTask: Task<Void, Never>?
+    private var memoPersistenceTask: Task<String?, Never>?
+    private var memoMutationFeedbackTask: Task<Void, Never>?
+    private var loadGeneration: UInt = 0
+    @MainActor private final class DeletionContext {
+        let vaultRoot: URL
+        var deletedMemo: Memo?
+        init(vaultRoot: URL) { self.vaultRoot = vaultRoot }
+    }
+    private var deletionContext: DeletionContext?
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: Init
 
-    init(date: Date = Date()) {
+    init(date: Date = Date(), observeChanges: Bool = true) {
         self.date = date
         self.isTimelineReady = TimelineIndex.shared.isReady
-        observeCompilationFailure()
-        observeOnThisDay()
-        observeConflictResolution()
-        observeRawStorageWrites()
-        observeTimelineIndex()
+        if observeChanges {
+            observeCompilationFailure()
+            observeOnThisDay()
+            observeConflictResolution()
+            observeRawStorageWrites()
+            observeTimelineIndex()
+        }
     }
 
     deinit {
@@ -382,24 +414,25 @@ final class TodayViewModel: ObservableObject {
 
     // MARK: - Delete / Pin Memo
 
-    /// Removes a memo from today's file and refreshes the in-memory list.
-    ///
-    /// UI updates optimistically on the MainActor (so the delete animation
-    /// stays snappy), then the rewrite is dispatched off-main through
-    /// `RawStorage.rewrite` — which goes through `writeQueue.sync` and
-    /// therefore cannot race with `append()`. If the write fails, the UI
-    /// state is rolled back and an error is surfaced.
+    /// Changes only this record on disk. The list may be older than a
+    /// background append, so it must never be used as a replacement day file.
     func deleteMemo(_ memo: Memo) {
+        guard memos.contains(where: { $0.id == memo.id }) else { return }
         if submissionUndoPayload?.memo.id == memo.id {
             submissionUndoPayload = nil
         }
-        let previous = memos
         let remaining = memos.filter { $0.id != memo.id }
         withAnimation(Motion.rise) {
             memos = remaining
         }
         Haptics.warn()
-        persistMemos(remaining, capturedDate: date, previous: previous, failureMessagePrefix: NSLocalizedString("error.memo.delete_failed", comment: ""))
+        let vaultRoot = VaultInitializer.vaultURL
+        let context = DeletionContext(vaultRoot: vaultRoot)
+        deletionContext = context
+        persistMemoChange(failureMessagePrefix: NSLocalizedString("error.memo.delete_failed", comment: "")) {
+            let deleted = try await MemoRecordStore.shared.delete(id: memo.id, day: memo.created, vaultRoot: vaultRoot)
+            await MainActor.run { context.deletedMemo = deleted }
+        }
 
         // Start 5-second undo window
         deleteUndoTask?.cancel()
@@ -414,43 +447,42 @@ final class TodayViewModel: ObservableObject {
     /// Restores the last deleted memo to its original sort position and rewrites the file.
     func undoDelete() {
         guard let memo = lastDeletedMemo else { return }
+        guard let context = deletionContext else { return }
+        deletionContext = nil
         deleteUndoTask?.cancel()
         deleteUndoTask = nil
         lastDeletedMemo = nil
 
-        var restored = memos
-        // Re-insert using the same sort order as the load path:
-        // pinned memos float to top (by pinnedAt desc), then by created desc.
-        if memo.pinnedAt != nil {
-            let insertIdx = restored.firstIndex(where: { $0.pinnedAt == nil }) ?? restored.endIndex
-            restored.insert(memo, at: insertIdx)
-        } else {
-            let insertIdx = restored.firstIndex(where: { m in
-                m.pinnedAt == nil && m.created < memo.created
-            }) ?? restored.endIndex
-            restored.insert(memo, at: insertIdx)
-        }
-        let previous = memos
         withAnimation(Motion.rise) {
-            memos = restored
+            if context.vaultRoot == VaultInitializer.vaultURL,
+               Calendar.current.isDate(memo.created, inSameDayAs: date),
+               !memos.contains(where: { $0.id == memo.id }) {
+                memos = Self.sortedMemos(memos + [context.deletedMemo ?? memo])
+            }
         }
         Haptics.soft()
-        persistMemos(restored, capturedDate: date, previous: previous, failureMessagePrefix: NSLocalizedString("error.memo.undo_failed", comment: ""))
+        persistMemoChange(failureMessagePrefix: NSLocalizedString("error.memo.undo_failed", comment: "")) {
+            guard let actual = await context.deletedMemo else { return }
+            try await MemoRecordStore.shared.restore(actual, day: actual.created, vaultRoot: context.vaultRoot)
+        }
     }
 
     /// Replaces the body text of an existing memo and writes through to disk.
     func update(memo: Memo, body: String) {
+        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard let idx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
         var updated = memos[idx]
         updated.body = body
         var newMemos = memos
         newMemos[idx] = updated
-        let previous = memos
         withAnimation(Motion.rise) {
             memos = newMemos
         }
         Haptics.commit()
-        persistMemos(newMemos, capturedDate: date, previous: previous, failureMessagePrefix: NSLocalizedString("error.memo.save_failed", comment: ""))
+        let vaultRoot = VaultInitializer.vaultURL
+        persistMemoChange(failureMessagePrefix: NSLocalizedString("error.memo.save_failed", comment: "")) {
+            _ = try await MemoRecordStore.shared.updateBody(id: memo.id, day: memo.created, body: body, vaultRoot: vaultRoot)
+        }
     }
 
     /// Pins a memo to the top of today's list without changing its original timestamp.
@@ -462,13 +494,16 @@ final class TodayViewModel: ObservableObject {
         var updated = memos
         updated.remove(at: idx)
         updated.insert(pinned, at: 0)
-        let previous = memos
         // List reorder physically moves rows — wrap the same curve in
         // respectReduceMotion so Reduce-Motion users get an instant settle.
         withAnimation(Motion.respectReduceMotion(.easeInOut(duration: 0.25))) {
             memos = updated
         }
-        persistMemos(updated, capturedDate: date, previous: previous, failureMessagePrefix: NSLocalizedString("error.memo.pin_failed", comment: ""))
+        let vaultRoot = VaultInitializer.vaultURL
+        let pinnedAt = pinned.pinnedAt
+        persistMemoChange(failureMessagePrefix: NSLocalizedString("error.memo.pin_failed", comment: "")) {
+            _ = try await MemoRecordStore.shared.setPinnedAt(id: memo.id, day: memo.created, pinnedAt: pinnedAt, vaultRoot: vaultRoot)
+        }
     }
 
     /// Unpins a memo, restoring it to its natural position based on original `created` time.
@@ -478,85 +513,155 @@ final class TodayViewModel: ObservableObject {
         unpinned.pinnedAt = nil
         var updated = memos
         updated.remove(at: idx)
-        let insertIdx = updated.firstIndex(where: { $0.created < unpinned.created }) ?? updated.endIndex
-        updated.insert(unpinned, at: insertIdx)
-        let previous = memos
+        updated.append(unpinned)
         // List reorder physically moves rows — wrap the same curve in
         // respectReduceMotion so Reduce-Motion users get an instant settle.
         withAnimation(Motion.respectReduceMotion(.easeInOut(duration: 0.25))) {
-            memos = updated
+            memos = Self.sortedMemos(updated)
         }
-        persistMemos(updated, capturedDate: date, previous: previous, failureMessagePrefix: NSLocalizedString("error.memo.unpin_failed", comment: ""))
+        let vaultRoot = VaultInitializer.vaultURL
+        persistMemoChange(failureMessagePrefix: NSLocalizedString("error.memo.unpin_failed", comment: "")) {
+            _ = try await MemoRecordStore.shared.setPinnedAt(id: memo.id, day: memo.created, pinnedAt: nil, vaultRoot: vaultRoot)
+        }
     }
 
-    /// Dispatches a `RawStorage.rewrite` off the MainActor so disk I/O never
-    /// blocks the UI thread, and so the rewrite is serialized with `append()`
-    /// through `RawStorage.writeQueue`.
-    ///
-    /// On failure, restores `memos` to `previous` and surfaces an error
-    /// banner via `submitError`. Memo arrays are value types, so capturing
-    /// them across the actor boundary is safe.
-    private func persistMemos(
-        _ memosToWrite: [Memo],
-        capturedDate: Date,
-        previous: [Memo],
-        failureMessagePrefix: String
+    /// Tasks are explicitly chained: actor isolation alone doesn't promise
+    /// FIFO execution. Accepted writes survive view dismissal and retain the
+    /// vault captured by their caller.
+    func enqueueMemoPersistence(_ operation: @escaping @Sendable () async throws -> Void) -> Task<String?, Never> {
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        loadTask?.cancel()
+        let previous = memoPersistenceTask
+        let task = Task.detached(priority: .userInitiated) { [weak self] () -> String? in
+            _ = await previous?.value
+            let failure: String?
+            do { try await operation(); failure = nil }
+            catch { failure = error.localizedDescription }
+            await self?.reloadAfterPersistence(generation: generation)
+            return failure
+        }
+        memoPersistenceTask = task
+        return task
+    }
+
+    private func reloadAfterPersistence(generation: UInt) {
+        // Successful no-ops do not post a storage notification. They still
+        // need to finish a load invalidated by this operation.
+        guard loadGeneration == generation else { return }
+        load()
+    }
+
+    private func persistMemoChange(
+        failureMessagePrefix: String,
+        operation: @escaping @Sendable () async throws -> Void
     ) {
-        Task.detached(priority: .userInitiated) { [weak self] in
-            do {
-                try RawStorage.rewrite(memosToWrite, for: capturedDate)
-            } catch {
-                await MainActor.run {
-                    guard let self = self else { return }
-                    withAnimation(Motion.rise) {
-                        self.memos = previous
-                    }
-                    self.submitError = String(format: failureMessagePrefix, error.localizedDescription)
-                }
-            }
+        let persistence = enqueueMemoPersistence(operation)
+        let previousFeedback = memoMutationFeedbackTask
+        memoMutationFeedbackTask = Task { @MainActor [weak self] in
+            await previousFeedback?.value
+            guard let failure = await persistence.value, let self else { return }
+            self.submitError = String(format: failureMessagePrefix, failure)
+            // Reload the authoritative state after ALL queued writes; never
+            // roll the whole list back over a newer edit or submission.
+            self.load()
+        }
+    }
+
+    func waitForMemoPersistence() async {
+        _ = await memoPersistenceTask?.value
+        await memoMutationFeedbackTask?.value
+        await loadTask?.value
+    }
+
+    private static func sortedMemos(_ memos: [Memo]) -> [Memo] {
+        memos.sorted { lhs, rhs in
+            if lhs.pinnedAt != nil && rhs.pinnedAt == nil { return true }
+            if lhs.pinnedAt == nil && rhs.pinnedAt != nil { return false }
+            if let lp = lhs.pinnedAt, let rp = rhs.pinnedAt, lp != rp { return lp > rp }
+            return lhs.created > rhs.created
         }
     }
 
     // MARK: - Load Memos
 
-    /// Drains the inflight-draft store left behind by a submit that never
-    /// completed (kill-during-await, OS-memory-eviction, explicit cancel).
-    /// Routes the most recent body into `lastFailedBody` so TodayView's
-    /// existing restore-into-composer hook picks it up — no second UI path.
-    ///
-    /// Older inflights (>1) are discarded after breadcrumbing: in practice
-    /// >1 inflight means the user submitted, was interrupted, relaunched,
-    /// submitted again, and was interrupted *again* before recovering — a
-    /// genuinely rare path where surfacing only the freshest body keeps the
-    /// recovery UI simple. The discarded bodies are still on disk in
-    /// `vault/raw/.inflight/` until clearAll() runs, so a future "view all
-    /// drafts" screen can surface them.
-    ///
-    /// Idempotent: safe to call from every `onAppear`. A no-op when no
-    /// inflight records exist.
+    /// Lists every durable record without handing it to an occupied composer.
+    /// Only a matching memo already on disk acknowledges an interrupted save.
     func recoverInflightDrafts() {
-        let drafts = InflightDraftStore.pending()
-        guard !drafts.isEmpty else { return }
+        recoveryVaultRoots.insert(VaultInitializer.vaultURL)
+        recoverableDrafts = recoveryVaultRoots.flatMap { root in
+            InflightDraftStore.pendingEntries(vaultRoot: root)
+        }.filter { entry in
+            guard !submittedInflightURLs.contains(entry.url) else { return false }
+            if (try? InflightDraftStore.isCommitted(entry)) == true {
+                InflightDraftStore.acknowledge(entry)
+                return false
+            }
+            return true
+        }.sorted { $0.draft.enqueuedAt > $1.draft.enqueuedAt }
+    }
 
-        if drafts.count > 1 {
-            SentryReporter.breadcrumb(
-                category: "inflight",
-                level: .warning,
-                message: "recover: \(drafts.count) inflight drafts found, surfacing newest"
-            )
+    /// Returns a body only when the complete composer is free. The record is
+    /// retained while editing; taking it from the queue is not an acknowledgement.
+    func restoreNextInflightDraft(composerBody: String) -> String? {
+        guard composerBody.isEmpty, pendingAttachments.isEmpty,
+              pendingLocation == nil, activeRecoveryDraft == nil else { return nil }
+        // A damaged or conflicting entry stays durable without starving the
+        // other drafts. If none can be restored, the last error stays visible.
+        for entry in recoverableDrafts {
+            if let body = stageRecovery(entry, composerBody: entry.draft.body) { return body }
         }
+        return nil
+    }
 
-        // Restore the newest body. Only when the composer is empty (the
-        // onChange-of-lastFailedBody hook guards that, so a fresh in-progress
-        // draft is never clobbered).
-        if let newest = drafts.first, !newest.body.isEmpty {
-            lastFailedBody = newest.body
+    /// The view persists this exact URL alongside its scene-specific draft
+    /// backup, so a restart can reconnect edited text to the same durable ID.
+    func resumeInflightDraft(at url: URL, composerBody: String) -> String? {
+        guard activeRecoveryDraft == nil, pendingAttachments.isEmpty,
+              let entry = recoverableDrafts.first(where: { $0.url == url }) else { return nil }
+        return stageRecovery(entry, composerBody: composerBody.isEmpty ? entry.draft.body : composerBody)
+    }
+
+    private func stageRecovery(_ entry: InflightDraftEntry, composerBody: String) -> String? {
+        do {
+            try InflightDraftStore.validateForRestoration(entry)
+            let attachments = try entry.draft.attachmentPaths.map { path -> PendingAttachment in
+                guard let relative = MemoPresentationSafety.relativeAttachmentPath(path),
+                      relative.hasPrefix("raw/assets/") else {
+                    throw InflightDraftRecoveryError.invalidAttachment
+                }
+                let fileURL = entry.vaultRoot.appendingPathComponent(relative)
+                let assetRoot = entry.vaultRoot.appendingPathComponent("raw/assets", isDirectory: true)
+                    .resolvingSymlinksInPath().standardizedFileURL.path + "/"
+                guard fileURL.resolvingSymlinksInPath().standardizedFileURL.path.hasPrefix(assetRoot) else {
+                    throw InflightDraftRecoveryError.invalidAttachment
+                }
+                switch fileURL.pathExtension.lowercased() {
+                case "jpg", "jpeg", "png", "heic", "heif", "gif", "webp", "tif", "tiff":
+                    return .photo(PhotoPickerResult(filePath: relative, fileURL: fileURL, exif: nil, thumbnail: nil))
+                case "m4a", "wav", "mp3", "aac", "caf", "aiff", "ogg":
+                    return .voice(VoiceRecordingResult(filePath: relative, fileURL: fileURL, duration: 0, transcript: nil))
+                default:
+                    return .file(FilePickerResult(filePath: relative, fileName: fileURL.lastPathComponent, vaultRoot: entry.vaultRoot))
+                }
+            }
+            activeRecoveryDraft = entry
+            pendingAttachments = attachments
+            lastFailedBody = nil
+            return composerBody
+        } catch {
+            submitError = error.localizedDescription
+            return nil
         }
-        // Clear all on-disk records — the surfaced body is now in
-        // lastFailedBody (which TodayView restores into draftText, which
-        // SceneStorage will persist). The other bodies are intentionally
-        // dropped per the Beta v1.0 scope above.
-        InflightDraftStore.clearAll()
+    }
+
+    /// Called only by the WriteSheet's existing confirmed-discard action.
+    func discardActiveInflightDraft() {
+        guard let entry = activeRecoveryDraft else { return }
+        InflightDraftStore.acknowledge(entry)
+        activeRecoveryDraft = nil
+        lastFailedBody = nil
+        recoverInflightDrafts()
     }
 
     /// Loads today's memos from the raw storage file and checks compiled status.
@@ -571,14 +676,20 @@ final class TodayViewModel: ObservableObject {
 
         // Capture value types before leaving the MainActor.
         let capturedDate = date
+        let capturedVaultRoot = VaultInitializer.vaultURL
         let dailyURL = dailyPageURL(for: capturedDate)
         // Capture the on-this-day file path before going off-actor.
         let capturedOTDFilePath: String? = onThisDayEntry?.filePath
 
         loadTask?.cancel()
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        let pendingPersistence = memoPersistenceTask
         loadTask = Task.detached(priority: .userInitiated) {
+            _ = await pendingPersistence?.value
+            guard !Task.isCancelled else { return }
             // --- Off-main disk I/O ---
-            let loadResult = Result { try RawStorage.read(for: capturedDate) }
+            let loadResult = Result { try RawStorage.read(for: capturedDate, vaultRoot: capturedVaultRoot) }
 
             let dailyExists = FileManager.default.fileExists(atPath: dailyURL.path)
             let dailySummary: String? = {
@@ -597,7 +708,7 @@ final class TodayViewModel: ObservableObject {
                 f.locale = Locale(identifier: "en_US_POSIX")
                 f.timeZone = AppSettings.currentTimeZone()
                 let s = f.string(from: yesterdayDate)
-                return VaultInitializer.vaultURL
+                return capturedVaultRoot
                     .appendingPathComponent("wiki/daily/\(s).md")
             }()
             let yesterdayDateString: String = {
@@ -618,7 +729,7 @@ final class TodayViewModel: ObservableObject {
             // Load on-this-day memos for fallback using the file path captured before going off-actor.
             let otdMemos: [Memo] = {
                 guard let filePath = capturedOTDFilePath else { return [] }
-                let rawURL = VaultInitializer.vaultURL.appendingPathComponent(filePath)
+                let rawURL = capturedVaultRoot.appendingPathComponent(filePath)
                 guard let content = try? String(contentsOf: rawURL, encoding: .utf8) else { return [] }
                 return RawStorage.parse(fileContent: content)
             }()
@@ -626,19 +737,16 @@ final class TodayViewModel: ObservableObject {
             // Weekly recap is also disk-backed. It previously ran from the
             // MainActor commit block below, synchronously reading up to a week
             // of compiled Markdown immediately before Today became interactive.
-            let weeklyRecap = WeeklyRecapService.scanEntries(referenceDate: capturedDate)
+            let weeklyRecap = WeeklyRecapService.scanEntries(referenceDate: capturedDate, vaultRoot: capturedVaultRoot)
 
             // --- Back on MainActor: update published state ---
             await MainActor.run {
+                guard self.loadGeneration == generation,
+                      capturedVaultRoot == VaultInitializer.vaultURL else { return }
                 switch loadResult {
                 case .success(let loaded):
                     // Newest first; pinned memos float to the top
-                    self.memos = loaded.sorted { lhs, rhs in
-                        if lhs.pinnedAt != nil && rhs.pinnedAt == nil { return true }
-                        if lhs.pinnedAt == nil && rhs.pinnedAt != nil { return false }
-                        if let lp = lhs.pinnedAt, let rp = rhs.pinnedAt { return lp > rp }
-                        return lhs.created > rhs.created
-                    }
+                    self.memos = Self.sortedMemos(loaded)
                     self.errorMessage = nil
                 case .failure(let error):
                     self.errorMessage = String(format: NSLocalizedString("error.memo.load_failed", comment: ""), error.localizedDescription)
@@ -740,31 +848,34 @@ final class TodayViewModel: ObservableObject {
 
     /// Re-runs transcription for a failed voice attachment and updates the memo on disk.
     func retranscribe(memo: Memo, attachment: Memo.Attachment) {
-        let audioURL = VaultInitializer.vaultURL.appendingPathComponent(attachment.file)
+        let vaultRoot = VaultInitializer.vaultURL
+        let audioURL = vaultRoot.appendingPathComponent(attachment.file)
         Task { @MainActor in
             guard let transcript = await voiceService.transcribeAudio(at: audioURL),
                   !transcript.isEmpty else { return }
-            guard let memoIdx = memos.firstIndex(where: { $0.id == memo.id }) else { return }
-            var updated = memos[memoIdx]
-            var atts = updated.attachments
-            if let attIdx = atts.firstIndex(where: { $0.file == attachment.file }) {
-                atts[attIdx] = Memo.Attachment(
-                    file: attachment.file,
-                    kind: attachment.kind,
-                    duration: attachment.duration,
-                    transcript: transcript,
-                    transcriptionStatus: .done
-                )
+            updateTranscript(transcript, memo: memo, attachmentFile: attachment.file, vaultRoot: vaultRoot)
+        }
+    }
+
+    func updateTranscript(_ transcript: String, memo: Memo, attachmentFile: String, vaultRoot: URL) {
+        guard !transcript.isEmpty else { return }
+        if vaultRoot == VaultInitializer.vaultURL,
+           let memoIndex = memos.firstIndex(where: { $0.id == memo.id }),
+           let attachmentIndex = memos[memoIndex].attachments.firstIndex(where: { $0.file == attachmentFile }) {
+            withAnimation(Motion.fade) {
+                memos[memoIndex].attachments[attachmentIndex].transcript = transcript
+                memos[memoIndex].attachments[attachmentIndex].transcriptionStatus = .done
             }
-            updated.attachments = atts
-            var newMemos = memos
-            newMemos[memoIdx] = updated
-            let previous = memos
-            // Re-transcription only swaps text inside an existing card —
-            // crossfade it. A bare `withAnimation` (default spring) would
-            // re-spring the whole timeline layout for a transcript update.
-            withAnimation(Motion.fade) { memos = newMemos }
-            persistMemos(newMemos, capturedDate: date, previous: previous, failureMessagePrefix: NSLocalizedString("error.memo.retranscribe_failed", comment: ""))
+        }
+        persistMemoChange(failureMessagePrefix: NSLocalizedString("error.memo.retranscribe_failed", comment: "")) {
+            try RawStorage.mutate(for: memo.created, vaultRoot: vaultRoot) { current in
+                guard let memoIndex = current.firstIndex(where: { $0.id == memo.id }),
+                      let attachmentIndex = current[memoIndex].attachments.firstIndex(where: { $0.file == attachmentFile }) else { return nil }
+                var updated = current
+                updated[memoIndex].attachments[attachmentIndex].transcript = transcript
+                updated[memoIndex].attachments[attachmentIndex].transcriptionStatus = .done
+                return updated
+            }
         }
     }
 
@@ -787,7 +898,8 @@ final class TodayViewModel: ObservableObject {
     /// Copies a picked file into vault/raw/assets/files/ and stages it as a pending attachment.
     func addFileAttachment(url: URL) {
         isShowingDocumentPicker = false
-        let filesDir = VaultInitializer.vaultURL
+        let vaultRoot = VaultInitializer.vaultURL
+        let filesDir = vaultRoot
             .appendingPathComponent("raw/assets/files", isDirectory: true)
         let fm = FileManager.default
         do { try fm.createDirectory(at: filesDir, withIntermediateDirectories: true) }
@@ -815,7 +927,7 @@ final class TodayViewModel: ObservableObject {
         }
 
         let relativePath = "raw/assets/files/\(finalURL.lastPathComponent)"
-        let result = FilePickerResult(filePath: relativePath, fileName: finalURL.lastPathComponent)
+        let result = FilePickerResult(filePath: relativePath, fileName: finalURL.lastPathComponent, vaultRoot: vaultRoot)
         pendingAttachments.append(.file(result))
     }
 
@@ -883,17 +995,39 @@ final class TodayViewModel: ObservableObject {
     /// location lookup + a weather network call *before* the card ever appeared,
     /// so a send read as a multi-second stall for metadata the Today card does
     /// not even render.
-    func submitCombinedMemo(body: String) {
+    @discardableResult
+    func submitCombinedMemo(body: String) -> Bool {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasText = !trimmed.isEmpty
         let snapshotAttachments = pendingAttachments
-        guard hasText || !snapshotAttachments.isEmpty else { return }
+        guard hasText || !snapshotAttachments.isEmpty else { return false }
 
         // B4: re-entrancy guard. The commit below is fully synchronous on the
         // MainActor, so this only ever trips on a genuine second invocation
         // (e.g. a photo-batch auto-submit racing a manual send) — and by then
         // the composer state is already cleared, so no memo can be duplicated.
-        guard !isSubmitting else { return }
+        guard !isSubmitting else { return false }
+        let currentVaultRoot = VaultInitializer.vaultURL
+        let recoveryEntry = activeRecoveryDraft
+        if let recoveryEntry,
+           recoveryEntry.vaultRoot.standardizedFileURL.resolvingSymlinksInPath()
+               != currentVaultRoot.standardizedFileURL.resolvingSymlinksInPath() {
+            // Newly staged assets follow the current locator. Do not commit a
+            // recovered memo into its captured vault with another vault's paths.
+            submitError = InflightDraftRecoveryError.vaultChanged.localizedDescription
+            return false
+        }
+        let submissionVaultRoot = recoveryEntry?.vaultRoot ?? currentVaultRoot
+        if snapshotAttachments.contains(where: { staged in
+            staged.fileURL.standardizedFileURL.resolvingSymlinksInPath()
+                != submissionVaultRoot.appendingPathComponent(staged.attachment.file)
+                    .standardizedFileURL.resolvingSymlinksInPath()
+        }) {
+            // Switching back does not move assets staged while another vault
+            // was active. Keep their absolute origin until explicitly removed.
+            submitError = InflightDraftRecoveryError.vaultChanged.localizedDescription
+            return false
+        }
         isSubmitting = true
         submitError = nil
 
@@ -901,12 +1035,10 @@ final class TodayViewModel: ObservableObject {
         // Capture the authoritative Vault for the whole submission. The
         // locator can legitimately hot-swap from local to iCloud while the
         // detached append is running; one memo must never straddle roots.
-        let submissionVaultRoot = VaultInitializer.vaultURL
-
         // --- Build the memo synchronously, from data already in hand ---
 
         // created: photo-only memos inherit the shot's EXIF capture time.
-        var created = Date()
+        var created = recoveryEntry?.draft.enqueuedAt ?? Date()
         if !hasText, case .photo(let r) = snapshotAttachments.first,
            let exifDate = r.exif?.capturedAt {
             created = exifDate
@@ -927,7 +1059,16 @@ final class TodayViewModel: ObservableObject {
             }
         }
 
-        let memoAttachments = snapshotAttachments.map { $0.attachment }
+        let recoveredPaths = Set(recoveryEntry?.draft.attachmentPaths ?? [])
+        let memoAttachments = snapshotAttachments.map { staged -> Memo.Attachment in
+            let attachment = staged.attachment
+            // The legacy journal stores paths only. Preserve the audio kind,
+            // but do not invent a duration or claim an ASR job is in flight.
+            if recoveredPaths.contains(attachment.file), attachment.kind == "audio" {
+                return Memo.Attachment(file: attachment.file, kind: "audio")
+            }
+            return attachment
+        }
 
         // Determine type
         let hasPhotos = snapshotAttachments.contains { if case .photo = $0 { return true }; return false }
@@ -951,6 +1092,7 @@ final class TodayViewModel: ObservableObject {
         // is empty — the transcript lives exclusively in attachment.transcript and
         // is rendered by VoiceMemoPlayerRow, preventing duplicate display.
         let memo = Memo(
+            id: recoveryEntry?.draft.id ?? UUID(),
             type: memoType,
             created: created,
             location: initialLocation,
@@ -960,6 +1102,25 @@ final class TodayViewModel: ObservableObject {
             body: trimmed
         )
 
+        // Journal the complete retry payload before accepting the submit. A
+        // retry updates its existing record instead of leaving a second copy.
+        let inflightEntry: InflightDraftEntry
+        do {
+            inflightEntry = try InflightDraftStore.persist(
+                InflightDraft(id: memo.id, body: trimmed, enqueuedAt: memo.created,
+                              attachmentPaths: memoAttachments.map(\.file)),
+                vaultRoot: submissionVaultRoot
+            )
+        } catch {
+            isSubmitting = false
+            submitError = String(format: NSLocalizedString("error.memo.save_failed", comment: ""), error.localizedDescription)
+            return false
+        }
+        recoveryVaultRoots.insert(submissionVaultRoot)
+        submittedInflightURLs.insert(inflightEntry.url)
+        activeRecoveryDraft = nil
+        recoverableDrafts.removeAll { $0.url == inflightEntry.url }
+
         // Capture the exact pre-submit state before the optimistic clear. The
         // five-second confirmation pill can now perform a real undo instead of
         // merely copying the text back while leaving a duplicate memo behind.
@@ -968,15 +1129,6 @@ final class TodayViewModel: ObservableObject {
             attachments: snapshotAttachments,
             location: userSetLocation,
             vaultRoot: submissionVaultRoot
-        )
-
-        // Persist an inflight record BEFORE the durable append is scheduled. If
-        // the app is killed in the (now tiny, await-free) window between the
-        // optimistic insert and the disk write, this on-disk record lets the
-        // next launch restore the body into the composer. Issue #23.
-        let inflightURL = InflightDraftStore.enqueue(
-            body: trimmed,
-            attachmentPaths: memoAttachments.map { $0.file }
         )
 
         // --- 1. Optimistic insert: the memo is on screen THIS frame. ---
@@ -1010,15 +1162,21 @@ final class TodayViewModel: ObservableObject {
         UserDefaults.standard.set(count + 1, forKey: AppSettings.Keys.memoSaveCount)
 
         // --- 3. Durable write (落盘), then 4. progressive enrichment. ---
+        let isRecovery = recoveryEntry != nil
+        let persistence = enqueueMemoPersistence {
+            try InflightDraftStore.persistMemo(memo, vaultRoot: submissionVaultRoot, isRecovery: isRecovery)
+        }
+        let previousSubmission = submitMemoTask
         submitMemoTask = Task { @MainActor in
+            // Drain older acknowledgements and failure feedback as well as
+            // the ordered writes before the latest wait handle completes.
+            await previousSubmission?.value
             // Persist first. Disk I/O is offloaded so the append + atomic
             // rename never blocks the main thread (CLAUDE.md convention). The
             // failure is surfaced as a plain String so no Error existential
             // crosses the actor boundary.
-            let writeErrorMessage: String? = await Task.detached(priority: .userInitiated) { () -> String? in
-                do { try RawStorage.append(memo, vaultRoot: submissionVaultRoot); return nil }
-                catch { return error.localizedDescription }
-            }.value
+            let writeErrorMessage = await persistence.value
+            self.submittedInflightURLs.remove(inflightEntry.url)
 
             if let writeErrorMessage {
                 // Durable write failed — roll the optimistic card back out and
@@ -1032,11 +1190,14 @@ final class TodayViewModel: ObservableObject {
                 if self.submissionUndoPayload?.memo.id == memo.id {
                     self.submissionUndoPayload = nil
                 }
+                self.recoverInflightDrafts()
+                self.load()
                 Haptics.warn()
                 return
             }
 
-            InflightDraftStore.dequeue(inflightURL)
+            InflightDraftStore.acknowledge(inflightEntry)
+            self.recoverInflightDrafts()
             // Durability is complete. Start slow, optional enrichment as a
             // separate best-effort task so a user pressing Undo never waits on
             // GPS or weather before the exact memo can be removed from disk.
@@ -1044,6 +1205,7 @@ final class TodayViewModel: ObservableObject {
                 await self?.enrichMetadata(for: memo, vaultRoot: submissionVaultRoot)
             }
         }
+        return true
     }
 
     /// Reverses the latest submit as one product action: remove its optimistic
@@ -1066,25 +1228,18 @@ final class TodayViewModel: ObservableObject {
             pendingLocation = payload.location
         }
 
-        let persistenceTask = submitMemoTask
         let memoID = payload.memo.id
         let memoDate = payload.memo.created
         let memoVaultRoot = payload.vaultRoot
+        // Enqueue immediately after the append, before another user action
+        // can reserve the next position in the shared persistence sequence.
+        let persistence = enqueueMemoPersistence {
+            try RawStorage.mutate(for: memoDate, vaultRoot: memoVaultRoot) { current in
+                current.filter { $0.id != memoID }
+            }
+        }
         submissionUndoTask = Task { @MainActor [weak self] in
-            // Wait for the durable append so removal is ordered after it.
-            // Optional metadata enrichment runs separately and safely aborts
-            // when this memo id is no longer present.
-            await persistenceTask?.value
-            let failure: String? = await Task.detached(priority: .userInitiated) {
-                do {
-                    try RawStorage.mutate(for: memoDate, vaultRoot: memoVaultRoot) { current in
-                        current.filter { $0.id != memoID }
-                    }
-                    return nil
-                } catch {
-                    return error.localizedDescription
-                }
-            }.value
+            let failure = await persistence.value
             if let failure, let self {
                 self.submitError = String(
                     format: NSLocalizedString("error.memo.undo_failed", comment: ""),
@@ -1101,6 +1256,7 @@ final class TodayViewModel: ObservableObject {
     /// integration tests deterministic; normal UI remains optimistic.
     func waitForSubmissionUndo() async {
         await submissionUndoTask?.value
+        await waitForMemoPersistence()
     }
 
     /// Await the latest durable append without waiting for optional location
@@ -1108,6 +1264,7 @@ final class TodayViewModel: ObservableObject {
     /// the next test's temporary vault.
     func waitForSubmissionPersistence() async {
         await submitMemoTask?.value
+        await waitForMemoPersistence()
     }
 
     /// Ends the five-second submit-undo window without changing persisted data.

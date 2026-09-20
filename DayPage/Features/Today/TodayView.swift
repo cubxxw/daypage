@@ -100,6 +100,7 @@ struct TodayView: View {
     /// Per-scene UserDefaults key for the draft backup mirror. See
     /// `draftBackupSceneID` for the multi-window rationale.
     private var draftBackupKey: String { "today.draftText.backup.\(draftBackupSceneID)" }
+    private var recoveryBackupKey: String { "\(draftBackupKey).recoveryURL" }
 
     /// Whether to show the Daily Page sheet.
     @State private var showDailyPage: Bool = false
@@ -377,6 +378,7 @@ struct TodayView: View {
                     // LocationDraftCard, todayFocusRow, orbHero,
                     // selectionToolbar) is NOT part of the slot.
                     statusSlotSection
+                    recoveryBanner
 
                     // Canvas vNext (2026-07-14): the focus chips, OnThisDay
                     // card and orbHero used to be pinned HERE — outside the
@@ -601,16 +603,12 @@ struct TodayView: View {
                                     .foregroundColor(DSColor.onError)
                                     .accessibilityLabel(err)
 
-                                if let retryBody = viewModel.lastFailedBody, !retryBody.isEmpty {
+                                if viewModel.lastFailedBody != nil, !viewModel.recoverableDrafts.isEmpty {
                                     Button {
                                         Haptics.soft()
-                                        // Keep the body around for ANOTHER
-                                        // failure: submitCombinedMemo will
-                                        // re-stamp lastFailedBody on error.
-                                        viewModel.submitError = nil
-                                        viewModel.submitCombinedMemo(body: retryBody)
+                                        restoreInflightDraft()
                                     } label: {
-                                        Text(NSLocalizedString("submit.error.retry", comment: "Retry submit"))
+                                        Text(NSLocalizedString("today.recovery.restore", comment: "Restore unsaved draft"))
                                             .font(DSFonts.inter(size: 12, weight: .semibold, relativeTo: .caption))
                                             .foregroundColor(DSColor.onError)
                                             .padding(.horizontal, 10)
@@ -620,8 +618,9 @@ struct TodayView: View {
                                             )
                                     }
                                     .buttonStyle(.plain)
+                                    .disabled(!canRestoreInflightDraft)
                                     .accessibilityIdentifier("submit-error-retry")
-                                    .accessibilityLabel(NSLocalizedString("submit.error.retry", comment: "Retry submit"))
+                                    .accessibilityLabel(NSLocalizedString("today.recovery.restore", comment: "Restore unsaved draft"))
                                 }
                             }
                                 .padding(.horizontal, 16)
@@ -702,6 +701,65 @@ struct TodayView: View {
             }
     }
 
+    private var canRestoreInflightDraft: Bool {
+        draftText.isEmpty && viewModel.pendingAttachments.isEmpty
+            && viewModel.pendingLocation == nil && viewModel.activeRecoveryDraft == nil
+    }
+
+    @ViewBuilder
+    private var recoveryBanner: some View {
+        if !viewModel.recoverableDrafts.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 12) {
+                    Text(String(format: NSLocalizedString("today.recovery.count", comment: "Unsaved record count"), viewModel.recoverableDrafts.count))
+                        .font(DSType.bodySM)
+                        .foregroundColor(DSColor.inkPrimary)
+                    Spacer(minLength: 0)
+                    Button(action: restoreInflightDraft) {
+                        Text(NSLocalizedString("today.recovery.restore", comment: "Restore unsaved draft"))
+                            .font(DSType.labelSM)
+                    }
+                    .frame(minHeight: 44)
+                    .disabled(!canRestoreInflightDraft)
+                    .accessibilityIdentifier("today.recovery.restore")
+                }
+                if !canRestoreInflightDraft {
+                    Text(NSLocalizedString("today.recovery.current_draft", comment: "Keep current composer before restoring another record"))
+                        .font(DSType.labelSM)
+                        .foregroundColor(DSColor.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(DSColor.surfaceSunken)
+            .accessibilityIdentifier("today.recovery.banner")
+        }
+    }
+
+    private func restoreInflightDraft() {
+        guard let body = viewModel.restoreNextInflightDraft(composerBody: draftText) else { return }
+        draftText = body
+        // Commit the association in the same turn as staging. A relaunch can
+        // rebind the composer without creating a different recovery record.
+        if let entry = viewModel.activeRecoveryDraft {
+            UserDefaults.standard.set(entry.url.absoluteString, forKey: recoveryBackupKey)
+        }
+        viewModel.submitError = nil
+        showWriteSheet = true
+    }
+
+    private func submitComposer(closeSheet: Bool = false) {
+        let body = draftText
+        guard viewModel.submitCombinedMemo(body: body) else { return }
+        draftText = ""
+        UserDefaults.standard.removeObject(forKey: draftBackupKey)
+        UserDefaults.standard.removeObject(forKey: recoveryBackupKey)
+        if closeSheet { showWriteSheet = false }
+        showUndoPill(for: body)
+        announceMemoSaved()
+    }
+
     /// 所有生命周期/状态监听 hook（onAppear / onChange / onReceive）。
     @ViewBuilder
     private func applyLifecycleHooks(_ content: some View) -> some View {
@@ -741,6 +799,11 @@ struct TodayView: View {
                 updateVoiceQueueBanner(count: voiceQueue.pendingCount)
                 showDraftRestoredBannerIfNeeded()
                 applyLaunchPresentationFlags()
+                if let storedURL = UserDefaults.standard.string(forKey: recoveryBackupKey),
+                   let url = URL(string: storedURL),
+                   let restored = viewModel.resumeInflightDraft(at: url, composerBody: draftText) {
+                    draftText = restored
+                }
                 if InputBarTutorialOverlay.shouldShow {
                     showTutorial = true
                 }
@@ -754,6 +817,13 @@ struct TodayView: View {
             }
             .onChange(of: draftText) { _ in
                 persistDraftMirror(snapshot: draftText)
+            }
+            .onChange(of: viewModel.activeRecoveryDraft?.url) { url in
+                if let url {
+                    UserDefaults.standard.set(url.absoluteString, forKey: recoveryBackupKey)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: recoveryBackupKey)
+                }
             }
             .onChange(of: voiceQueue.pendingCount) { count in
                 updateVoiceQueueBanner(count: count)
@@ -827,21 +897,11 @@ struct TodayView: View {
                     viewModel.shouldShowSettings = false
                 }
             }
-            // Restore failed draft body into the composer so the user can retry.
-            // Only restores when the composer is empty — never clobbers a new draft.
+            // A failed save remains in the durable recovery queue. The user
+            // chooses when to restore it; a newer composer and its backup stay intact.
             .onChange(of: viewModel.lastFailedBody) { failedBody in
-                guard let body = failedBody else { return }
-                viewModel.lastFailedBody = nil
-                // R4-B2: clear UserDefaults backup mirror together with the
-                // failure-restore path. The restored body has now flowed back
-                // into `draftText`, which is itself mirrored to the backup on
-                // every keystroke — but if the user dismisses without typing,
-                // the stale backup would survive next launch.
-                UserDefaults.standard.removeObject(forKey: draftBackupKey)
-                guard draftText.isEmpty else { return }
-                draftText = body
-                orbFocusToggle.toggle()
-                Haptics.warn()
+                guard failedBody != nil else { return }
+                viewModel.recoverInflightDrafts()
             }
             // R8 — wake the top OnThisDayCard as soon as the OnThisDayIndex
             // finishes its first-launch scan. Without this hook, the index
@@ -2786,11 +2846,7 @@ struct TodayView: View {
             },
             onPressToTalkSend: { result in
                 viewModel.addVoiceAttachment(result: result)
-                let body = draftText
-                draftText = ""
-                viewModel.submitCombinedMemo(body: body)
-                showUndoPill(for: body)
-                announceMemoSaved()
+                submitComposer()
             },
             onPressToTalkTranscribe: { transcript in
                 if draftText.isEmpty {
@@ -2801,11 +2857,7 @@ struct TodayView: View {
             },
             onAddFile: { viewModel.startFilePicker() },
             onSubmit: {
-                let body = draftText
-                draftText = ""
-                viewModel.submitCombinedMemo(body: body)
-                showUndoPill(for: body)
-                announceMemoSaved()
+                submitComposer()
             },
             // On an empty day, the hero already presents the same Today Coach
             // destination as a named CTA. Hiding the duplicate sparkle leaves
@@ -2839,18 +2891,15 @@ struct TodayView: View {
             WriteSheetView(
                 text: $draftText,
                 onSave: {
-                    let body = draftText
-                    draftText = ""
-                    showWriteSheet = false
-                    viewModel.submitCombinedMemo(body: body)
-                    showUndoPill(for: body)
-                    announceMemoSaved()
+                    submitComposer(closeSheet: true)
                 },
                 onClose: { showWriteSheet = false },
                 onDiscard: {
                     // Explicit, confirmed discard — the ONLY path that
                     // destroys the draft. Plain close keeps everything.
                     draftText = ""
+                    viewModel.discardActiveInflightDraft()
+                    UserDefaults.standard.removeObject(forKey: recoveryBackupKey)
                     viewModel.clearPendingAttachments()
                 },
                 pendingLocation: viewModel.pendingLocation,
@@ -2873,12 +2922,7 @@ struct TodayView: View {
                 onCapturePhoto: { viewModel.startCameraCapture() },
                 onPressToTalkSend: { result in
                     viewModel.addVoiceAttachment(result: result)
-                    let body = draftText
-                    draftText = ""
-                    showWriteSheet = false
-                    viewModel.submitCombinedMemo(body: body)
-                    showUndoPill(for: body)
-                    announceMemoSaved()
+                    submitComposer(closeSheet: true)
                 },
                 onStartVoiceRecording: { viewModel.startVoiceRecording() },
                 onPressToTalkTranscribe: { transcript in
@@ -2889,12 +2933,7 @@ struct TodayView: View {
                     }
                 },
                 onSubmit: {
-                    let body = draftText
-                    draftText = ""
-                    showWriteSheet = false
-                    viewModel.submitCombinedMemo(body: body)
-                    showUndoPill(for: body)
-                    announceMemoSaved()
+                    submitComposer(closeSheet: true)
                 }
             )
             .transition(.opacity)

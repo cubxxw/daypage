@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run standalone Swift and shell regression scripts without failing fast. Pass
+# Run standalone Swift, Python and shell regressions without failing fast. Pass
 # one or more paths to select a subset, or --list to print the discovered set.
 
 set -uo pipefail
@@ -34,7 +34,7 @@ if ((${#TEST_FILES[@]} == 0)); then
     while IFS= read -r path; do
         TEST_FILES+=("$path")
     done < <(find "${REPO_ROOT}/scripts/tests" -maxdepth 1 -type f \
-        \( -name 'test_*.swift' -o -name 'test_*.sh' \) | LC_ALL=C sort)
+        \( -name 'test_*.swift' -o -name 'test_*.sh' -o -name 'test_*.py' \) | LC_ALL=C sort)
 fi
 
 if ((${#TEST_FILES[@]} == 0)); then
@@ -66,6 +66,7 @@ for file in "${TEST_FILES[@]}"; do
     case "${file}" in
         *.swift) TEST_COMMAND=("${SWIFT_COMMAND[@]}" "${file}") ;;
         *.sh) TEST_COMMAND=(bash "${file}") ;;
+        *.py) TEST_COMMAND=(python3 "${file}") ;;
         *)
             echo "Unsupported standalone test type: ${file}" >&2
             overall=1
