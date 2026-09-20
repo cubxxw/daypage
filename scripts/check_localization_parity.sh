@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # check_localization_parity.sh
 #
-# Verifies that en.lproj and zh-Hans.lproj Localizable.strings declare the
-# SAME set of keys. A key present in one locale but missing in the other makes
-# the missing locale fall back to rendering the raw key string in the UI
-# (e.g. the timeline showed `today.section.earlier` instead of "EARLIER").
+# Verifies localization integrity for the iOS app in two layers:
+#
+#   1. Parity — en.lproj and zh-Hans.lproj Localizable.strings declare the SAME
+#      set of keys. A key present in one locale but missing in the other makes
+#      the missing locale fall back to rendering the raw key string in the UI
+#      (e.g. the timeline showed `today.section.earlier` instead of "EARLIER").
+#      InfoPlist.strings and Info.plist usage descriptions are checked too.
+#
+#   2. Static references — delegated to scripts/localization_reference_check.py,
+#      which scans Swift call sites for literal keys (NSLocalizedString,
+#      LocalizedStringKey, String(localized:), Text(_:bundle:)) that are absent
+#      from BOTH locales, and compares format placeholders across locales.
+#      Parity alone cannot catch a key that both locale files are missing.
 #
 # Exit codes:
-#   0 — both locales declare an identical key set
-#   1 — drift detected (missing keys are printed per side)
+#   0 — parity holds and every static reference resolves
+#   1 — drift/missing reference detected (details are printed)
 #   2 — a strings file is missing or unreadable
 #
 # Usage: scripts/check_localization_parity.sh
@@ -101,9 +110,17 @@ if [ -n "$MISSING_USAGE_IN_ZH" ]; then
   FAIL=1
 fi
 
+# Static reference audit — a literal key used from Swift that exists in NEITHER
+# locale falls back to inline/raw copy. The helper also compares format
+# placeholders between the two locales. See its module docstring for the
+# detection heuristics and explicit dynamic-reference limitations.
+if ! python3 "$REPO_ROOT/scripts/localization_reference_check.py" --root "$REPO_ROOT" --en "$EN" --zh "$ZH"; then
+  FAIL=1
+fi
+
 if [ "$FAIL" -ne 0 ]; then
   echo ""
-  echo "Localization parity check FAILED. Add the missing keys to reach parity."
+  echo "Localization parity/reference check FAILED. Add the missing keys or fix placeholders."
   exit 1
 fi
 

@@ -75,6 +75,45 @@ final class MemoRecordStoreTests: XCTestCase {
         XCTAssertEqual(try RawStorage.read(for: day), [memo])
     }
 
+    func testTargetedFieldsPreserveBackgroundWritesAndCapturedVault() async throws {
+        let root = try XCTUnwrap(vaultURL)
+        let target = Memo(id: UUID(), created: day, body: "initial")
+        let background = Memo(id: UUID(), created: day.addingTimeInterval(10), body: "background")
+        try RawStorage.append(target, vaultRoot: root)
+        try RawStorage.append(background, vaultRoot: root)
+        let otherRoot = root.appendingPathComponent("another-vault")
+        VaultInitializer.testOverrideURL = otherRoot
+        let store = MemoRecordStore()
+        let pinnedAt = day.addingTimeInterval(20)
+        _ = try await store.updateBody(id: target.id, day: day, body: "latest", vaultRoot: root)
+        _ = try await store.setPinnedAt(id: target.id, day: day, pinnedAt: pinnedAt, vaultRoot: root)
+        let pinned = try await store.memo(id: target.id, day: day, vaultRoot: root)
+        XCTAssertEqual(pinned.body, "latest")
+        XCTAssertEqual(pinned.pinnedAt, pinnedAt)
+        XCTAssertEqual(try RawStorage.read(for: day, vaultRoot: root).first { $0.id == background.id }, background)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: otherRoot.path))
+        try await store.delete(id: target.id, day: day, vaultRoot: root)
+        try await store.restore(pinned, day: day, vaultRoot: root)
+        XCTAssertEqual(try RawStorage.read(for: day, vaultRoot: root).count, 2)
+    }
+
+    func testPinCannotResurrectDeletedRecordOrReplaceRemoteBody() async throws {
+        let target = Memo(id: UUID(), created: day, body: "local")
+        try RawStorage.append(target)
+        let store = MemoRecordStore()
+        _ = try await store.updateBody(id: target.id, day: day, body: "updated elsewhere")
+        let pinned = try await store.setPinnedAt(id: target.id, day: day, pinnedAt: day)
+        XCTAssertEqual(pinned.body, "updated elsewhere")
+        try await store.delete(id: target.id, day: day)
+        do {
+            _ = try await store.setPinnedAt(id: target.id, day: day, pinnedAt: nil)
+            XCTFail("Pinning a deleted ID must fail without resurrecting it")
+        } catch {
+            XCTAssertEqual(error as? MemoRecordStoreError, .notFound(target.id))
+        }
+        XCTAssertTrue(try RawStorage.read(for: day).isEmpty)
+    }
+
     func testCaptureAttachmentFilingIsSourceBoundAndIdempotent() throws {
         let memo = Memo(id: UUID(), created: day, body: "source")
         try RawStorage.rewrite([memo], for: day)

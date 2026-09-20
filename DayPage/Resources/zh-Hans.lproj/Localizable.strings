@@ -44,6 +44,9 @@
 
 /* v8 WriteSheet — bottom-sheet text composer */
 "write.sheet.close"          = "关闭";
+"write.sheet.discard.action" = "放弃草稿";
+"archive.mode.calendar" = "日历视图";
+"archive.mode.list" = "列表视图";
 "write.sheet.placeholder"    = "此刻在想什么？";
 "write.sheet.save"           = "保存";
 "write.sheet.done"           = "完成";
@@ -2054,3 +2057,119 @@
 "today.template.hint" = "将模板填入输入框";
 "settings.hub.system_access" = "系统访问";
 "settings.hub.system_access.summary" = "按需授权";
+
+/* ===== 本地化审计修复（2026-09-20）—— 两处 locale 均缺失的静态调用点 key ===== */
+/* Markdown 任务勾选 + 格式栏无障碍标签 */
+"markdown.task.done" = "已完成";
+"markdown.task.todo" = "未完成";
+"markdown.bar.bold" = "加粗";
+"markdown.bar.italic" = "斜体";
+"markdown.bar.strike" = "删除线";
+"markdown.bar.code" = "行内代码";
+"markdown.bar.bullet" = "列表";
+"markdown.bar.task" = "任务清单";
+"markdown.bar.quote" = "引用";
+
+/* 备忘详情 + 导航 */
+"memo.detail.nav.back" = "今日";
+"memo.detail.loading" = "正在加载备忘";
+"memo.detail.unavailable" = "这条备忘不可用";
+"memo.detail.delete.success" = "备忘已删除";
+"memo.detail.delete.undo" = "撤销";
+"memo.detail.delete.restored" = "备忘已恢复";
+"memo.detail.delete.restore_failed" = "无法恢复备忘";
+"common.error" = "错误";
+"photo.viewer.close" = "关闭图片";
+"daily.empty.no_raw.detail" = "该日的原始记录暂不可用。";
+
+/* 录音面板可见标签 */
+"recording.cancel" = "取消";
+"recording.transcribe" = "转文字";
+"recording.save" = "保存";
+
+/* 提醒预设 + 引导页提醒 */
+"settings.reminder.preset.once" = "每天一次";
+"settings.reminder.preset.thrice" = "每天三次";
+"settings.reminder.preset.custom" = "自定义";
+"settings.reminder.hub_hint" = "在「调度」中管理提醒";
+"settings.reminder.hub_hint.a11y" = "打开提醒管理";
+"onboarding.reminder.title" = "设置记录提醒";
+"onboarding.reminder.subtitle" = "DayPage 会在设定的时间发一条轻提醒，召唤你记一句。可随时在设置中更改或关闭。";
+"onboarding.reminder.once.detail" = "晚上提醒一次";
+"onboarding.reminder.thrice.detail" = "早、中、晚各一次（9:00 / 13:00 / 21:00）";
+"onboarding.reminder.enabling" = "正在开启…";
+"onboarding.reminder.enable" = "开启提醒";
+"onboarding.reminder.skip" = "暂不开启";
+
+/* 调度中心分区脚注 */
+"schedule.empty" = "还没有提醒。点右上角「＋」排一条，或在「问过去」里让 AI 帮你排。";
+"schedule.section.reminders.footer" = "点一条编辑；右滑删除；点级别芯片在「安静 / 重要」间切换。到点会发一条本地通知（灵动岛落点）召唤你记一句。";
+"schedule.section.frequency.footer" = "切换预设会替换上面的重复提醒。「自定义」保留你手动排的每一条。";
+"schedule.section.quiet.footer" = "静音时段内的重复提醒会自动跳过。跨午夜也支持（如 23:30–08:00）。";
+
+/* 设置 — 构建号、凭据、iCloud、Web 同步、提醒入口 */
+"settings.about.build" = "构建";
+"settings.apikey.edit.label" = "编辑 %@ 密钥";
+"settings.icloud.enable.hint" = "前往 iOS 设置开启 iCloud Drive";
+"settings.websync.key" = "Web 同步 API Key";
+"settings.websync.save.hint" = "保存并开始同步";
+"settings.websync.save.disabled_hint" = "请先填写 Web 地址和密钥";
+"settings.websync.pending_setup" = "%d 条等待完成设置";
+"settings.hub.reminders.summary.active" = "%d 条已开启";
+
+/* 语音引擎 + 记录状态 */
+"settings.voice.provider.doubao" = "豆包";
+"settings.voice.provider.whisper" = "Whisper";
+"settings.voice.provider.on_device" = "设备端识别";
+"voice.interruption.paused" = "录音已暂停 — 通话/Siri 结束后会自动恢复";
+"dockvoice.status.cancel" = "松手取消";
+"dockvoice.status.transcribe" = "松手转文字";
+"dockvoice.status.transcribing" = "正在转写";
+"dockvoice.status.recording" = "录音中";
+"dockvoice.hint.cancel" = "上滑取消";
+"dockvoice.hint.transcribe" = "左滑转文字";
+"dockvoice.hint.send" = "松手发送";
+"composer.location.resolving" = "已定位 · 解析地名中…";
+"composer.location.unknown" = "未知位置";
+
+/* 时间线、编译、同步队列 + 写作面板 */
+"today.timeline.delete.message" = "将永久删除 %1$d 条备忘，以及 %2$@ 的编译摘要。";
+"today.timeline.preview.moreMemos" = "+ 还有 %d 条";
+"today.compile.skipped_unchanged" = "内容没有变化，已跳过重新编译";
+"today.compile.foregroundRetry.success" = "昨日 Daily Page 已补齐编译";
+"compile.unlock.progress" = "还需 %d 条";
+"today.syncqueue.sheet.memo_row" = "memo";
+"write.sheet.destination" = "将保存至";
+
+/* 会话河预览 */
+"chat.river.preview.empty" = "这段对话还没有内容。";
+"chat.river.preview.moreTurns" = "+ 还有 %d 轮";
+
+/* 图谱 VoiceOver */
+"graph.node.a11y.full" = "实体：%1$@，出现 %2$lld 次";
+
+/* Apple 系统动作 — 隐私披露 + 回执 */
+"system_action.privacy.device_only" = "提案与执行结果仅保存在本机；Apple 数据不会进入云端账本。";
+"system_action.privacy.full_sync" = "已允许同步完整提案；系统返回值仍只保留有限摘要和不可逆哈希。";
+"system_action.privacy.policy_only" = "仅同步能力策略摘要；可执行字段和 Apple 数据留在本机。";
+"system_action.receipt.executor" = "执行设备 …%1$@ · %2$@";
+
+/* 引导页 — 粘贴 API Key 无障碍标签 */
+"onboarding.apikeys.paste.a11y" = "从剪贴板粘贴%@";
+
+/* 账户同步状态 */
+"account.sync.unverified.title" = "尚未确认同步";
+"account.sync.unverified.detail" = "本机记录已保存，完成同步检查后会更新状态。";
+"account.sync.failed.title" = "同步暂未完成";
+"account.sync.failed.detail" = "本机记录已保存，请重试同步。";
+"account.sync.failed.pull_detail" = "暂时无法获取其他设备的更新，请重试。";
+"account.sync.setup.title" = "同步尚未开启";
+"account.sync.setup.detail" = "同步设置需要检查，本机记录已保存。请查看账户错误提示。";
+
+/* 中断记录恢复 */
+"today.recovery.count" = "%d 条未保存的记录";
+"today.recovery.restore" = "恢复草稿";
+"today.recovery.current_draft" = "请先保存或丢弃当前草稿，再恢复下一条。";
+"today.recovery.conflict" = "这条记录已有不同内容。未保存的草稿仍已保留，请先检查原记录。";
+"today.recovery.invalid_attachment" = "附件路径无法安全恢复，草稿仍已保留。";
+"today.recovery.vault_changed" = "这份草稿或附件来自另一个资料库。请切回原资料库，移除在其他资料库添加的附件后再保存。";

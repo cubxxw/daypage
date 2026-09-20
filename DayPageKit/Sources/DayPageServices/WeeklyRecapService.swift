@@ -87,7 +87,10 @@ public final class WeeklyRecapService {
     /// Disk-backed implementation isolated from the MainActor singleton. Today
     /// loads this inside its existing detached read task, so reading the week's
     /// compiled Markdown files cannot stall a state commit or scroll frame.
-    public nonisolated static func scanEntries(referenceDate: Date = Date()) -> [WeeklyRecapEntry] {
+    public nonisolated static func scanEntries(
+        referenceDate: Date = Date(),
+        vaultRoot: URL = VaultInitializer.vaultURL
+    ) -> [WeeklyRecapEntry] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = AppSettings.currentTimeZone()
         calendar.firstWeekday = 2  // Monday — matches Archive calendar convention
@@ -97,7 +100,7 @@ public final class WeeklyRecapService {
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.timeZone = calendar.timeZone
 
-        let dailyDir = VaultInitializer.vaultURL.appendingPathComponent("wiki/daily")
+        let dailyDir = vaultRoot.appendingPathComponent("wiki/daily")
         let fm = FileManager.default
         let dates = WeeklyRecapRange.dates(referenceDate: referenceDate, calendar: calendar)
 

@@ -27,20 +27,20 @@ public actor MemoRecordStore {
 
     public init() {}
 
-    public func memo(id: UUID, day: Date) throws -> Memo {
-        guard let memo = try RawStorage.read(for: day).first(where: { $0.id == id }) else {
+    public func memo(id: UUID, day: Date, vaultRoot: URL = VaultInitializer.vaultURL) throws -> Memo {
+        guard let memo = try RawStorage.read(for: day, vaultRoot: vaultRoot).first(where: { $0.id == id }) else {
             throw MemoRecordStoreError.notFound(id)
         }
         return memo
     }
 
     @discardableResult
-    public func updateBody(id: UUID, day: Date, body: String) throws -> Memo {
+    public func updateBody(id: UUID, day: Date, body: String, vaultRoot: URL = VaultInitializer.vaultURL) throws -> Memo {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw MemoRecordStoreError.emptyBody }
 
         var result: Memo?
-        try RawStorage.mutate(for: day) { memos in
+        try RawStorage.mutate(for: day, vaultRoot: vaultRoot) { memos in
             guard let index = memos.firstIndex(where: { $0.id == id }) else { return nil }
             var updated = memos
             updated[index].body = body
@@ -51,23 +51,41 @@ public actor MemoRecordStore {
         return result
     }
 
-    public func delete(id: UUID, day: Date) throws {
-        var found = false
-        try RawStorage.mutate(for: day) { memos in
-            guard memos.contains(where: { $0.id == id }) else { return nil }
-            found = true
+    @discardableResult
+    public func delete(id: UUID, day: Date, vaultRoot: URL = VaultInitializer.vaultURL) throws -> Memo {
+        var deleted: Memo?
+        try RawStorage.mutate(for: day, vaultRoot: vaultRoot) { memos in
+            guard let latest = memos.first(where: { $0.id == id }) else { return nil }
+            deleted = latest
             return memos.filter { $0.id != id }
         }
-        guard found else { throw MemoRecordStoreError.notFound(id) }
+        guard let deleted else { throw MemoRecordStoreError.notFound(id) }
+        return deleted
     }
 
     /// Restores a previously deleted record without duplicating an ID that may
     /// already have been recreated by sync. The raw file keeps chronological
     /// order so every existing read surface receives the same stable sequence.
-    public func restore(_ memo: Memo, day: Date) throws {
-        try RawStorage.mutate(for: day) { memos in
+    public func restore(_ memo: Memo, day: Date, vaultRoot: URL = VaultInitializer.vaultURL) throws {
+        try RawStorage.mutate(for: day, vaultRoot: vaultRoot) { memos in
             guard !memos.contains(where: { $0.id == memo.id }) else { return nil }
             return (memos + [memo]).sorted { $0.created < $1.created }
         }
+    }
+
+    /// Changes only pin metadata on the latest record, preserving edits and
+    /// attachments written by other surfaces since the list was loaded.
+    @discardableResult
+    public func setPinnedAt(id: UUID, day: Date, pinnedAt: Date?, vaultRoot: URL = VaultInitializer.vaultURL) throws -> Memo {
+        var result: Memo?
+        try RawStorage.mutate(for: day, vaultRoot: vaultRoot) { memos in
+            guard let index = memos.firstIndex(where: { $0.id == id }) else { return nil }
+            var updated = memos
+            updated[index].pinnedAt = pinnedAt
+            result = updated[index]
+            return updated
+        }
+        guard let result else { throw MemoRecordStoreError.notFound(id) }
+        return result
     }
 }

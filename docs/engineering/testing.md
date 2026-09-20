@@ -30,6 +30,26 @@ pnpm --filter daypage-mcp-server test
 (cd agentry && go test ./... && go vet ./... && go build ./...)
 ```
 
+## iOS reliability regressions
+
+Use an isolated temporary Vault for mutation/recovery tests. Today persistence
+tests await `waitForMemoPersistence()` and submission completion before removing
+the Vault; `observeChanges: false` disables unrelated global notifications in
+unit fixtures. Simulator UI verification keeps normal observers enabled.
+
+- `TodayViewModelTests` and `MemoRecordStoreTests` cover ID-based mutation,
+  concurrent append preservation, ordered undo, captured Vault roots and failed
+  writes. Delete undo restores the record actually removed from disk.
+- `InflightDraftStoreTests` cover retained recovery records, occupied composers,
+  attachment-only recovery and exact acknowledgement after durable saves.
+- `RemoteApplyRecoveryTests` interrupt each durable conflict boundary and replay
+  from disk, including moved-day records and startup outbox reconciliation.
+- `AccountSyncStatusTests` distinguish an empty upload queue from a verified
+  push-and-pull pass, and cover failure, retry and restart.
+- `check-localization` checks locale parity, static dotted-key references and
+  supported printf placeholders. Dynamic keys and raw display text remain outside
+  this static check. Its fixture tests run in `check-scripts`.
+
 ## Evidence rules
 
 - Capture the exact command, working directory, environment identity, result, and

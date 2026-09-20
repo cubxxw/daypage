@@ -458,10 +458,9 @@ struct WriteSheetView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
-                NSLocalizedString(
-                    isDirty ? "write.sheet.discard.action" : "write.sheet.close",
-                    comment: "Close or discard the write sheet"
-                )
+                isDirty
+                    ? NSLocalizedString("write.sheet.discard.action", comment: "Discard the write sheet draft")
+                    : NSLocalizedString("write.sheet.close", comment: "Close the write sheet")
             )
         }
         .padding(.horizontal, 22)

@@ -290,14 +290,15 @@ struct AccountSheet: View {
                         .tracking(1.5)
                         .foregroundColor(DSColor.inkMuted)
                     Spacer()
-                    if syncQueue.pendingCount > 0 || authService.isNetworkUnavailable {
-                        Button("重试") {
+                    if accountSyncStatus.canRetry {
+                        Button(NSLocalizedString("submit.error.retry", comment: "Retry sync")) {
                             Task { await syncQueue.flushIfOnline() }
                         }
                         .font(DSType.labelSM)
                         .foregroundColor(DSColor.accentOnBg)
                         .disabled(syncQueue.isFlushingNow || authService.isNetworkUnavailable)
                         .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("account-sync-retry")
                     }
                 }
 
@@ -495,51 +496,83 @@ struct AccountSheet: View {
         }
     }
 
+    private var accountSyncStatus: AccountSyncStatus {
+        AccountSyncStatus.resolve(
+            isSignedIn: authService.session != nil,
+            isOffline: authService.isNetworkUnavailable,
+            isFlushing: syncQueue.isFlushingNow,
+            pendingCount: syncQueue.pendingCount,
+            health: syncQueue.syncHealth
+        )
+    }
+
     private var syncStatus: SyncStatusPresentation {
-        guard authService.session != nil else {
+        switch accountSyncStatus {
+        case .localOnly:
             return .init(
                 symbol: "externaldrive",
                 title: "只保存在这台设备",
                 detail: "登录后会自动上传现有待同步记录",
                 color: DSColor.inkSecondary
             )
-        }
-
-        if authService.isNetworkUnavailable {
+        case .offline(let pendingCount):
             return .init(
                 symbol: "wifi.slash",
                 title: "当前离线",
-                detail: syncQueue.pendingCount == 0
+                detail: pendingCount == 0
                     ? "恢复网络后会自动检查其他设备的更新"
-                    : "本机已保存 · \(syncQueue.pendingCount) 条等待同步",
+                    : "本机已保存 · \(pendingCount) 条等待同步",
                 color: DSColor.statusWarning
             )
-        }
-
-        if syncQueue.isFlushingNow {
+        case .syncing:
             return .init(
                 symbol: "arrow.triangle.2.circlepath",
                 title: "正在同步",
                 detail: "正在安全上传并获取其他设备的更新",
                 color: DSColor.accentOnBg
             )
-        }
-
-        if syncQueue.pendingCount > 0 {
+        case .failed(let failure):
+            let title: String
+            let detail: String
+            switch failure {
+            case .setup:
+                title = NSLocalizedString("account.sync.setup.title", comment: "Account sync setup failed")
+                detail = NSLocalizedString("account.sync.setup.detail", comment: "Account binding needs attention")
+            case .pull:
+                title = NSLocalizedString("account.sync.failed.title", comment: "Sync failed")
+                detail = NSLocalizedString("account.sync.failed.pull_detail", comment: "Remote changes could not be pulled")
+            case .other:
+                title = NSLocalizedString("account.sync.failed.title", comment: "Sync failed")
+                detail = NSLocalizedString("account.sync.failed.detail", comment: "Sync can be retried")
+            }
+            return .init(
+                symbol: "exclamationmark.icloud",
+                title: title,
+                detail: detail,
+                color: DSColor.statusWarning
+            )
+        case .pending(let count):
             return .init(
                 symbol: "icloud.and.arrow.up",
-                title: "\(syncQueue.pendingCount) 条等待同步",
+                title: "\(count) 条等待同步",
                 detail: "内容已经保存在本机，可安全关闭此页面",
                 color: DSColor.statusWarning
             )
+        case .unverified:
+            return .init(
+                symbol: "icloud",
+                title: NSLocalizedString("account.sync.unverified.title", comment: "Sync has not been verified yet"),
+                detail: NSLocalizedString("account.sync.unverified.detail", comment: "Waiting for a complete sync check"),
+                color: DSColor.inkSecondary
+            )
+        case .synced:
+            return .init(
+                symbol: "checkmark.icloud",
+                title: "已同步",
+                detail: "这个账户的设备会自动接收新记录",
+                color: DSColor.statusSuccess
+            )
         }
-
-        return .init(
-            symbol: "checkmark.icloud",
-            title: "已同步",
-            detail: "这个账户的设备会自动接收新记录",
-            color: DSColor.statusSuccess
-        )
     }
 }
 
